@@ -1,0 +1,31 @@
+
+# AI-OS ArrowEngine-Native Dependencies
+
+# Core Computation
+torch>=2.0.0
+numpy>=1.24.0
+
+# Data Structure & Storage
+pyarrow>=14.0.0
+networkx>=3.0
+zstandard>=0.22.0
+
+# Multimodal Processing
+Pillow>=10.0.0
+librosa>=0.10.0
+
+# System & Utilities
+psutil>=5.9.0
+PyYAML>=6.0
+
+# Optional: For model conversion only (not needed for runtime)
+# transformers>=4.30.0
+
+
+# Federation
+zeroconf>=0.39.0
+aiohttp>=3.9.0
+
+# Action Recording & Execution
+pynput>=1.7.0
+pyautogui>=0.9.54
