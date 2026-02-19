@@ -1,0 +1,546 @@
+# Expression & Presentation Layer Configuration
+# This file configures TTS, NLG, emotion, and visual generation settings
+# Copy this file to customize settings for your deployment
+
+# ============================================================================
+# Natural Language Generation (NLG) Configuration
+# ============================================================================
+nlg:
+  # Default backend: openai, anthropic, local, template
+  default_backend: "openai"
+  
+  # OpenAI Configuration
+  openai:
+    api_key: null  # Set via OPENAI_API_KEY environment variable
+    model: "gpt-4"
+    endpoint: "https://api.openai.com/v1"
+    temperature: 0.7
+    max_tokens: 500
+    timeout_seconds: 30
+    streaming: true
+  
+  # Anthropic Configuration (optional)
+  anthropic:
+    api_key: null  # Set via ANTHROPIC_API_KEY environment variable
+    model: "claude-3-sonnet-20240229"
+    endpoint: "https://api.anthropic.com/v1"
+    temperature: 0.7
+    max_tokens: 500
+    timeout_seconds: 30
+    streaming: true
+  
+  # Local Model Configuration (via Ollama)
+  local:
+    endpoint: "http://localhost:11434"
+    model: "qwen2.5:7b"
+    temperature: 0.7
+    max_tokens: 500
+    timeout_seconds: 60
+    streaming: true
+  
+  # Template Engine Fallback
+  template:
+    enabled: true
+    template_dir: "llm_compression/expression/nlg/templates"
+
+# ============================================================================
+# Text-to-Speech (TTS) Configuration
+# ============================================================================
+tts:
+  # Default backend: piper, coqui, azure, openai
+  default_backend: "piper"
+  
+  # Piper TTS Configuration (recommended for local, fast synthesis)
+  piper:
+    model_path: "~/.ai-os/models/piper"
+    default_voice: "en_US-lessac-medium"
+    sample_rate: 22050
+    streaming: true
+    cache_enabled: true
+    cache_max_size_mb: 100
+  
+  # Coqui TTS Configuration (optional, high quality)
+  coqui:
+    model_name: "tts_models/en/ljspeech/tacotron2-DDC"
+    vocoder_name: "vocoder_models/en/ljspeech/hifigan_v2"
+    sample_rate: 22050
+    streaming: true
+    use_cuda: false
+  
+  # Azure TTS Configuration (optional, cloud)
+  azure:
+    api_key: null  # Set via AZURE_SPEECH_KEY environment variable
+    region: "eastus"
+    default_voice: "en-US-JennyNeural"
+    sample_rate: 24000
+    streaming: true
+  
+  # OpenAI TTS Configuration (optional, cloud)
+  openai:
+    api_key: null  # Set via OPENAI_API_KEY environment variable
+    model: "tts-1"
+    default_voice: "alloy"
+    sample_rate: 24000
+    streaming: false
+  
+  # TTS Cache Configuration
+  cache:
+    enabled: true
+    max_size_mb: 100
+    eviction_policy: "fifo"  # fifo, lru, lfu
+
+# ============================================================================
+# Voice Presets Configuration
+# ============================================================================
+voices:
+  # English Voices
+  en:
+    default: "en_US-lessac-medium"
+    formal: "en_US-lessac-medium"
+    casual: "en_US-amy-medium"
+    technical: "en_US-lessac-medium"
+    empathetic: "en_GB-alba-medium"
+    playful: "en_US-amy-low"
+  
+  # Chinese Voices (requires Azure or specialized TTS)
+  zh:
+    default: "zh-CN-XiaoxiaoNeural"
+    formal: "zh-CN-YunxiNeural"
+    casual: "zh-CN-XiaoxiaoNeural"
+    technical: "zh-CN-YunyangNeural"
+    empathetic: "zh-CN-XiaoxiaoNeural"
+  
+  # Japanese Voices (requires Azure or specialized TTS)
+  ja:
+    default: "ja-JP-NanamiNeural"
+    formal: "ja-JP-KeitaNeural"
+    casual: "ja-JP-NanamiNeural"
+    technical: "ja-JP-KeitaNeural"
+    empathetic: "ja-JP-NanamiNeural"
+  
+  # Spanish Voices
+  es:
+    default: "es_ES-mls_10246-low"
+    formal: "es_ES-mls_9972-low"
+    casual: "es_ES-mls_10246-low"
+    technical: "es_ES-mls_9972-low"
+    empathetic: "es_MX-ald-medium"
+
+# ============================================================================
+# Emotion System Configuration
+# ============================================================================
+emotion:
+  # Enable emotion detection from user input
+  detection_enabled: false
+  
+  # Emotion-to-voice parameter mappings
+  mappings:
+    joy:
+      speed: 1.1
+      pitch: 1.1
+      volume: 1.0
+    
+    sadness:
+      speed: 0.9
+      pitch: 0.9
+      volume: 0.9
+    
+    anger:
+      speed: 1.2
+      pitch: 1.15
+      volume: 1.1
+    
+    fear:
+      speed: 1.15
+      pitch: 1.2
+      volume: 0.95
+    
+    surprise:
+      speed: 1.1
+      pitch: 1.15
+      volume: 1.05
+    
+    disgust:
+      speed: 0.95
+      pitch: 0.95
+      volume: 0.95
+    
+    trust:
+      speed: 1.0
+      pitch: 1.0
+      volume: 1.0
+    
+    anticipation:
+      speed: 1.05
+      pitch: 1.05
+      volume: 1.0
+    
+    neutral:
+      speed: 1.0
+      pitch: 1.0
+      volume: 1.0
+    
+    empathetic:
+      speed: 0.95
+      pitch: 0.98
+      volume: 0.95
+    
+    friendly:
+      speed: 1.05
+      pitch: 1.05
+      volume: 1.0
+  
+  # Default emotion intensity (0.0-1.0)
+  default_intensity: 0.5
+  
+  # Validate emotion consistency across modalities
+  validate_consistency: true
+
+# ============================================================================
+# Multi-language Support Configuration
+# ============================================================================
+language:
+  # Default language (ISO 639-1 code)
+  default: "en"
+  
+  # Supported languages
+  supported:
+    - "en"  # English
+    - "zh"  # Chinese
+    - "ja"  # Japanese
+    - "es"  # Spanish
+  
+  # Language-specific expression rules
+  rules:
+    en:
+      formality_default: 0.5
+      emotion_intensity_multiplier: 1.0
+      preferred_tts_backend: "piper"
+      voice_id: "en_US-lessac-medium"
+    
+    zh:
+      formality_default: 0.7  # Chinese tends to be more formal
+      emotion_intensity_multiplier: 0.8  # More subtle emotions
+      preferred_tts_backend: "azure"  # Better Chinese support
+      voice_id: "zh-CN-XiaoxiaoNeural"
+    
+    ja:
+      formality_default: 0.8  # Japanese is very formal
+      emotion_intensity_multiplier: 0.7
+      preferred_tts_backend: "azure"
+      voice_id: "ja-JP-NanamiNeural"
+    
+    es:
+      formality_default: 0.6
+      emotion_intensity_multiplier: 1.2  # More expressive
+      preferred_tts_backend: "piper"
+      voice_id: "es_ES-mls_10246-low"
+  
+  # Automatic language detection
+  auto_detect: true
+  
+  # Language consistency window (number of recent messages to consider)
+  consistency_window: 10
+
+# ============================================================================
+# Expression Style Presets
+# ============================================================================
+styles:
+  formal:
+    formality_level: 0.9
+    temperature: 0.5
+    emotion_intensity: 0.3
+    voice_speed: 1.0
+    voice_pitch: 1.0
+  
+  casual:
+    formality_level: 0.3
+    temperature: 0.8
+    emotion_intensity: 0.6
+    voice_speed: 1.05
+    voice_pitch: 1.02
+  
+  technical:
+    formality_level: 0.7
+    temperature: 0.4
+    emotion_intensity: 0.2
+    voice_speed: 0.95
+    voice_pitch: 1.0
+  
+  empathetic:
+    formality_level: 0.5
+    temperature: 0.7
+    emotion_intensity: 0.7
+    voice_speed: 0.95
+    voice_pitch: 0.98
+  
+  playful:
+    formality_level: 0.2
+    temperature: 0.9
+    emotion_intensity: 0.8
+    voice_speed: 1.1
+    voice_pitch: 1.08
+
+# ============================================================================
+# Response Planning Configuration
+# ============================================================================
+response_planning:
+  # Default output modality: text, speech, multimodal
+  default_modality: "text"
+  
+  # Enable speech output
+  enable_speech: true
+  
+  # Enable visual output (optional)
+  enable_visual: false
+  
+  # Streaming configuration
+  streaming:
+    enabled: true
+    text_threshold_chars: 200  # Stream if text longer than this
+    buffer_size: 1024
+    max_latency_ms: 100
+  
+  # Template usage
+  templates:
+    enabled: true
+    use_for_common_patterns: true
+    patterns:
+      - "greet"
+      - "farewell"
+      - "acknowledge"
+      - "error"
+
+# ============================================================================
+# Visual Generation Configuration (Optional)
+# ============================================================================
+visual:
+  # Enable visual generation
+  enabled: false
+  
+  # Default backend: stable_diffusion, dalle
+  default_backend: "stable_diffusion"
+  
+  # Stable Diffusion Configuration
+  stable_diffusion:
+    model_path: "~/.ai-os/models/stable-diffusion"
+    model_name: "stabilityai/stable-diffusion-2-1"
+    device: "cpu"  # cpu, cuda, mps
+    num_inference_steps: 50
+    guidance_scale: 7.5
+    image_size: 512
+  
+  # DALL-E Configuration
+  dalle:
+    api_key: null  # Set via OPENAI_API_KEY environment variable
+    model: "dall-e-3"
+    size: "1024x1024"
+    quality: "standard"  # standard, hd
+  
+  # Image cache
+  cache:
+    enabled: true
+    max_size_mb: 500
+    cache_dir: "~/.ai-os/cache/images"
+  
+  # Content safety
+  safety:
+    enabled: true
+    filter_unsafe_prompts: true
+    filter_unsafe_images: true
+
+# ============================================================================
+# Performance Configuration
+# ============================================================================
+performance:
+  # Target latencies (milliseconds)
+  targets:
+    text_generation_ms: 2000
+    speech_short_ms: 500  # For utterances <50 words
+    speech_streaming_ms: 150  # Initial latency for streaming
+    image_generation_ms: 10000
+  
+  # Memory limits
+  memory:
+    max_usage_mb: 2048
+    cache_limit_mb: 200
+  
+  # Batch processing
+  batch:
+    enabled: true
+    max_batch_size: 8
+    batch_timeout_ms: 100
+  
+  # Resource monitoring
+  monitoring:
+    enabled: true
+    log_metrics: true
+    metrics_interval_seconds: 60
+
+# ============================================================================
+# Error Handling and Fallbacks
+# ============================================================================
+error_handling:
+  # Fallback chain for TTS: primary -> secondary -> text-only
+  tts_fallback_chain:
+    - "piper"
+    - "template"
+    - "text_only"
+  
+  # Fallback chain for NLG: primary -> secondary -> template
+  nlg_fallback_chain:
+    - "openai"
+    - "local"
+    - "template"
+  
+  # Retry configuration
+  retry:
+    max_retries: 3
+    initial_delay_ms: 100
+    max_delay_ms: 5000
+    exponential_backoff: true
+  
+  # Timeout configuration
+  timeouts:
+    nlg_timeout_seconds: 30
+    tts_timeout_seconds: 10
+    visual_timeout_seconds: 60
+  
+  # Graceful degradation
+  degradation:
+    enabled: true
+    reduce_quality_under_load: true
+    prioritize_critical_outputs: true
+
+# ============================================================================
+# Privacy and Safety Configuration
+# ============================================================================
+privacy:
+  # Data logging
+  logging:
+    log_user_inputs: false
+    log_generated_outputs: true
+    log_sensitive_data: false
+    anonymize_logs: true
+  
+  # Local-only processing mode
+  local_only_mode: false
+  
+  # Voice sample encryption
+  voice_samples:
+    encrypt: true
+    encryption_algorithm: "AES-256"
+    storage_path: "~/.ai-os/voice_samples"
+  
+  # Content safety
+  content_safety:
+    enabled: true
+    filter_unsafe_content: true
+    moderation_backend: "openai"  # openai, local
+  
+  # Audit logging
+  audit:
+    enabled: false
+    log_path: "~/.ai-os/logs/expression_audit.log"
+    log_all_requests: true
+    log_safety_actions: true
+
+# ============================================================================
+# Integration Configuration
+# ============================================================================
+integration:
+  # ArrowEngine integration
+  arrow_engine:
+    enabled: true
+    use_embeddings: true
+    embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  
+  # LoRA system integration
+  lora:
+    enabled: false
+    adapter_path: "~/.ai-os/lora_adapters/expression"
+    use_personalized_styles: true
+  
+  # SensorManager integration
+  sensor_manager:
+    enabled: false
+    receive_context_updates: true
+    adapt_to_environment: true
+  
+  # ActionManager integration
+  action_manager:
+    enabled: false
+    coordinate_with_actions: true
+    synchronize_outputs: true
+
+# ============================================================================
+# Self-Evolving TTS Selection Configuration
+# ============================================================================
+self_evolution:
+  # Enable self-evolving TTS backend selection
+  enabled: false
+  
+  # Quality monitoring
+  monitoring:
+    track_mos_scores: true
+    track_latency: true
+    track_user_feedback: true
+    metrics_window_size: 100
+  
+  # Cognitive dissonance detection
+  dissonance:
+    enabled: true
+    quality_threshold: 0.85  # Trigger evolution if quality drops below this
+    latency_threshold_ms: 1000
+    feedback_threshold: 0.7
+  
+  # Backend evolution
+  evolution:
+    auto_switch_backends: true
+    evaluation_interval_seconds: 3600
+    min_samples_before_switch: 50
+  
+  # SkillDistiller integration (Phase 9)
+  skill_distiller:
+    enabled: false
+    endpoint: "http://localhost:8050"
+    trigger_on_dissonance: true
+  
+  # Personalized expression (LoRA-based)
+  personalization:
+    enabled: false
+    learn_user_style: true
+    min_conversations_before_learning: 10
+    adapter_update_interval_seconds: 86400  # 24 hours
+
+# ============================================================================
+# Environment Variable Overrides
+# ============================================================================
+# The following configuration items can be overridden via environment variables:
+#
+# NLG Configuration:
+# - OPENAI_API_KEY: OpenAI API key
+# - ANTHROPIC_API_KEY: Anthropic API key
+# - NLG_DEFAULT_BACKEND: Default NLG backend
+# - NLG_MODEL: Model name
+# - NLG_TEMPERATURE: Sampling temperature
+#
+# TTS Configuration:
+# - AZURE_SPEECH_KEY: Azure Speech API key
+# - AZURE_SPEECH_REGION: Azure region
+# - TTS_DEFAULT_BACKEND: Default TTS backend
+# - TTS_CACHE_ENABLED: Enable TTS cache
+#
+# Performance:
+# - EXPRESSION_MAX_MEMORY_MB: Maximum memory usage
+# - EXPRESSION_BATCH_SIZE: Batch processing size
+#
+# Privacy:
+# - EXPRESSION_LOCAL_ONLY: Enable local-only mode
+# - EXPRESSION_LOG_SENSITIVE: Log sensitive data
+#
+# Example:
+# export OPENAI_API_KEY=sk-...
+# export TTS_DEFAULT_BACKEND=piper
+# export EXPRESSION_LOCAL_ONLY=true
+# python your_script.py

@@ -1,0 +1,2 @@
+{"timestamp": 1708368000.0, "relative_time": 0.0, "action": "move", "params": {"x": 500, "y": 500}, "state": null}
+{"timestamp": 1708368000.5, "relative_time": 0.5, "action": "move", "params": {"x": 600, "y": 600}, "state": null}

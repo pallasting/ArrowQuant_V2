@@ -1,0 +1,44 @@
+{
+  "system": {
+    "os": "Windows",
+    "os_version": "10.0.28000",
+    "cpu": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+    "cpu_cores_physical": 12,
+    "cpu_cores_logical": 16,
+    "ram_gb": 15.73,
+    "python_version": "3.14.2",
+    "torch_version": "2.10.0+cpu"
+  },
+  "capabilities": {
+    "cuda_available": false,
+    "cuda_details": null,
+    "xpu_available": false,
+    "xpu_details": null,
+    "mps_available": false,
+    "vulkan_available": false,
+    "is_amd_gpu": false,
+    "ipex_installed": false,
+    "intel_amx_available": false
+  },
+  "benchmarks": {
+    "cpu": {
+      "avg_latency_ms": 48.35,
+      "throughput_seq_sec": 20.68
+    }
+  },
+  "recommendations": {
+    "best_backend": "cpu",
+    "actions": [
+      {
+        "issue": "Intel CPU detected but IPEX not installed",
+        "action": "pip install intel-extension-for-pytorch",
+        "benefit": "Significant AMX/AVX-512 acceleration on CPU"
+      },
+      {
+        "issue": "Primary compute is CPU",
+        "action": "Use 4-bit Vector Space Compression for long-term storage",
+        "benefit": "Reduces memory bandwidth bottleneck"
+      }
+    ]
+  }
+}

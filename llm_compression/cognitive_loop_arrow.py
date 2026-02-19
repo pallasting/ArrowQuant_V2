@@ -23,11 +23,6 @@ import logging
 
 from llm_compression.cognitive_loop import CognitiveLoop, CognitiveResult
 from llm_compression.embedding_provider import EmbeddingProvider, get_default_provider
-# Legacy import kept for backward compatibility
-try:
-    from llm_compression.embedder_arrow import LocalEmbedderArrow as _LocalEmbedderArrow
-except ImportError:
-    _LocalEmbedderArrow = None
 from llm_compression.network_navigator_arrow import NetworkNavigatorArrow, ActivationResultArrow
 from llm_compression.expression_layer import MultiModalExpressor, ExpressionResult
 from llm_compression.internal_feedback import InternalFeedbackSystem, QualityScore, Correction
@@ -36,8 +31,6 @@ from llm_compression.arrow_zero_copy import (
     get_embeddings_buffer,
     compute_similarity_zero_copy
 )
-from llm_compression.embedder_cache import EmbedderCache
-from llm_compression.embedder_adaptive import AdaptiveEmbedder
 from llm_compression.batch_optimizer import MemoryBatchProcessor
 
 logger = logging.getLogger(__name__)
@@ -114,27 +107,9 @@ class CognitiveLoopArrow:
         # 优化配置
         self.enable_optimizations = enable_optimizations
         
-        # 1. 模型缓存优化
-        if enable_optimizations and embedder_arrow is None:
-            # 预加载模型到缓存（仅当使用默认 LocalEmbedder 时）
-            EmbedderCache.preload_model()
-            logger.info("Model cache optimization enabled")
-        
-        # 2. 自适应 Embedder
-        if enable_optimizations and embedder_arrow is None:
-            self.adaptive_embedder = AdaptiveEmbedder(
-                small_scale_threshold=adaptive_threshold,
-                enable_stats=True
-            )
-            # 使用 LocalEmbedderProvider 包装自适应 embedder
-            from llm_compression.embedding_provider import LocalEmbedderProvider
-            self.embedder_arrow: EmbeddingProvider = LocalEmbedderProvider(self.adaptive_embedder.embedder)
-            logger.info(f"Adaptive embedder enabled (threshold={adaptive_threshold})")
-        else:
-            self.embedder_arrow: EmbeddingProvider = embedder_arrow or get_default_provider()
-            self.adaptive_embedder = None
-            if enable_optimizations:
-                logger.info("Adaptive embedder skipped as explicit embedder_arrow was provided")
+        # 1. 模型缓存优化 & 2. 自适应 Embedder 现已弃用，统一使用 ArrowEngineProvider
+        self.adaptive_embedder = None
+        self.embedder_arrow: EmbeddingProvider = embedder_arrow or get_default_provider()
         
         # 3. 批量处理优化
         if enable_optimizations:
@@ -608,15 +583,7 @@ class CognitiveLoopArrow:
             'optimizations_enabled': self.enable_optimizations
         }
 
-        # 模型缓存信息
-        if self.enable_optimizations:
-            cache_info = EmbedderCache.get_cache_info()
-            stats['cache_info'] = cache_info
-
-        # 自适应 Embedder 统计
-        if self.adaptive_embedder is not None:
-            adaptive_stats = self.adaptive_embedder.get_stats()
-            stats['adaptive_stats'] = adaptive_stats
+        # 模型缓存与自适应 Embedder 统计已弃用
 
         # 批量处理统计
         if self.batch_processor is not None:

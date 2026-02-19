@@ -25,11 +25,6 @@ from llm_compression.batch_processor import BatchProcessor
 from llm_compression.compressor import MemoryType
 from llm_compression.arrow_zero_copy import compute_similarity_zero_copy
 from llm_compression.embedding_provider import EmbeddingProvider, get_default_provider
-# Legacy import kept for backward compatibility
-try:
-    from llm_compression.embedder_arrow import LocalEmbedderArrow as _LocalEmbedderArrow
-except ImportError:
-    _LocalEmbedderArrow = None
 
 logger = logging.getLogger(__name__)
 

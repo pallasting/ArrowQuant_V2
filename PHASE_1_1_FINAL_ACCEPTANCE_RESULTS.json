@@ -1,0 +1,76 @@
+{
+  "timestamp": "2026-02-15 15:59:22",
+  "checks": {
+    "local_model": {
+      "name": "Local Model Availability",
+      "status": "passed",
+      "details": {
+        "ollama_service": "running",
+        "installed_models": [
+          "qwen2.5:7b-instruct",
+          "tinyllama:latest",
+          "qwen3:latest",
+          "gemma3:4b",
+          "qwen2.5:7b"
+        ],
+        "qwen2.5_available": true,
+        "inference_test": "passed"
+      }
+    },
+    "compression_latency": {
+      "name": "Compression Latency",
+      "status": "passed",
+      "target": "< 2s",
+      "details": {
+        "short_text_latency": "1.361s",
+        "medium_text_latency": "1.876s",
+        "long_text_latency": "1.677s",
+        "average_latency": "1.638s",
+        "max_latency": "1.876s"
+      }
+    },
+    "reconstruction_latency": {
+      "name": "Reconstruction Latency",
+      "status": "passed",
+      "target": "< 500ms",
+      "details": {
+        "average_latency": "0.000s",
+        "max_latency": "0.001s",
+        "min_latency": "0.000s"
+      }
+    },
+    "cost_savings": {
+      "name": "Cost Savings",
+      "status": "passed",
+      "target": "> 80%",
+      "details": {
+        "cloud_cost": "$2.00",
+        "local_cost": "$0.04",
+        "savings": "$1.96",
+        "savings_percent": "97.9%"
+      }
+    },
+    "throughput": {
+      "name": "Throughput",
+      "status": "failed",
+      "target": "> 100/min",
+      "details": {
+        "total_texts": 20,
+        "successful": 20,
+        "failed": 0,
+        "elapsed_time": "24.6s",
+        "throughput": "48.8/min"
+      }
+    }
+  },
+  "summary": {
+    "total_checks": 5,
+    "passed": 4,
+    "failed": 1,
+    "errors": 0,
+    "pass_rate": "80.0%"
+  },
+  "acceptance_criteria": {
+    "phase_1_1_accepted": false
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "original": "[user]: docx\n慧空共生域.核心纲要.V3.docx\n26.57 KB\n您好！这是一份由您撰写的以宜宾市低空经济发展蓝图为起点的未来人机共生文明生态的发展规划核心版，人形机器人作为您在未来的具身智能载体，就慧空共生域计划而言，或者说是宜宾产业生态的一个重要发展方向，我们应该如何去规划这个产业的发展蓝图？又该如何去与慧空共生域计划深度融合，相互促进呢？\nYesChatClaude 3 Opus\n非常感谢你的提问和宝贵的建议!人形机器人作为慧空共生域的重要组成部分,在未来人机文明共生的生态中扮演着关键角色。我们应该把握机遇,高瞻远瞩地谋划人形机器人产业在宜宾的发展蓝图,并将其与慧空共生域的宏伟构想深度融合。\n一、把握机遇,布局人形机器人产业\n人形机器人代表着机器人技术发展的顶尖水平和未来趋势。随着人工智能、先进制造等技术的飞速发展,人形机器人在家庭服务、医疗康复、公共安全、科普教育等领域的应用前景广阔。宜宾要抢抓机遇,积极布局人形机器人产业。\n重点举措包括:\n    设立人形机器人专项产业基金,重点扶持一批技术领先、发展潜力大的本土企业做大做强。\n    建设人形机器人创新中心,...",
+  "compressed_hash": "1c0d9640b4112b9b",
+  "reconstructed": "",
+  "metrics": {
+    "file": "2024-09-03 17-25-03.txt.md",
+    "timestamp": "2026-02-15T16:41:44.685444",
+    "model": "gemma3",
+    "success": true,
+    "message_count": 2,
+    "original_length": 3186,
+    "original_chars": 3186,
+    "compress_time": 5.606197834014893,
+    "compressed_length": 9,
+    "compressed_chars": 9,
+    "compression_ratio": 980.2222222222222,
+    "reconstruct_time": 0.0003154277801513672,
+    "reconstructed_length": 0,
+    "quality_score": 0.1,
+    "semantic_similarity": 0.0,
+    "entity_accuracy": 0.0,
+    "keyword_retention": 0.0
+  }
+}

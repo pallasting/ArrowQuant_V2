@@ -1,0 +1,57 @@
+# ArrowEngine Embedding Service Configuration
+# 
+# This configuration file controls the EmbeddingTool behavior
+# for AI-OS memory compression and LLM workflows.
+
+# Service endpoint configuration
+service:
+  # ArrowEngine API endpoint
+  endpoint: "http://localhost:8000"
+  
+  # Request timeout in seconds
+  timeout: 30.0
+  
+  # Maximum number of retry attempts
+  max_retries: 3
+
+# Batching configuration
+batching:
+  # Maximum batch size for embedding requests
+  # Larger batches = better throughput, but more memory usage
+  batch_size: 32
+  
+  # Whether to normalize embeddings to unit vectors
+  # Recommended: true for similarity computations
+  normalize: false
+
+# Caching configuration
+cache:
+  # Enable LRU caching for embeddings
+  # Significantly speeds up repeated queries
+  enabled: true
+  
+  # Maximum number of embeddings to cache
+  # Each entry stores one embedding vector (~1.5KB for 384D)
+  max_size: 1000
+
+# AI-OS integration settings
+ai_os:
+  # Enable automatic batching for large memory collections
+  auto_batch: true
+  
+  # Enable health check before operations
+  health_check: true
+  
+  # Retry failed requests
+  retry_on_failure: true
+
+# Logging configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  
+  # Log cache statistics
+  log_cache_stats: true
+  
+  # Log API request details
+  log_requests: false

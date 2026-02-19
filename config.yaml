@@ -1,0 +1,37 @@
+llm:
+  cloud_endpoint: http://localhost:8045
+  cloud_api_key: null
+  timeout: 30.0
+  max_retries: 3
+  rate_limit: 60
+model:
+  prefer_local: true
+  local_endpoints:
+    step-flash: http://localhost:8046
+    minicpm: http://localhost:8047
+    stable-diffcoder: http://localhost:8048
+    intern-s1: http://localhost:8049
+  quality_threshold: 0.85
+compression:
+  min_compress_length: 100
+  max_tokens: 100
+  temperature: 0.3
+  auto_compress_threshold: 100
+storage:
+  storage_path: ~/.ai-os/memory/
+  compression_level: 3
+  use_float16: true
+performance:
+  batch_size: 16
+  max_concurrent: 4
+  cache_size: 10000
+  cache_ttl: 3600
+monitoring:
+  enable_prometheus: false
+  prometheus_port: 9090
+  alert_quality_threshold: 0.85
+hardware:
+  preferred_backend: cpu
+  use_ipex: true
+  enable_4bit_vector_compression: true
+  profile_path: hardware_profile.json

@@ -1,0 +1,124 @@
+2026-02-19 06:22:07 - llm_compression - INFO - Intel CPU optimizations enabled:
+2026-02-19 06:22:07,821 - llm_compression - INFO - Intel CPU optimizations enabled:
+2026-02-19 06:22:07 - llm_compression - INFO -   - Intra-op threads: 12
+2026-02-19 06:22:07 - llm_compression - INFO -   - Inter-op threads: 2
+2026-02-19 06:22:07 - llm_compression - INFO -   - MKL-DNN: True
+2026-02-19 06:22:07,821 - llm_compression - INFO -   - Intra-op threads: 12
+2026-02-19 06:22:07,821 - llm_compression - INFO -   - Inter-op threads: 2
+2026-02-19 06:22:07,822 - llm_compression - INFO -   - MKL-DNN: True
+2026-02-19 06:22:07 - llm_compression - INFO - Initialized on CPU (cpu)
+2026-02-19 06:22:07,833 - llm_compression - INFO - Initialized on CPU (cpu)
+2026-02-19 06:22:07 - llm_compression - INFO - Initialized WeightLoader for M:\Documents\ai-os-memory\models\minilm\weights.parquet
+2026-02-19 06:22:07,866 - llm_compression - INFO - Initialized WeightLoader for M:\Documents\ai-os-memory\models\minilm\weights.parquet
+2026-02-19 06:22:13 - llm_compression - INFO - Loaded Arrow table in 6015.08ms (memory_map=True)
+2026-02-19 06:22:13,882 - llm_compression - INFO - Loaded Arrow table in 6015.08ms (memory_map=True)
+2026-02-19 06:22:13 - llm_compression - INFO - Loaded 103 layers in 6071.29ms
+2026-02-19 06:22:13,938 - llm_compression - INFO - Loaded 103 layers in 6071.29ms
+2026-02-19 06:22:13 - llm_compression - INFO - Total parameters: 22,713,216, Memory: 43.32MB
+2026-02-19 06:22:13 - llm_compression - INFO - Loaded 103 weight tensors
+2026-02-19 06:22:13,938 - llm_compression - INFO - Total parameters: 22,713,216, Memory: 43.32MB
+2026-02-19 06:22:13,938 - llm_compression - INFO - Loaded 103 weight tensors
+2026-02-19 06:22:14 - llm_compression - INFO - Loaded Rust tokenizer: tokenizer.json
+2026-02-19 06:22:14,101 - llm_compression - INFO - Loaded Rust tokenizer: tokenizer.json
+2026-02-19 06:22:14 - llm_compression - INFO - Initialized FastTokenizer from M:\Documents\ai-os-memory\models\minilm\tokenizer
+2026-02-19 06:22:14,101 - llm_compression - INFO - Initialized FastTokenizer from M:\Documents\ai-os-memory\models\minilm\tokenizer
+2026-02-19 06:22:14 - llm_compression - INFO - Loaded tokenizer with max_length=256
+2026-02-19 06:22:14,101 - llm_compression - INFO - Loaded tokenizer with max_length=256
+2026-02-19 06:22:14,393 - llm_compression - INFO - Initialized InferenceCore on cpu: hidden=384, layers=6, heads=12, intermediate=1536
+2026-02-19 06:22:14 - llm_compression - INFO - Initialized InferenceCore on cpu: hidden=384, layers=6, heads=12, intermediate=1536
+2026-02-19 06:22:14 - llm_compression - INFO - InferenceCore: hidden=384, layers=6, heads=12, intermediate=1536
+2026-02-19 06:22:14,404 - llm_compression - INFO - InferenceCore: hidden=384, layers=6, heads=12, intermediate=1536
+2026-02-19 06:22:14 - llm_compression - INFO - LoRA Router initialized.
+2026-02-19 06:22:14,449 - llm_compression - INFO - LoRA Router initialized.
+2026-02-19 06:22:14,449 - llm_compression - INFO - ArrowEngine loaded in 6582.16ms
+2026-02-19 06:22:14,449 - llm_compression - INFO - Model: sentence-transformers/all-MiniLM-L6-v2
+2026-02-19 06:22:14 - llm_compression - INFO - ArrowEngine loaded in 6582.16ms
+2026-02-19 06:22:14 - llm_compression - INFO - Model: sentence-transformers/all-MiniLM-L6-v2
+2026-02-19 06:22:14,449 - llm_compression - INFO - Embedding dimension: 384
+2026-02-19 06:22:14,449 - llm_compression - INFO - Device: cpu
+2026-02-19 06:22:14 - llm_compression - INFO - Embedding dimension: 384
+2026-02-19 06:22:14 - llm_compression - INFO - Device: cpu
+2026-02-19 06:22:14 - llm_compression.evolution.lora_trainer - INFO - Model prepared for training. Rank=8
+2026-02-19 06:22:14,494 - llm_compression.evolution.lora_trainer - INFO - Model prepared for training. Rank=8
+2026-02-19 06:22:14 - llm_compression.evolution.skill_factory - INFO - Factory task added: medical_basics_v1 (ID: 38fcaf40)
+2026-02-19 06:22:14,572 - llm_compression.evolution.skill_factory - INFO - Factory task added: medical_basics_v1 (ID: 38fcaf40)
+2026-02-19 06:22:14,572 - TestSkillFactory - INFO - Task added: 38fcaf40
+2026-02-19 06:22:14 - llm_compression.evolution.skill_factory - INFO - Factory executing task: medical_basics_v1 (train_dataset)
+2026-02-19 06:22:14,572 - llm_compression.evolution.skill_factory - INFO - Factory executing task: medical_basics_v1 (train_dataset)
+2026-02-19 06:22:14 - llm_compression.evolution.skill_factory - INFO - Skill Factory worker started.
+2026-02-19 06:22:14,572 - llm_compression.evolution.skill_factory - INFO - Skill Factory worker started.
+2026-02-19 06:22:14 - llm_compression.evolution.lora_trainer - INFO - Starting training for 'medical_basics_v1' with 3 examples.
+2026-02-19 06:22:14,647 - llm_compression.evolution.lora_trainer - INFO - Starting training for 'medical_basics_v1' with 3 examples.
+2026-02-19 06:22:14 - llm_compression.evolution.skill_factory - ERROR - Task 38fcaf40 FAILED: optimizer got an empty parameter list
+2026-02-19 06:22:14,648 - llm_compression.evolution.skill_factory - ERROR - Task 38fcaf40 FAILED: optimizer got an empty parameter list
+2026-02-19 06:22:15,073 - TestSkillFactory - INFO - Task final status: failed
+2026-02-19 06:22:15,073 - TestSkillFactory - ERROR - Task error: optimizer got an empty parameter list
+
+F2026-02-19 06:22:15,336 - llm_compression - WARNING - Could not set inter-op threads (already initialized)
+==================== TASK FAILED: optimizer got an empty parameter list ====================
+
+2026-02-19 06:22:15 - llm_compression - WARNING - Could not set inter-op threads (already initialized)
+2026-02-19 06:22:15 - llm_compression - INFO - Intel CPU optimizations enabled:
+2026-02-19 06:22:15,336 - llm_compression - INFO - Intel CPU optimizations enabled:
+2026-02-19 06:22:15,337 - llm_compression - INFO -   - Intra-op threads: 12
+2026-02-19 06:22:15 - llm_compression - INFO -   - Intra-op threads: 12
+2026-02-19 06:22:15 - llm_compression - INFO -   - Inter-op threads: 2
+2026-02-19 06:22:15,337 - llm_compression - INFO -   - Inter-op threads: 2
+2026-02-19 06:22:15 - llm_compression - INFO -   - MKL-DNN: True
+2026-02-19 06:22:15,337 - llm_compression - INFO -   - MKL-DNN: True
+2026-02-19 06:22:15 - llm_compression - INFO - Initialized on CPU (cpu)
+2026-02-19 06:22:15,348 - llm_compression - INFO - Initialized on CPU (cpu)
+2026-02-19 06:22:15 - llm_compression - INFO - Initialized WeightLoader for M:\Documents\ai-os-memory\models\minilm\weights.parquet
+2026-02-19 06:22:15,363 - llm_compression - INFO - Initialized WeightLoader for M:\Documents\ai-os-memory\models\minilm\weights.parquet
+2026-02-19 06:22:15 - llm_compression - INFO - Loaded Arrow table in 98.16ms (memory_map=True)
+2026-02-19 06:22:15,461 - llm_compression - INFO - Loaded Arrow table in 98.16ms (memory_map=True)
+2026-02-19 06:22:15 - llm_compression - INFO - Loaded 103 layers in 131.32ms
+2026-02-19 06:22:15 - llm_compression - INFO - Total parameters: 22,713,216, Memory: 43.32MB
+2026-02-19 06:22:15 - llm_compression - INFO - Loaded 103 weight tensors
+2026-02-19 06:22:15,495 - llm_compression - INFO - Loaded 103 layers in 131.32ms
+2026-02-19 06:22:15,495 - llm_compression - INFO - Total parameters: 22,713,216, Memory: 43.32MB
+2026-02-19 06:22:15,495 - llm_compression - INFO - Loaded 103 weight tensors
+2026-02-19 06:22:15 - llm_compression - INFO - Loaded Rust tokenizer: tokenizer.json
+2026-02-19 06:22:15,533 - llm_compression - INFO - Loaded Rust tokenizer: tokenizer.json
+2026-02-19 06:22:15,533 - llm_compression - INFO - Initialized FastTokenizer from M:\Documents\ai-os-memory\models\minilm\tokenizer
+2026-02-19 06:22:15 - llm_compression - INFO - Initialized FastTokenizer from M:\Documents\ai-os-memory\models\minilm\tokenizer
+2026-02-19 06:22:15,533 - llm_compression - INFO - Loaded tokenizer with max_length=256
+2026-02-19 06:22:15 - llm_compression - INFO - Loaded tokenizer with max_length=256
+2026-02-19 06:22:15 - llm_compression - INFO - Initialized InferenceCore on cpu: hidden=384, layers=6, heads=12, intermediate=1536
+2026-02-19 06:22:15,735 - llm_compression - INFO - Initialized InferenceCore on cpu: hidden=384, layers=6, heads=12, intermediate=1536
+2026-02-19 06:22:15 - llm_compression - INFO - InferenceCore: hidden=384, layers=6, heads=12, intermediate=1536
+2026-02-19 06:22:15,746 - llm_compression - INFO - InferenceCore: hidden=384, layers=6, heads=12, intermediate=1536
+2026-02-19 06:22:15 - llm_compression - INFO - LoRA Router initialized.
+2026-02-19 06:22:15,746 - llm_compression - INFO - LoRA Router initialized.
+2026-02-19 06:22:15 - llm_compression - INFO - ArrowEngine loaded in 409.02ms
+2026-02-19 06:22:15,746 - llm_compression - INFO - ArrowEngine loaded in 409.02ms
+2026-02-19 06:22:15 - llm_compression - INFO - Model: sentence-transformers/all-MiniLM-L6-v2
+2026-02-19 06:22:15,746 - llm_compression - INFO - Model: sentence-transformers/all-MiniLM-L6-v2
+2026-02-19 06:22:15 - llm_compression - INFO - Embedding dimension: 384
+2026-02-19 06:22:15,746 - llm_compression - INFO - Embedding dimension: 384
+2026-02-19 06:22:15 - llm_compression - INFO - Device: cpu
+2026-02-19 06:22:15,746 - llm_compression - INFO - Device: cpu
+2026-02-19 06:22:15 - llm_compression.evolution.lora_trainer - INFO - Model prepared for training. Rank=8
+2026-02-19 06:22:15,791 - llm_compression.evolution.lora_trainer - INFO - Model prepared for training. Rank=8
+2026-02-19 06:22:15,864 - llm_compression.evolution.skill_factory - INFO - Factory task added: persisted_task (ID: 68fda0d4)
+2026-02-19 06:22:15 - llm_compression.evolution.skill_factory - INFO - Factory task added: persisted_task (ID: 68fda0d4)
+2026-02-19 06:22:15 - llm_compression.evolution.lora_trainer - INFO - Model prepared for training. Rank=8
+2026-02-19 06:22:15,914 - llm_compression.evolution.lora_trainer - INFO - Model prepared for training. Rank=8
+.
+======================================================================
+FAIL: test_factory_pipeline (__main__.TestSkillFactory.test_factory_pipeline)
+Test the full task lifecycle: Pending -> Running -> Completed.
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "M:\Documents\ai-os-memory\tests\integration\test_skill_factory.py", line 98, in test_factory_pipeline
+    self.assertEqual(task.status, "completed")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'failed' != 'completed'
+- failed
++ completed
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 15.976s
+
+FAILED (failures=1)

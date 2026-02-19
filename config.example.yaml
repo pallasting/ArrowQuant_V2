@@ -1,0 +1,96 @@
+# LLM 集成压缩系统配置文件示例
+# 复制此文件为 config.yaml 并根据需要修改
+
+# LLM 客户端配置
+llm:
+  # 云端 API 端点（Phase 1.0）
+  cloud_endpoint: "http://localhost:8045"
+  cloud_api_key: null  # 如果需要 API key，在这里设置
+  timeout: 30.0  # 请求超时（秒）
+  max_retries: 3  # 最大重试次数
+  rate_limit: 60  # 速率限制（请求/分钟）
+
+# 模型选择配置
+model:
+  # 是否优先使用本地模型（Phase 1.1）
+  prefer_local: true
+  
+  # Ollama 服务端点
+  ollama_endpoint: "http://localhost:11434"
+  
+  # 本地模型端点映射（可选，默认使用 ollama_endpoint）
+  local_endpoints:
+    qwen2.5: "http://localhost:11434"    # Qwen2.5-7B (主力模型)
+    llama3.1: "http://localhost:11434"   # Llama 3.1 8B (备选)
+    gemma3: "http://localhost:11434"     # Gemma 3 4B (轻量级)
+  
+  # 质量阈值（低于此值建议切换模型）
+  quality_threshold: 0.85
+
+# 压缩配置
+compression:
+  # 最小压缩长度（字符数）
+  min_compress_length: 100
+  
+  # LLM 生成的最大 token 数
+  max_tokens: 100
+  
+  # 采样温度（0-1，越低越确定）
+  temperature: 0.3
+  
+  # 自动压缩阈值（字符数）
+  auto_compress_threshold: 100
+
+# 存储配置
+storage:
+  # 存储路径
+  storage_path: "~/.ai-os/memory/"
+  
+  # zstd 压缩级别（1-22，越高压缩比越大但速度越慢）
+  compression_level: 3
+  
+  # 是否使用 float16 存储 embedding（节省 50% 空间）
+  use_float16: true
+
+# 性能配置
+performance:
+  # 批量处理大小
+  batch_size: 16
+  
+  # 最大并发数
+  max_concurrent: 4
+  
+  # 缓存大小（条目数）
+  cache_size: 10000
+  
+  # 缓存 TTL（秒）
+  cache_ttl: 3600
+
+# 监控配置
+monitoring:
+  # 是否启用 Prometheus 指标导出
+  enable_prometheus: false
+  
+  # Prometheus 端口
+  prometheus_port: 9090
+  
+  # 质量告警阈值
+  alert_quality_threshold: 0.85
+
+# 环境变量覆盖说明：
+# 以下配置项可以通过环境变量覆盖：
+# - LLM_CLOUD_ENDPOINT: 云端 API 端点
+# - LLM_CLOUD_API_KEY: 云端 API key
+# - LLM_TIMEOUT: 请求超时
+# - LLM_MAX_RETRIES: 最大重试次数
+# - LLM_RATE_LIMIT: 速率限制
+# - MODEL_PREFER_LOCAL: 是否优先使用本地模型
+# - OLLAMA_ENDPOINT: Ollama 服务端点
+# - STORAGE_PATH: 存储路径
+# - BATCH_SIZE: 批量处理大小
+# - MAX_CONCURRENT: 最大并发数
+#
+# 示例：
+# export MODEL_PREFER_LOCAL=true
+# export OLLAMA_ENDPOINT=http://localhost:11434
+# python your_script.py

@@ -1,0 +1,9 @@
+GPU Backend Test Results - Sun Feb 15 06:20:18 UTC 2026
+================================================
+ROCm_Detection: PASS
+PyTorch_ROCm: FAIL
+Vulkan_Detection: PASS
+OpenCL_Detection: PASS
+Ollama_ROCm: PASS
+Ollama_Inference: PASS
+Ollama_Vulkan: PASS

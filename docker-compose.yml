@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  arrowengine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: arrowengine
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount model directory
+      - ./models:/app/models:ro
+      # Mount logs directory
+      - ./logs:/app/logs
+    environment:
+      # Model configuration
+      - MODEL_PATH=/app/models/minilm
+      - DEVICE=cpu
+      
+      # API configuration
+      - PORT=8000
+      - API_KEY=${API_KEY:-}
+      
+      # Logging configuration
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      
+      # Performance tuning
+      - WORKERS=4
+      - MAX_BATCH_SIZE=32
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    restart: unless-stopped
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
+
+networks:
+  default:
+    name: arrowengine-network

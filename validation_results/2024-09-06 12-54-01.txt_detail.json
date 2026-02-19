@@ -1,0 +1,24 @@
+{
+  "original": "[user]: pdf\n低空经济(低空数据存储与处理平台)-中科院软件所-丁治明.pdf\n2.45 MB\npdf\n揭榜挂帅专家评审会流程及评分细则.pdf\n801.40 KB\ndocx\n宜宾市“揭榜挂帅”新型研发机构“江源行动” 申报指南.docx\n19.33 KB\n你好！根据宜宾揭榜挂帅的评分规则及申报指南的要求，低空经济的这份申报方案你认为可打几分？技术层面以及涉及评分的其他内容是否还有可以进一步完善的空间？\nYesChatClaude 3 Opus\n根据宜宾市新型研发机构揭榜挂帅的申报指南和评审标准,我对该低空经济时空感知大数据平台项目申报方案进行分析和打分如下:\n一、团队基础(25分)\n该项目依托中科院软件所等知名科研单位,拥有院士1人、国家杰青2人等高水平领军人才,团队成员有较好的研发合作基础和技术互补性,满足硕士及以上人才占比要求。但申报方案对团队产业专家的职业背景和产业化经验描述不够详细。\n评估得分:20分\n二、项目创新性(25分)\n该项目拟突破多源异构时空数据建模、矢量提取、实时多级存储与索引等关键技术,研发国内领先的时空感知大数据平台,填补低空经济领域技术空白,创新性...",
+  "compressed_hash": "46307fb3f5b672db",
+  "reconstructed": "",
+  "metrics": {
+    "file": "2024-09-06 12-54-01.txt.md",
+    "timestamp": "2026-02-15T16:42:01.058792",
+    "model": "gemma3",
+    "success": true,
+    "message_count": 6,
+    "original_length": 9436,
+    "original_chars": 9436,
+    "compress_time": 10.680664300918579,
+    "compressed_length": 9,
+    "compressed_chars": 9,
+    "compression_ratio": 2744.4444444444443,
+    "reconstruct_time": 0.0005042552947998047,
+    "reconstructed_length": 0,
+    "quality_score": 0.1,
+    "semantic_similarity": 0.0,
+    "entity_accuracy": 0.0,
+    "keyword_retention": 0.0
+  }
+}

@@ -1,0 +1,47 @@
+{"timestamp": 1771531053.0610456, "relative_time": 3.3256418704986572, "action": "click", "params": {"x": 671, "y": 1760, "button": "left"}}
+{"timestamp": 1771531054.8830552, "relative_time": 5.1476404666900635, "action": "click", "params": {"x": 848, "y": 1761, "button": "left"}}
+{"timestamp": 1771531056.194913, "relative_time": 6.459498405456543, "action": "click", "params": {"x": 712, "y": 1753, "button": "left"}}
+{"timestamp": 1771531059.0134406, "relative_time": 9.278026103973389, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.3000166, "relative_time": 9.564602136611938, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.5039725, "relative_time": 9.768557786941528, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.5820167, "relative_time": 9.846601963043213, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.615281, "relative_time": 9.879866600036621, "action": "click", "params": {"x": 757, "y": 1641, "button": "left"}}
+{"timestamp": 1771531059.6580298, "relative_time": 9.922614574432373, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.7271326, "relative_time": 9.99171781539917, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.7864885, "relative_time": 10.051074266433716, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.8275766, "relative_time": 10.092161893844604, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.8644767, "relative_time": 10.129077672958374, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.8933165, "relative_time": 10.157902002334595, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531059.9564395, "relative_time": 10.221024990081787, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.0109785, "relative_time": 10.275564193725586, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.0441213, "relative_time": 10.308706998825073, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.0891905, "relative_time": 10.353775978088379, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.121624, "relative_time": 10.38620924949646, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.1612487, "relative_time": 10.42583417892456, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.20265, "relative_time": 10.467235565185547, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.2361944, "relative_time": 10.500779628753662, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.2774303, "relative_time": 10.542015552520752, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.3117306, "relative_time": 10.576315879821777, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.3445807, "relative_time": 10.609166145324707, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.3813303, "relative_time": 10.645915508270264, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.414602, "relative_time": 10.679187536239624, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.4490101, "relative_time": 10.713598728179932, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.4839523, "relative_time": 10.748539447784424, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.529704, "relative_time": 10.794289588928223, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.5881672, "relative_time": 10.852752447128296, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.6367323, "relative_time": 10.901318073272705, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.671561, "relative_time": 10.936146259307861, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.7083058, "relative_time": 10.972891330718994, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.740718, "relative_time": 11.005303144454956, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.7747736, "relative_time": 11.039359092712402, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.8068137, "relative_time": 11.071398735046387, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.839618, "relative_time": 11.104203701019287, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.8722327, "relative_time": 11.136817932128906, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.9408, "relative_time": 11.205385446548462, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531060.9771788, "relative_time": 11.241764545440674, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531061.0161076, "relative_time": 11.28069281578064, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531061.0773947, "relative_time": 11.34197998046875, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531061.1083438, "relative_time": 11.372929334640503, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531061.1380887, "relative_time": 11.402673959732056, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531061.1713047, "relative_time": 11.435890197753906, "action": "press", "params": {"key": "ctrl_l"}}
+{"timestamp": 1771531061.2055244, "relative_time": 11.470109701156616, "action": "press", "params": {"key": "ctrl_l"}}

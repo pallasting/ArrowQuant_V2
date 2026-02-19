@@ -1,0 +1,27 @@
+Environment Validation Results - Sun Feb 15 06:19:09 UTC 2026
+================================================
+OS: Ubuntu 25.10
+Kernel: 6.17.0-12-generic
+AMD_GPU: Detected
+AMD_MI50: Confirmed
+ROCm_Version: 7.2.0
+rocm-smi: Success
+GPU_Architecture:   Name:                    Intel(R) Xeon(R) Gold 6138 CPU @ 2.00GHz
+GFX_Version:   Name:                    gfx906                             
+Vulkan: Available
+OpenCL: Available
+Intel_QAT: Detected (2 devices)
+QAT_Driver: Loaded
+QAT_Service: Not running
+Python: Python 3.13.7
+PyTorch: 2.10.0+cu128
+PyTorch_GPU: Not available
+Ollama: Installed - ollama version is 0.15.2
+Ollama_Service: Running
+vLLM: Not installed
+Total_RAM: 
+Available_RAM: 
+Disk_Space: 51G
+GPU_Memory: 
+Internet: Not connected
+HuggingFace: Accessible

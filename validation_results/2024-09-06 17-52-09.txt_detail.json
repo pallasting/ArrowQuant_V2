@@ -1,0 +1,24 @@
+{
+  "original": "[user]: 你好！你了解Sony曾经的产品AIBO吗？从具身人工智能陪伴的角度来说，目前市场上有哪些类似或更好的同类产品？\nYesChatClaude 3.5 Haiku\n您好!我很乐意为您介绍索尼AIBO机器狗,并分析当前市场上的类似产品。\n索尼AIBO是一款具有开创性意义的智能机器宠物:\n    AIBO最初于1999年推出,是当时最先进的消费级人工智能产品之一。它能通过摄像头和麦克风与人交互,展现了早期AI技术的潜力。\n    尽管价格高昂(初代售价25万日元),但AIBO仍受到热烈欢迎,首批3000只在20分钟内售罄。这反映了人们对AI伴侣的强烈兴趣。\n    在2006年停产前,AIBO总共售出约15万台。许多用户将它视为家庭成员,而非简单的电子产品。\n    2017年,索尼重启AIBO项目并推出新一代产品。新版AIBO具备更强的AI能力,可以识别100张人脸,通过云端学习新技能。\n从具身AI陪伴的角度来看,目前市场上有一些类似或更先进的产品:\n    华硕Zenbo家庭机器人:具备语音交互、家庭安防、远程监控等功能,更像一个移动的智能管家。\n    Jibo社交机器人...",
+  "compressed_hash": "b0e1238da98adbfe",
+  "reconstructed": "",
+  "metrics": {
+    "file": "2024-09-06 17-52-09.txt.md",
+    "timestamp": "2026-02-15T16:42:23.274372",
+    "model": "gemma3",
+    "success": true,
+    "message_count": 5,
+    "original_length": 5731,
+    "original_chars": 5731,
+    "compress_time": 8.44660472869873,
+    "compressed_length": 9,
+    "compressed_chars": 9,
+    "compression_ratio": 1409.4444444444443,
+    "reconstruct_time": 0.0005669593811035156,
+    "reconstructed_length": 0,
+    "quality_score": 0.11081174612045289,
+    "semantic_similarity": 0.027029365301132202,
+    "entity_accuracy": 0.0,
+    "keyword_retention": 0.0
+  }
+}

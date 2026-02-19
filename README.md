@@ -1,133 +1,113 @@
-# AI-OS Memory System
+# AI-OS: Self-Evolving Intelligent Memory System
 
-**Status**: Prototype Phase (Week 1)  
-**Related**: [OpenClaw](../openclaw) - Personal AI Assistant  
-**Design Docs**: [AI-OS Architecture](../openclaw/docs/AI-OS/)
+**Version**: 2.0 (Arrow-Native + Embodied Action)
+**Status**: Stable / Feature Complete
 
-## Vision
+AI-OS is a next-generation operating system memory layer that evolves with the user. It combines high-performance vector retrieval, multimodal perception, and embodied action capabilities.
 
-Revolutionary memory system with extreme compression (100-1000x) using:
-- **Generative Memory**: LLM parameters as compressed world knowledge
-- **Scene Replay**: 3D scene generation + action sequences (like game recordings)
-- **Privacy Layers**: Hierarchical access control
+## 🚀 Key Features
 
-## Core Hypothesis
+### 1. **Arrow-Native Memory Engine** (Phase 2-6)
+- **Zero-Copy Retrieval**: Powered by Apache Arrow and PyArrow.
+- **Lightning Fast**: <5ms inference latency, >2000 queries/sec throughput.
+- **Hybrid Storage**: Hierarchical storage of raw data (Parquet) and embeddings (Faiss/Arrow).
 
-> "LLM parameters already contain consensus knowledge. We only need to store the 'diff' - what makes this memory unique."
+### 2. **Self-Evolving Intelligence** (Phase 7-9)
+- **Fluid Intelligence (LoRA)**: Adapts to new tasks by learning lightweight "Skill Cards".
+- **Federated Learning**: Share skills across devices via decentralized Flight RPC.
+- **Cognitive Dissonance**: Automatically triggers learning when the model is confused.
 
-**Example**:
-- Traditional: Store full conversation (1 MB)
-- Generative: Store summary + diff (1 KB) → **1000x compression**
+### 3. **Multimodal Perception** (Phase 10-11)
+- **Vision**: "Eyes" that see the desktop and webcam (OpenCV).
+- **Audio**: "Ears" that listen and process command (SoundDevice).
+- **Proprioception**: Self-awareness of CPU/RAM/Battery state.
 
-## Architecture
-
-```
-┌─────────────────────────────────────┐
-│     Human/AI Hybrid Consciousness   │
-└──────────────┬──────────────────────┘
-               │
-┌──────────────┴──────────────────────┐
-│          Agent Core                 │
-│  - Reasoning Engine                 │
-│  - Intent Parser                    │
-│  - Resource Scheduler               │
-└──────────────┬──────────────────────┘
-               │
-        ┌──────┴──────┐
-        │             │
-        ▼             ▼
-┌──────────────┐  ┌──────────────┐
-│ Local Memory │  │ Cloud Memory │
-│  (Arrow)     │◄─┤  (Arrow)     │
-│ - Core       │  │ - Long-term  │
-│ - Working    │  │ - Shared     │
-└──────────────┘  └──────────────┘
-```
-
-## Quick Start
-
-```bash
-# Setup environment
-python3 -m venv venv
-source venv/bin/activate
-pip install -r prototype/requirements.txt
-
-# Run compression tests
-cd prototype
-pytest tests/ -v
-
-# Run benchmarks
-python benchmarks/compression_benchmark.py
-```
-
-## Project Structure
-
-```
-ai-os-memory/
-├── prototype/              # Python prototype (Phase 0-1)
-│   ├── memory_core.py     # Arrow storage engine
-│   ├── generative.py      # Generative memory
-│   ├── scene_replay.py    # Scene replay memory
-│   ├── tests/             # Unit tests
-│   ├── benchmarks/        # Performance tests
-│   └── data/              # Test data
-├── rust-core/             # Rust implementation (Phase 2)
-├── integration/           # OpenClaw integration (Phase 3)
-└── docs/                  # Additional documentation
-```
-
-## Roadmap
-
-### Phase 0: Core Validation (Week 1) ← **Current**
-- [x] Project setup
-- [ ] Arrow storage validation
-- [ ] Generative memory compression test
-- [ ] Scene replay prototype
-- [ ] Benchmark report
-
-### Phase 1: Tech Stack Validation (Week 2-3)
-- [ ] PyArrow performance profiling
-- [ ] DuckDB query optimization
-- [ ] HNSW vector search integration
-- [ ] Polars DataFrame operations
-
-### Phase 2: Integration Design (Week 4)
-- [ ] OpenClaw integration points
-- [ ] API design
-- [ ] Plugin architecture
-
-### Phase 3: Production Implementation (Month 2+)
-- [ ] Rust core engine
-- [ ] OpenClaw plugin
-- [ ] Cloud sync (Arrow Flight)
-
-## Performance Targets
-
-| Metric | Target | Status |
-|--------|--------|--------|
-| Compression Ratio | 100-1000x | Testing |
-| Retrieval Latency | < 100ms | Testing |
-| Storage Efficiency | < 1KB/memory | Testing |
-| Reconstruction Quality | > 90% | Testing |
-
-## Technology Stack
-
-- **Storage**: Apache Arrow + Parquet
-- **Vector Search**: HNSW (hnswlib)
-- **Query Engine**: DuckDB
-- **DataFrame**: Polars
-- **LLM**: Anthropic Claude / OpenAI GPT
-- **Future**: Rust (PyO3 bindings)
-
-## License
-
-MIT (same as OpenClaw)
-
-## Contributing
-
-This is an experimental research project. Contributions welcome after Phase 0 validation.
+### 4. **Embodied Action** (Phase 12-13)
+- **Autonomous Agent**: Integrated OODA Loop (Observe-Orient-Decide-Act).
+- **"Watch & Do"**: Learn by watching user demonstrations (Imitation Learning).
+- **Safety Sandbox**: Restricted action space to prevent system damage.
 
 ---
 
-**Last Updated**: 2026-02-13  
-**Next Milestone**: Compression validation results
+## 📦 Quick Start
+
+### 1. Prerequisites
+- Python 3.10+
+- Recommended: NVIDIA GPU (CUDA) or Intel CPU (AVX512) for acceleration.
+- Ollama (for LLM reasoning): `ollama serve`
+
+### 2. Installation
+```bash
+# Clone and enter
+git clone https://github.com/ai-os/memory.git
+cd ai-os-memory
+
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate  # Windows
+source venv/bin/activate # Linux/Mac
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 3. Run the Autonomous Agent
+Launch the agent with a natural language goal:
+```bash
+python scripts/run_agent.py "Wait for 10 seconds"
+```
+
+To enable Vision (Webcam):
+```bash
+python scripts/run_agent.py "Describe what you see" --vision
+```
+
+### 4. Run the Dashboard
+Visualize the system's "thought process":
+```bash
+python dashboard_server.py
+# Open http://localhost:8000/dashboard.html
+```
+
+---
+
+## 📚 Documentation
+
+### Core Guides
+- [**Quick Start Guide**](QUICK_START_GUIDE.md): Detailed setup instructions.
+- [**Architecture Overview**](LORA_ARCHITECTURE_AND_STATUS.md): Deep dive into the system design.
+- [**Agent Usage**](AGENT_USAGE.md): How to use the Autonomous Agent.
+
+### Developer API
+- [**ArrowEngine API**](docs/ARROW_API_REFERENCE.md): Vector database and inference.
+- [**Multimodal API**](docs/MULTIMODAL_COMPLETE_GUIDE.md): Vision and Audio sensors.
+
+### Status Reports
+- [**Phase 1-2**](docs/PHASE_2.0_PERFORMANCE_BENCHMARK_REPORT.md): Initial optimizations.
+- [**Phase 12**](docs/TASK_12_COMPLETION_FINAL.md): Embodied Action implementation.
+
+---
+
+## 🛠 Project Structure
+
+```
+ai-os-memory/
+├── llm_compression/
+│   ├── agent/           # Autonomous Agent (Phase 13)
+│   ├── action/          # Action Manager (Phase 12)
+│   ├── evolution/       # Self-Evolution / LoRA (Phase 9)
+│   ├── federation/      # Decentralized Sharing (Phase 8)
+│   ├── inference/       # ArrowEngine Core (Phase 2-7)
+│   ├── multimodal/      # Vision/Audio Processing (Phase 11)
+│   └── sensors/         # Hardware Sensors
+├── scripts/             # Utility scripts (run_agent, record_demo, etc.)
+├── docs/                # Comprehensive documentation
+├── tests/               # Unit and Integration tests
+└── config/              # Configuration files
+```
+
+## 🤝 Contributing
+Contributions are welcome! Please read `docs/CONTRIBUTING.md` (Coming Soon).
+
+## 📄 License
+MIT License

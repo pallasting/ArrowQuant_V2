@@ -1,0 +1,34 @@
+============================================================
+  Knowledge Graph: Multi-Hop Reasoning Test
+============================================================
+Initialized new knowledge graph.
+[1] Building knowledge chain...
+Graph nodes: 10
+Graph edges: 13
+
+[2] Testing Multi-Hop Memory Retrieval for 'AI'...
+Related Memories found:
+  - mem_a (Relevance: 1.3608)
+  - mem_b (Relevance: 0.9281)
+  - mem_c (Relevance: 0.6544)
+
+[3] Testing Multi-Hop Concept Discovery for 'AI'...
+Related Concepts discovered:
+  - machine learning (Depth: 1, Relevance: 0.6800)
+  - neural networks (Depth: 2, Relevance: 0.4352)
+  - transformers (Depth: 3, Relevance: 0.2785)
+Found 'Neural Networks' from 'AI': True
+
+[4] Reasoning: Path from 'AI' to 'Transformers'?
+  Reasoning Path: ai -> machine learning -> neural networks -> transformers
+Traceback (most recent call last):
+  File "M:\Documents\ai-os-memory\tests\test_graph_reasoning.py", line 85, in <module>
+    test_multi_hop_reasoning()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "M:\Documents\ai-os-memory\tests\test_graph_reasoning.py", line 80, in test_multi_hop_reasoning
+    print("\n\u2705 Success: Cross-memory multi-hop reasoning working.")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 2: character maps to <undefined>

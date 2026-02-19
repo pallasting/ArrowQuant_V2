@@ -1,0 +1,1 @@
+{"hardware_profile": {"os": "Windows", "cpu_cores": 16, "ram_gb": 15.7, "gpu": "CPU Only", "sensors": {"vision": false, "audio": false}}, "runtime_params": {"batch_size": 8, "lora_rank": 8, "quantization": "int8", "device": "cpu"}}

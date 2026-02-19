@@ -1,0 +1,8 @@
+{"timestamp": 1771155349.9888146, "model_type": "cloud_api", "model_name": "gpt-4", "tokens_used": 1500, "cost": 0.0015, "operation": "compress", "success": true}
+{"timestamp": 1771155350.004038, "model_type": "local_model", "model_name": "qwen2.5:7b-instruct", "tokens_used": 1200, "cost": 0.00012, "operation": "compress", "success": true}
+{"timestamp": 1771155350.0117362, "model_type": "local_model", "model_name": "qwen2.5:7b-instruct", "tokens_used": 800, "cost": 8e-05, "operation": "reconstruct", "success": true}
+{"timestamp": 1771155350.028756, "model_type": "simple_compression", "model_name": "zstd", "tokens_used": 0, "cost": 0.0, "operation": "compress", "success": true}
+{"timestamp": 1771155372.6070225, "model_type": "cloud_api", "model_name": "gpt-4", "tokens_used": 1500, "cost": 0.0015, "operation": "compress", "success": true}
+{"timestamp": 1771155372.6343083, "model_type": "local_model", "model_name": "qwen2.5:7b-instruct", "tokens_used": 1200, "cost": 0.00012, "operation": "compress", "success": true}
+{"timestamp": 1771155372.6512098, "model_type": "local_model", "model_name": "qwen2.5:7b-instruct", "tokens_used": 800, "cost": 8e-05, "operation": "reconstruct", "success": true}
+{"timestamp": 1771155372.6679513, "model_type": "simple_compression", "model_name": "zstd", "tokens_used": 0, "cost": 0.0, "operation": "compress", "success": true}
