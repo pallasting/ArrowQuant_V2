@@ -122,7 +122,7 @@ class ModelConverter:
         Args:
             model_name_or_path: HuggingFace model name or local path
             output_dir: Directory to save converted model
-            model_type: Type of model ("auto", "sentence-transformers", "transformers", "clip", "whisper", "bert")
+            model_type: Type of model ("auto", "sentence-transformers", "transformers", "clip", "whisper", "bert", "causallm")
 
         Returns:
             ConversionResult: Detailed conversion result
@@ -152,7 +152,7 @@ class ModelConverter:
                 if model_type == "unknown":
                     raise ValueError(
                         f"Could not auto-detect model type for '{model_name_or_path}'. "
-                        "Please specify model_type explicitly: 'bert', 'clip', or 'whisper'"
+                        "Please specify model_type explicitly: 'bert', 'clip', 'whisper', or 'causallm'"
                     )
 
             # Route to CLIP converter if needed
@@ -163,11 +163,11 @@ class ModelConverter:
             if model_type == "whisper":
                 return self._convert_whisper(model_name_or_path, output_path)
 
-            # Handle BERT-like models (sentence-transformers, transformers, bert)
-            if model_type not in ["sentence-transformers", "transformers", "bert"]:
+            # Handle BERT and CausalLM models
+            if model_type not in ["sentence-transformers", "transformers", "bert", "causallm"]:
                 raise ValueError(
                     f"Unsupported model_type: {model_type}. "
-                    "Supported types: 'auto', 'bert', 'sentence-transformers', 'transformers', 'clip', 'whisper'"
+                    "Supported types: 'auto', 'bert', 'sentence-transformers', 'transformers', 'clip', 'whisper', 'causallm'"
                 )
 
             # Step 1: Load model
@@ -287,33 +287,40 @@ class ModelConverter:
 
             return base_model, tokenizer, model_info
 
-        elif model_type == "transformers":
+        elif model_type in ["transformers", "causallm", "bert"]:
             try:
-                from transformers import AutoModel, AutoTokenizer
+                from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
             except ImportError:
                 raise ImportError("transformers not installed. Install with: pip install transformers")
 
-            model = AutoModel.from_pretrained(model_name)
+            if model_type == "causallm":
+                model = AutoModelForCausalLM.from_pretrained(model_name)
+            else:
+                model = AutoModel.from_pretrained(model_name)
+                
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             cfg = model.config
             
-            # Extract model info including full BERT architecture config
+            # Extract model info including full BERT/LLM architecture config
             model_info = {
                 "architecture": cfg.architectures[0] if hasattr(cfg, 'architectures') and cfg.architectures else "Unknown",
                 "embedding_dimension": getattr(cfg, 'hidden_size', None),
                 "hidden_size": getattr(cfg, 'hidden_size', None),
                 "num_attention_heads": getattr(cfg, 'num_attention_heads', None),
+                "num_key_value_heads": getattr(cfg, 'num_key_value_heads', None), # Crucial for GQA in Qwen/Llama
                 "intermediate_size": getattr(cfg, 'intermediate_size', None),
                 "num_hidden_layers": getattr(cfg, 'num_hidden_layers', None),
                 "vocab_size": getattr(cfg, 'vocab_size', None),
                 "max_position_embeddings": getattr(cfg, 'max_position_embeddings', None),
                 "layer_norm_eps": getattr(cfg, 'layer_norm_eps', 1e-12),
+                "rms_norm_eps": getattr(cfg, 'rms_norm_eps', 1e-6), # For RMSNorm models
+                "rope_theta": getattr(cfg, 'rope_theta', 10000.0), # For RoPE encoding
             }
 
             return model, tokenizer, model_info
 
         else:
-            raise ValueError(f"Unsupported model_type: {model_type}. Use 'sentence-transformers' or 'transformers'")
+            raise ValueError(f"Unsupported model_type: {model_type}. Use 'sentence-transformers', 'transformers', or 'causallm'")
     def _detect_model_type(self, model_name: str) -> str:
         """
         Auto-detect model type from model name or config.
@@ -322,7 +329,7 @@ class ModelConverter:
             model_name: Model name or path
 
         Returns:
-            Model type: "bert", "clip", "whisper", or "unknown"
+            Model type: "bert", "clip", "whisper", "causallm", or "unknown"
         """
         # Check model name patterns
         model_name_lower = model_name.lower()
@@ -333,6 +340,9 @@ class ModelConverter:
         elif "whisper" in model_name_lower:
             logger.info(f"Detected Whisper model from name: {model_name}")
             return "whisper"
+        elif any(name in model_name_lower for name in ["qwen", "llama", "gemma", "mistral", "tinyllama"]):
+            logger.info(f"Detected CausalLM model from name: {model_name}")
+            return "causallm"
         elif "bert" in model_name_lower or "sentence-transformers" in model_name_lower:
             logger.info(f"Detected BERT model from name: {model_name}")
             return "bert"
@@ -351,6 +361,9 @@ class ModelConverter:
                 elif config.model_type == "whisper":
                     logger.info(f"Detected Whisper model from config.model_type")
                     return "whisper"
+                elif config.model_type in ["llama", "qwen2", "gemma", "mistral"]:
+                    logger.info(f"Detected CausalLM model from config.model_type: {config.model_type}")
+                    return "causallm"
                 elif config.model_type in ["bert", "roberta", "distilbert"]:
                     logger.info(f"Detected BERT-like model from config.model_type: {config.model_type}")
                     return "bert"

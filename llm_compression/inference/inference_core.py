@@ -39,6 +39,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from llm_compression.logger import logger
+from llm_compression.inference.decoder_layers import DecoderLayer, RMSNorm, precompute_freqs_cis, KVCache
 
 
 class InferenceCore(nn.Module):
@@ -116,12 +117,19 @@ class InferenceCore(nn.Module):
         # Derived config
         self.head_size = self.hidden_size // self.num_attention_heads
         
+        # Check if architecture is Decoder-only (causal LLM)
+        self.is_decoder = (
+            config.get('architecture', '').endswith('CausalLM') or 
+            'rope_theta' in config or 
+            'num_key_value_heads' in config
+        )
+        
         # Auto-detect num_layers from weights if not explicitly provided or if
         # the provided value seems wrong (e.g., total tensor count instead of layers)
         detected_layers = self._detect_num_layers(weights)
         if detected_layers > 0 and detected_layers != self.num_layers:
             logger.info(
-                f"Auto-detected {detected_layers} transformer layers from weights "
+                f"Auto-detected {detected_layers} layer blocks from weights "
                 f"(config specified {self.num_layers}), using detected value"
             )
             self.num_layers = detected_layers
@@ -174,6 +182,13 @@ class InferenceCore(nn.Module):
                         layer_indices.add(int(parts[2]))
                     except ValueError:
                         pass
+            elif key.startswith("model.layers."):
+                parts = key.split(".")
+                if len(parts) > 2:
+                    try:
+                        layer_indices.add(int(parts[2]))
+                    except ValueError:
+                        pass
         return len(layer_indices) if layer_indices else 0
     
     def _detect_intermediate_size(self, weights: Dict[str, torch.Tensor]) -> int:
@@ -181,6 +196,9 @@ class InferenceCore(nn.Module):
         key = "encoder.layer.0.intermediate.dense.weight"
         if key in weights:
             return weights[key].shape[0]
+        key_decoder = "model.layers.0.mlp.gate_proj.weight"
+        if key_decoder in weights:
+            return weights[key_decoder].shape[0]
         return 0
     
     def _build_and_load(self, weights: Dict[str, torch.Tensor]):
@@ -190,6 +208,10 @@ class InferenceCore(nn.Module):
         Instead of register_buffer with flattened names, we build proper
         nn.Module sub-components and load weights directly into them.
         """
+        if self.is_decoder:
+            self._build_decoder_and_load(weights)
+            return
+
         # === 0. Auto-detect dimensions from weights before building layers ===
         if 'embeddings.word_embeddings.weight' in weights:
             self.vocab_size = weights['embeddings.word_embeddings.weight'].shape[0]
@@ -270,6 +292,71 @@ class InferenceCore(nn.Module):
         
         weight_count = sum(1 for v in weights.values() if v is not None)
         logger.debug(f"Loaded weights from {weight_count} tensors into model")
+
+    def _build_decoder_and_load(self, weights: Dict[str, torch.Tensor]):
+        """Build causal LLM architecture and load weights."""
+        if 'model.embed_tokens.weight' in weights:
+            self.vocab_size = weights['model.embed_tokens.weight'].shape[0]
+            
+        self.num_key_value_heads = self.config.get('num_key_value_heads', self.num_attention_heads)
+        self.rms_norm_eps = self.config.get('rms_norm_eps', 1e-6)
+        self.rope_theta = self.config.get('rope_theta', 10000.0)
+
+        # 1. Embeddings
+        self.embed_tokens = nn.Embedding(self.vocab_size, self.hidden_size)
+        self._load_param(self.embed_tokens, 'weight', weights.get('model.embed_tokens.weight'))
+        
+        # 2. Decoder Layers
+        self.layers = nn.ModuleList()
+        for i in range(self.num_layers):
+            layer = DecoderLayer(
+                hidden_size=self.hidden_size,
+                num_heads=self.num_attention_heads,
+                num_kv_heads=self.num_key_value_heads,
+                intermediate_size=self.intermediate_size,
+                rms_norm_eps=self.rms_norm_eps
+            )
+            prefix = f"model.layers.{i}"
+            
+            # Attention
+            self._load_param(layer.self_attn.q_proj, 'weight', weights.get(f"{prefix}.self_attn.q_proj.weight"))
+            self._load_param(layer.self_attn.k_proj, 'weight', weights.get(f"{prefix}.self_attn.k_proj.weight"))
+            self._load_param(layer.self_attn.v_proj, 'weight', weights.get(f"{prefix}.self_attn.v_proj.weight"))
+            self._load_param(layer.self_attn.o_proj, 'weight', weights.get(f"{prefix}.self_attn.o_proj.weight"))
+            
+            # Bias (for models like Qwen)
+            self._load_param(layer.self_attn.q_proj, 'bias', weights.get(f"{prefix}.self_attn.q_proj.bias"))
+            self._load_param(layer.self_attn.k_proj, 'bias', weights.get(f"{prefix}.self_attn.k_proj.bias"))
+            self._load_param(layer.self_attn.v_proj, 'bias', weights.get(f"{prefix}.self_attn.v_proj.bias"))
+            self._load_param(layer.self_attn.o_proj, 'bias', weights.get(f"{prefix}.self_attn.o_proj.bias"))
+
+            # MLP
+            self._load_param(layer.mlp.gate_proj, 'weight', weights.get(f"{prefix}.mlp.gate_proj.weight"))
+            self._load_param(layer.mlp.up_proj, 'weight', weights.get(f"{prefix}.mlp.up_proj.weight"))
+            self._load_param(layer.mlp.down_proj, 'weight', weights.get(f"{prefix}.mlp.down_proj.weight"))
+            
+            # LayerNorms
+            self._load_param(layer.input_layernorm, 'weight', weights.get(f"{prefix}.input_layernorm.weight"))
+            self._load_param(layer.post_attention_layernorm, 'weight', weights.get(f"{prefix}.post_attention_layernorm.weight"))
+            
+            self.layers.append(layer)
+            
+        # 3. Output Norm
+        self.norm = RMSNorm(self.hidden_size, eps=self.rms_norm_eps)
+        self._load_param(self.norm, 'weight', weights.get('model.norm.weight'))
+        
+        # 4. LM Head
+        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size, bias=False)
+        self._load_param(self.lm_head, 'weight', weights.get('lm_head.weight'))
+        
+        # Initialize RoPE
+        self.freqs_cis = precompute_freqs_cis(
+            self.head_size, 
+            self.max_position_embeddings * 2, 
+            theta=self.rope_theta
+        ).to(self.device)
+        
+        logger.debug(f"Loaded weights for Causal LM decoder into model")
     
     @staticmethod
     def _load_param(module: nn.Module, param_name: str, tensor: Optional[torch.Tensor]):
@@ -292,23 +379,18 @@ class InferenceCore(nn.Module):
     def forward(
         self,
         input_ids: torch.Tensor,
-        attention_mask: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
+        kv_cache: Optional[List[KVCache]] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Tuple[torch.Tensor, ...]]]:
         """
-        Forward pass to generate sentence embeddings.
+        Forward pass to generate sentence embeddings (BERT models).
         
-        Args:
-            input_ids: Token IDs, shape (batch_size, seq_len)
-            attention_mask: Attention mask, shape (batch_size, seq_len)
-            output_attentions: Whether to return all layer attention weights
-            
-        Returns:
-            If output_attentions is False:
-                Sentence embeddings, shape (batch_size, hidden_size)
-            If output_attentions is True:
-                Tuple of (Sentence embeddings, tuple(all_layer_attentions))
+        If model is a Decoder, this will route to forward_decoder.
         """
+        if self.is_decoder:
+            return self.forward_decoder(input_ids, kv_cache=kv_cache)
+            
         input_ids = input_ids.to(self.device)
         attention_mask = attention_mask.to(self.device)
         
@@ -337,7 +419,44 @@ class InferenceCore(nn.Module):
         if output_attentions:
             return pooled_output, all_attentions
         return pooled_output
-    
+
+    @torch.no_grad()
+    def forward_decoder(
+        self,
+        input_ids: torch.Tensor,
+        kv_cache: Optional[List[KVCache]] = None,
+        use_cache: bool = True
+    ) -> torch.Tensor:
+        """Forward pass for decoder generation."""
+        input_ids = input_ids.to(self.device)
+        bsz, seqlen = input_ids.shape
+        
+        h = self.embed_tokens(input_ids)
+        
+        start_pos = 0
+        if kv_cache is not None:
+            start_pos = kv_cache[0].seq_len
+            
+        freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
+        
+        mask = None
+        if seqlen > 1:
+            mask = torch.full((1, 1, seqlen, seqlen), float("-inf"), device=self.device)
+            mask = torch.triu(mask, diagonal=1).float()
+            # If KV cache is populated, mask needs to accommodate past tokens
+            if start_pos > 0:
+                past_mask = torch.zeros((1, 1, seqlen, start_pos), device=self.device)
+                mask = torch.cat([past_mask, mask], dim=-1)
+            
+        for i, layer in enumerate(self.layers):
+            layer_cache = kv_cache[i] if kv_cache is not None else None
+            h = layer(h, freqs_cis, layer_cache, mask)
+            
+        h = self.norm(h)
+        # We generally only care about the last token's logits for generation
+        logits = self.lm_head(h[:, -1, :]) 
+        return logits
+
     def _compute_embeddings(self, input_ids: torch.Tensor) -> torch.Tensor:
         """
         Compute combined embeddings (word + position + token_type) + LayerNorm.

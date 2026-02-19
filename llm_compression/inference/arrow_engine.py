@@ -556,6 +556,8 @@ class ArrowEngine:
         
         layer_norm_eps = model_info.get('layer_norm_eps', 1e-12)
         
+        layer_norm_eps = model_info.get('layer_norm_eps', 1e-12)
+        
         config = {
             'hidden_size': hidden_size,
             'num_layers': num_layers,
@@ -564,6 +566,10 @@ class ArrowEngine:
             'max_position_embeddings': max_position,
             'vocab_size': vocab_size,
             'layer_norm_eps': layer_norm_eps,
+            'architecture': model_info.get('architecture', ''),
+            'rope_theta': model_info.get('rope_theta', 10000.0),
+            'num_key_value_heads': model_info.get('num_key_value_heads', num_attention_heads),
+            'rms_norm_eps': model_info.get('rms_norm_eps', 1e-6),
         }
         
         self.inference_core = InferenceCore(
@@ -581,6 +587,80 @@ class ArrowEngine:
             f"heads={num_attention_heads}, intermediate={intermediate_size}"
         )
     
+    @torch.no_grad()
+    def generate(
+        self,
+        prompt: str,
+        max_tokens: int = 100,
+        temperature: float = 0.7,
+        top_p: float = 0.9,
+    ) -> str:
+        """
+        Generate text autoregressively (requires CausalLM model).
+        Returns the generated text.
+        """
+        if not getattr(self.inference_core, 'is_decoder', False):
+            logger.error("ArrowEngine.generate() called on non-decoder model.")
+            return '{"action": "wait", "params": {}}'
+            
+        # Tokenize (using HuggingFace-like Rust tokenizers)
+        # Assuming encode returns an Encoding object with .ids
+        encoded = self.tokenizer.tokenizer.encode(prompt)
+        tokens = encoded.ids
+        input_ids = torch.tensor([tokens], device=self.device)
+        
+        # Initialize KV Cache
+        from llm_compression.inference.decoder_layers import KVCache
+        kv_cache = [
+            KVCache(
+                max_batch_size=1, 
+                max_seq_len=len(tokens) + max_tokens, 
+                num_kv_heads=self.inference_core.num_key_value_heads, 
+                head_dim=self.inference_core.head_size, 
+                device=self.device, 
+                dtype=list(self.inference_core.parameters())[0].dtype
+            ) for _ in range(self.inference_core.num_layers)
+        ]
+        
+        generated_tokens = []
+        
+        # Prefill and decode loop
+        current_input = input_ids
+        for _ in range(max_tokens):
+            logits = self.inference_core(current_input, kv_cache=kv_cache)
+            # logits is [batcz_size, vocab_size] (because we took the last token inside forward_decoder)
+            
+            # Sample next token
+            if temperature > 0.0:
+                probs = torch.softmax(logits / temperature, dim=-1)
+                if top_p < 1.0:
+                    sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+                    cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                    
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                    sorted_indices_to_remove[..., 0] = 0
+                    
+                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
+                    logits[indices_to_remove] = float('-inf')
+                    probs = torch.softmax(logits, dim=-1)
+                    
+                next_token = torch.multinomial(probs, num_samples=1)
+            else:
+                next_token = torch.argmax(logits, dim=-1, keepdim=True)
+                
+            token_id = next_token.item()
+            generated_tokens.append(token_id)
+            
+            # Basic EOS detection (usually something like 2 or 151643 for Qwen/Llama)
+            if token_id in [2, 128001, 128009, 151645, 151643]:
+                break
+                
+            current_input = torch.tensor([[token_id]], device=self.device)
+            
+        generated_text = self.tokenizer.tokenizer.decode(generated_tokens)
+        return generated_text
+
     def encode(
         self,
         sentences: Union[str, List[str]],
