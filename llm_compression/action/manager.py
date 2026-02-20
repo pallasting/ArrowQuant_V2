@@ -50,11 +50,12 @@ class ActionManager:
     """
     
     
-    def __init__(self, workspace_dir: str, sensor_manager=None, enable_logging: bool = True):
+    def __init__(self, workspace_dir: str, sensor_manager=None, enable_logging: bool = True, tts_engine=None):
         self.workspace = Path(workspace_dir)
         self.log_path = self.workspace / "action_trace.jsonl"
         self.sensor_manager = sensor_manager # Link to Vision for feedback
         self.enable_logging = enable_logging
+        self.tts_engine = tts_engine
         
         self.screen_size = (0, 0)
         self.safety = None
@@ -145,6 +146,10 @@ class ActionManager:
         try:
             logger.info(f"Action: {action_type} {params}")
             
+            # Announce Action verbally if TTS engine applies
+            if self.tts_engine:
+                self._narrate_action(action_type, params)
+                
             # 2. Act
             if action_type == "move":
                 pyautogui.moveTo(params["x"], params["y"], duration=game_like_randomness())
@@ -192,6 +197,36 @@ class ActionManager:
                 f.write(json.dumps(record) + "\n")
         except Exception:
             pass
+
+    def _narrate_action(self, action_type: str, params: Dict[str, Any]):
+        """Synthesize and play speech narrating the current action."""
+        if not getattr(self, "tts_engine", None):
+            return
+            
+        narrative = f"Executing {action_type}."
+        if action_type == "type":
+            text_short = params.get('text', '')[:10]
+            narrative = f"Typing {text_short}."
+        elif action_type == "hotkey":
+            narrative = f"Pressing shortcut."
+        elif action_type == "click":
+            narrative = f"Clicking here."
+            
+        def _speak():
+            try:
+                import sounddevice as sd
+                import numpy as np
+                chunks = list(self.tts_engine.synthesize(narrative))
+                if chunks:
+                    audio_data = np.concatenate(chunks)
+                    samplerate = self.tts_engine.config.sample_rate
+                    sd.play(audio_data, samplerate=samplerate)
+                    # We do not wait because we want to act while speaking!
+            except Exception as e:
+                logger.error(f"TTS Narration failed: {e}")
+                
+        import threading
+        threading.Thread(target=_speak, daemon=True).start()
 
 def game_like_randomness():
     """Add slight randomness to movement duration to mimic human."""

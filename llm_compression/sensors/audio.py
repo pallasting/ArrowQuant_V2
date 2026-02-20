@@ -35,13 +35,14 @@ SILENCE_THRESHOLD = 500  # Adjust based on environment
 class AudioModule:
     """Manages microphone input stream."""
     
-    def __init__(self, output_dir: str, device_index=None):
+    def __init__(self, output_dir: str, device_index=None, on_audio_ready=None):
         if not AUDIO_DRIVER:
             raise ImportError("Audio driver missing")
             
         self.output_dir = Path(output_dir) / "audio_stream"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.device_index = device_index
+        self.on_audio_ready = on_audio_ready
         
         # PyAudio State
         self.p = None
@@ -150,10 +151,13 @@ class AudioModule:
                 self.silence_counter += 1
                 self.recording_buffer.append(raw_bytes)
                 if self.silence_counter > 60: # ~2 sec
-                    self._save_recording(self.recording_buffer)
+                    filepath = self._save_recording(self.recording_buffer)
                     self.recording_buffer = []
                     self.is_recording = False
                     logger.info("Voice ended.")
+                    if self.on_audio_ready and filepath:
+                        import threading
+                        threading.Thread(target=self.on_audio_ready, args=(str(filepath),), daemon=True).start()
 
     def _pyaudio_loop(self):
         """Legacy PyAudio loop."""

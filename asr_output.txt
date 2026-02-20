@@ -1,0 +1,23 @@
+Loading Faster-Whisper ASR engine...
+2026-02-20 01:03:47 - llm_compression.sensors.asr_engine - INFO - Loading Whisper model 'tiny' on auto...
+[2026-02-20 01:03:49.491] [ctranslate2] [thread 24104] [warning] The compute type inferred from the saved model is float16, but the target device or backend do not support efficient float16 computation. The model weights have been automatically converted to use the float32 compute type instead.
+2026-02-20 01:03:49 - llm_compression.sensors.asr_engine - INFO - ASR Engine ready.
+2026-02-20 01:03:49 - llm_compression.sensors.audio - INFO - Auditory Module started (sounddevice)
+
+Microphone listening configured successfully!
+
+Generating a simulated speech file via TTS to test ASR...
+2026-02-20 01:03:49 - llm_compression.sensors.audio - INFO - Voice detected...
+2026-02-20 01:03:50 - llm_compression.expression.tts.tts_engine - INFO - Initialized emotion mapper with 11 emotions
+2026-02-20 01:03:50 - llm_compression.expression.tts.tts_engine - INFO - Initializing TTS engine with backend: piper, cache_enabled: False
+2026-02-20 01:03:50 - llm_compression.expression.tts.tts_engine - INFO - Piper TTS library available
+2026-02-20 01:03:50 - llm_compression.expression.tts.tts_engine - INFO - Piper backend initialized (model path: C:\Users\Admin\.ai-os\models\piper)
+2026-02-20 01:03:50 - llm_compression.expression.tts.tts_engine - INFO - Successfully initialized piper backend
+2026-02-20 01:03:50 - llm_compression.expression.tts.tts_engine - INFO - Synthesizing text (length=82, voice=default, streaming=False)
+2026-02-20 01:03:53 - llm_compression.sensors.audio - WARNING - input overflow
+2026-02-20 01:03:53 - llm_compression.expression.tts.tts_engine - INFO - Loaded Piper voice: en_US-lessac-medium
+2026-02-20 01:03:53 - llm_compression.sensors.audio - WARNING - input overflow
+
+[ASR] Transcribing file: test_audio_out/simulated_speech.wav
+[ASR] User said: This is a test of the artificial intelligence operating system's speech recognition.
+2026-02-20 01:03:54 - llm_compression.sensors.audio - INFO - Auditory Module stopped

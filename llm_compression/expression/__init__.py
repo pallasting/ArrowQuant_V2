@@ -36,22 +36,36 @@ from llm_compression.expression.tts import (
     EmotionMapper,
 )
 
+from llm_compression.expression.synchronizer import (
+    Synchronizer,
+    SynchronizerConfig,
+    StreamState,
+    StreamChunk,
+    OutputStream,
+)
+
 __all__ = [
     # Enums
     "OutputModality",
     "ExpressionStyle",
     "TTSBackend",
     "NLGBackend",
+    "StreamState",
     # Data structures
     "ExpressionContext",
     "ResponsePlan",
     "VoiceConfig",
     "NLGConfig",
     "TTSConfig",
+    "SynchronizerConfig",
+    "StreamChunk",
+    "OutputStream",
     # TTS Components
     "TTSEngine",
     "TTSCache",
     "EmotionMapper",
+    # Synchronization
+    "Synchronizer",
 ]
 
 __version__ = "0.1.0"

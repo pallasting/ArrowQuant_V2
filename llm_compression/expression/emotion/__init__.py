@@ -10,8 +10,14 @@ from llm_compression.expression.emotion.text_style_mapper import (
     TextStyleMapper,
     TextStyleParameters
 )
+from llm_compression.expression.emotion.consistency_validator import (
+    EmotionConsistencyValidator,
+    ConsistencyWarning
+)
 
 __all__ = [
     "TextStyleMapper",
     "TextStyleParameters",
+    "EmotionConsistencyValidator",
+    "ConsistencyWarning",
 ]

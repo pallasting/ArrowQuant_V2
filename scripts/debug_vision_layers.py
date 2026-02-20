@@ -50,22 +50,21 @@ def debug_layers():
         hf_embeddings = hf_model.vision_model.embeddings(pixel_values)
 
     # Arrow Embeddings
-    # Access conv1 and positional embeddings manually if needed,
-    # but let's check if we can call the first part of forward
+    # Access patch_embedding and positional embeddings manually
     with torch.no_grad():
         # Replicate arrow_core forward logic part 1
-        x = arrow_core.conv1(pixel_values)  # (B, 768, 7, 7)
-        x = x.reshape(batch_size, 768, -1).transpose(1, 2) # (B, 49, 768)
+        x = arrow_core.patch_embedding(pixel_values)  # (B, 768, 7, 7)
+        x = x.flatten(2).transpose(1, 2) # (B, 49, 768)
 
         # Add CLS token
-        cls_token = arrow_core.class_embedding.expand(batch_size, -1, -1)
+        cls_token = arrow_core.class_embedding.expand(batch_size, 1, -1)
         x = torch.cat((cls_token, x), dim=1) # (B, 50, 768)
 
         # Add positional embedding
-        x = x + arrow_core.position_embedding
+        x = x + arrow_core.position_embedding.weight[:x.size(1)]
 
         # Pre-Layernorm
-        arrow_embeddings = arrow_core.pre_layrnorm(x)
+        arrow_embeddings = arrow_core.pre_layernorm(x)
 
     compare_tensors("Embeddings (Post-LN)", hf_embeddings, arrow_embeddings)
 
