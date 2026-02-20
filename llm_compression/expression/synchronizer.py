@@ -186,6 +186,16 @@ class Synchronizer:
             "max_drift_observed_ms": 0.0
         }
         
+        # Fallback state
+        self._fallback_active = False
+        self._fallback_mode = None
+        self._fallback_config = {
+            "enable_text_fallback": True,
+            "enable_single_modality_fallback": True,
+            "enable_auto_recovery": False,
+            "recovery_retry_delay_ms": 1000.0
+        }
+        
         logger.info(f"Synchronizer initialized with config: {self.config}")
     
     def register_stream(self, modality: OutputModality):
@@ -766,14 +776,235 @@ class Synchronizer:
         
         for modality, stream in self.streams.items():
             if modality != OutputModality.TEXT:
-                stream.state = StreamState.IDLE
+                stream.state = StreamState.ERROR
                 stream.buffer.clear()
         
         # Ensure text stream is active
         if OutputModality.TEXT in self.streams:
             text_stream = self.streams[OutputModality.TEXT]
-            if text_stream.state == StreamState.IDLE:
+            if text_stream.state in [StreamState.IDLE, StreamState.ERROR, StreamState.BUFFERING]:
                 text_stream.state = StreamState.PLAYING
+        
+        # Update fallback status
+        self._fallback_active = True
+        self._fallback_mode = "text_only"
+    
+    def fallback_to_single_modality(self, preferred_modality: Optional[OutputModality] = None):
+        """
+        Fallback to single modality when resources are limited.
+        
+        Selects the best available modality based on priority and resource constraints.
+        Disables all other modalities to conserve resources.
+        
+        Args:
+            preferred_modality: Preferred modality to keep (auto-selected if None)
+        
+        Requirements: 4.7, 11.1
+        """
+        logger.warning("Falling back to single modality due to resource constraints")
+        
+        # Determine which modality to keep
+        if preferred_modality and preferred_modality in self.streams:
+            selected_modality = preferred_modality
+        else:
+            # Auto-select based on priority: TEXT > SPEECH > VISUAL
+            priority_order = [OutputModality.TEXT, OutputModality.SPEECH, OutputModality.VISUAL]
+            selected_modality = None
+            for modality in priority_order:
+                if modality in self.streams and self.streams[modality].state != StreamState.ERROR:
+                    selected_modality = modality
+                    break
+            
+            if selected_modality is None:
+                # No valid streams, fallback to text
+                logger.error("No valid streams available, creating text stream")
+                self.register_stream(OutputModality.TEXT)
+                selected_modality = OutputModality.TEXT
+        
+        logger.info(f"Selected modality for fallback: {selected_modality.value}")
+        
+        # Disable all other modalities
+        for modality, stream in self.streams.items():
+            if modality != selected_modality:
+                stream.state = StreamState.ERROR
+                stream.buffer.clear()
+            else:
+                # Ensure selected stream is active
+                if stream.state in [StreamState.IDLE, StreamState.ERROR]:
+                    stream.state = StreamState.PLAYING
+        
+        # Update fallback status
+        self._fallback_active = True
+        self._fallback_mode = f"single_{selected_modality.value}"
+    
+    def apply_graceful_degradation(self, error_modality: OutputModality):
+        """
+        Apply graceful degradation when a specific modality fails.
+        
+        This method implements a degradation strategy that:
+        1. Disables the failed modality
+        2. Continues with remaining modalities
+        3. Falls back to text-only if all other modalities fail
+        
+        Args:
+            error_modality: The modality that encountered an error
+        
+        Requirements: 11.1 (Graceful degradation)
+        """
+        logger.warning(f"Applying graceful degradation for failed modality: {error_modality.value}")
+        
+        # Mark the failed modality as error
+        if error_modality in self.streams:
+            stream = self.streams[error_modality]
+            stream.state = StreamState.ERROR
+            stream.buffer.clear()
+        
+        # Count remaining active modalities
+        active_modalities = [
+            m for m, s in self.streams.items()
+            if s.state not in [StreamState.ERROR, StreamState.IDLE, StreamState.COMPLETED]
+        ]
+        
+        logger.info(f"Active modalities after degradation: {[m.value for m in active_modalities]}")
+        
+        # Apply appropriate fallback strategy
+        if len(active_modalities) == 0:
+            # No active modalities, fallback to text
+            logger.error("All modalities failed, falling back to text-only")
+            self.fallback_to_text_only()
+        elif len(active_modalities) == 1:
+            # Already at single modality
+            logger.info(f"Continuing with single modality: {active_modalities[0].value}")
+            self._fallback_active = True
+            self._fallback_mode = f"degraded_{active_modalities[0].value}"
+        else:
+            # Multiple modalities still active
+            logger.info(f"Continuing with {len(active_modalities)} modalities")
+            self._fallback_active = True
+            self._fallback_mode = "partial_degradation"
+    
+    def recover_from_error(self, modality: OutputModality) -> bool:
+        """
+        Attempt to recover a failed modality.
+        
+        This method tries to restart a modality that previously failed.
+        It's useful for transient errors (network issues, temporary resource constraints).
+        
+        Args:
+            modality: The modality to recover
+        
+        Returns:
+            True if recovery was successful, False otherwise
+        
+        Requirements: 11.1 (Error recovery)
+        """
+        if modality not in self.streams:
+            logger.error(f"Cannot recover {modality.value}: stream not registered")
+            return False
+        
+        stream = self.streams[modality]
+        
+        if stream.state != StreamState.ERROR:
+            logger.warning(f"Stream {modality.value} is not in error state (state: {stream.state.value})")
+            return False
+        
+        logger.info(f"Attempting to recover stream: {modality.value}")
+        
+        try:
+            # Clear error state
+            stream.state = StreamState.IDLE
+            stream.buffer.clear()
+            stream.current_position_ms = 0.0
+            stream.next_sequence = 0
+            
+            # If we're currently in fallback mode, check if we can exit it
+            if self._fallback_active:
+                # Count active modalities (not in error or idle state)
+                active_modalities = [
+                    m for m, s in self.streams.items()
+                    if s.state not in [StreamState.ERROR, StreamState.IDLE, StreamState.COMPLETED]
+                ]
+                
+                # Only exit fallback if we now have multiple active modalities
+                # (the recovered stream is still IDLE, so it won't be counted yet)
+                if len(active_modalities) >= 1:
+                    # We have at least one active modality, and the recovered one can be activated
+                    # Exit fallback mode
+                    logger.info("Exiting fallback mode after recovery")
+                    self._fallback_active = False
+                    self._fallback_mode = None
+            
+            logger.info(f"Successfully recovered stream: {modality.value}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to recover stream {modality.value}: {e}")
+            stream.state = StreamState.ERROR
+            return False
+    
+    def configure_fallback(
+        self,
+        enable_text_fallback: bool = True,
+        enable_single_modality_fallback: bool = True,
+        enable_auto_recovery: bool = False,
+        recovery_retry_delay_ms: float = 1000.0
+    ):
+        """
+        Configure fallback behavior.
+        
+        Args:
+            enable_text_fallback: Enable automatic fallback to text-only
+            enable_single_modality_fallback: Enable fallback to single modality
+            enable_auto_recovery: Enable automatic error recovery attempts
+            recovery_retry_delay_ms: Delay between recovery attempts in milliseconds
+        
+        Requirements: 4.7, 11.1
+        """
+        self._fallback_config = {
+            "enable_text_fallback": enable_text_fallback,
+            "enable_single_modality_fallback": enable_single_modality_fallback,
+            "enable_auto_recovery": enable_auto_recovery,
+            "recovery_retry_delay_ms": recovery_retry_delay_ms
+        }
+        
+        logger.info(f"Fallback configuration updated: {self._fallback_config}")
+    
+    def get_fallback_status(self) -> Dict[str, Any]:
+        """
+        Get current fallback status.
+        
+        Returns:
+            Dictionary with fallback status information:
+            - fallback_active: Whether fallback mode is active
+            - fallback_mode: Current fallback mode (text_only, single_*, degraded_*, etc.)
+            - failed_modalities: List of modalities in error state
+            - active_modalities: List of currently active modalities
+            - fallback_config: Current fallback configuration
+        
+        Requirements: 4.7, 11.1
+        """
+        failed_modalities = [
+            m.value for m, s in self.streams.items()
+            if s.state == StreamState.ERROR
+        ]
+        
+        active_modalities = [
+            m.value for m, s in self.streams.items()
+            if s.state in [StreamState.PLAYING, StreamState.BUFFERING]
+        ]
+        
+        return {
+            "fallback_active": getattr(self, "_fallback_active", False),
+            "fallback_mode": getattr(self, "_fallback_mode", None),
+            "failed_modalities": failed_modalities,
+            "active_modalities": active_modalities,
+            "fallback_config": getattr(self, "_fallback_config", {
+                "enable_text_fallback": True,
+                "enable_single_modality_fallback": True,
+                "enable_auto_recovery": False,
+                "recovery_retry_delay_ms": 1000.0
+            })
+        }
     
     # ========================================================================
     # Streaming Coordination Methods (Task 6.3)

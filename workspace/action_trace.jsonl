@@ -1,0 +1,3 @@
+{"timestamp": 1771578619.4342554, "action": "move", "params": {"x": 1000, "y": 500}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771578627.6706092, "action": "move", "params": {"x": 1000, "y": 500}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771578643.8189569, "action": "click", "params": {"clicks": 1}, "state_before": null, "state_after": null, "platform": "Windows"}

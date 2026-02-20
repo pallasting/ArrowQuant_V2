@@ -1431,3 +1431,497 @@ class TestStreamingCoordination:
             status["streams"]["text"]["state"] == "completed" or
             status["streams"]["text"]["buffer_size"] == 0
         )
+
+
+
+# ============================================================================
+# Fallback Handling Tests (Task 6.4)
+# ============================================================================
+
+
+class TestFallbackHandling:
+    """Test fallback handling features (Task 6.4)."""
+    
+    def test_fallback_to_text_only_basic(self, synchronizer):
+        """Test basic fallback to text-only output."""
+        # Register multiple streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        synchronizer.register_stream(OutputModality.VISUAL)
+        
+        # Add some data
+        synchronizer.add_chunk(OutputModality.TEXT, "Hello", 100.0)
+        synchronizer.add_chunk(OutputModality.SPEECH, np.random.randn(2205), 100.0)
+        
+        # Trigger fallback
+        synchronizer.fallback_to_text_only()
+        
+        # Check that only text stream is active
+        assert synchronizer.streams[OutputModality.TEXT].state == StreamState.PLAYING
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.ERROR
+        assert synchronizer.streams[OutputModality.VISUAL].state == StreamState.ERROR
+        
+        # Check fallback status
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert status["fallback_mode"] == "text_only"
+        assert "speech" in status["failed_modalities"]
+        assert "visual" in status["failed_modalities"]
+        assert "text" in status["active_modalities"]
+    
+    def test_fallback_to_text_only_clears_buffers(self, synchronizer):
+        """Test that fallback clears non-text buffers."""
+        # Register streams with data
+        synchronizer.add_chunk(OutputModality.TEXT, "Hello", 100.0)
+        synchronizer.add_chunk(OutputModality.SPEECH, np.random.randn(2205), 100.0)
+        synchronizer.add_chunk(OutputModality.SPEECH, np.random.randn(2205), 100.0)
+        
+        # Verify speech has buffered data
+        assert synchronizer.streams[OutputModality.SPEECH].buffer_size() == 2
+        
+        # Trigger fallback
+        synchronizer.fallback_to_text_only()
+        
+        # Speech buffer should be cleared
+        assert synchronizer.streams[OutputModality.SPEECH].buffer_size() == 0
+        
+        # Text buffer should remain
+        assert synchronizer.streams[OutputModality.TEXT].buffer_size() == 1
+    
+    def test_fallback_to_single_modality_auto_select(self, synchronizer):
+        """Test fallback to single modality with auto-selection."""
+        # Register multiple streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        synchronizer.register_stream(OutputModality.VISUAL)
+        
+        # Trigger fallback without specifying modality
+        synchronizer.fallback_to_single_modality()
+        
+        # Should select TEXT (highest priority)
+        assert synchronizer.streams[OutputModality.TEXT].state == StreamState.PLAYING
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.ERROR
+        assert synchronizer.streams[OutputModality.VISUAL].state == StreamState.ERROR
+        
+        # Check fallback status
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert status["fallback_mode"] == "single_text"
+    
+    def test_fallback_to_single_modality_preferred(self, synchronizer):
+        """Test fallback to single modality with preferred modality."""
+        # Register multiple streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        synchronizer.register_stream(OutputModality.VISUAL)
+        
+        # Trigger fallback with preferred modality
+        synchronizer.fallback_to_single_modality(
+            preferred_modality=OutputModality.SPEECH
+        )
+        
+        # Should select SPEECH
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.PLAYING
+        assert synchronizer.streams[OutputModality.TEXT].state == StreamState.ERROR
+        assert synchronizer.streams[OutputModality.VISUAL].state == StreamState.ERROR
+        
+        # Check fallback status
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert status["fallback_mode"] == "single_speech"
+    
+    def test_fallback_to_single_modality_no_streams(self, synchronizer):
+        """Test fallback when no streams are registered."""
+        # Trigger fallback with no streams
+        synchronizer.fallback_to_single_modality()
+        
+        # Should create and select TEXT stream
+        assert OutputModality.TEXT in synchronizer.streams
+        assert synchronizer.streams[OutputModality.TEXT].state == StreamState.PLAYING
+        
+        # Check fallback status
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert status["fallback_mode"] == "single_text"
+    
+    def test_apply_graceful_degradation_single_failure(self, synchronizer):
+        """Test graceful degradation when one modality fails."""
+        # Register multiple streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        synchronizer.register_stream(OutputModality.VISUAL)
+        
+        # Set streams to playing
+        synchronizer.streams[OutputModality.TEXT].state = StreamState.PLAYING
+        synchronizer.streams[OutputModality.SPEECH].state = StreamState.PLAYING
+        synchronizer.streams[OutputModality.VISUAL].state = StreamState.PLAYING
+        
+        # Apply degradation for speech failure
+        synchronizer.apply_graceful_degradation(OutputModality.SPEECH)
+        
+        # Speech should be in error state
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.ERROR
+        
+        # Other streams should still be active
+        assert synchronizer.streams[OutputModality.TEXT].state == StreamState.PLAYING
+        assert synchronizer.streams[OutputModality.VISUAL].state == StreamState.PLAYING
+        
+        # Check fallback status
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert status["fallback_mode"] == "partial_degradation"
+        assert "speech" in status["failed_modalities"]
+        assert len(status["active_modalities"]) == 2
+    
+    def test_apply_graceful_degradation_multiple_failures(self, synchronizer):
+        """Test graceful degradation with multiple failures."""
+        # Register streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        synchronizer.register_stream(OutputModality.VISUAL)
+        
+        # Set streams to playing
+        for stream in synchronizer.streams.values():
+            stream.state = StreamState.PLAYING
+        
+        # Apply degradation for speech
+        synchronizer.apply_graceful_degradation(OutputModality.SPEECH)
+        
+        # Apply degradation for visual
+        synchronizer.apply_graceful_degradation(OutputModality.VISUAL)
+        
+        # Only text should remain active
+        assert synchronizer.streams[OutputModality.TEXT].state == StreamState.PLAYING
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.ERROR
+        assert synchronizer.streams[OutputModality.VISUAL].state == StreamState.ERROR
+        
+        # Check fallback status
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert "degraded_text" in status["fallback_mode"]
+        assert len(status["active_modalities"]) == 1
+    
+    def test_apply_graceful_degradation_all_failures(self, synchronizer):
+        """Test graceful degradation when all modalities fail."""
+        # Register streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        
+        # Set streams to playing
+        for stream in synchronizer.streams.values():
+            stream.state = StreamState.PLAYING
+        
+        # Mark text as error first
+        synchronizer.streams[OutputModality.TEXT].state = StreamState.ERROR
+        
+        # Apply degradation for speech (last active modality)
+        synchronizer.apply_graceful_degradation(OutputModality.SPEECH)
+        
+        # Should fallback to text-only
+        assert synchronizer.streams[OutputModality.TEXT].state == StreamState.PLAYING
+        
+        # Check fallback status
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert status["fallback_mode"] == "text_only"
+    
+    def test_apply_graceful_degradation_clears_buffer(self, synchronizer):
+        """Test that graceful degradation clears failed stream buffers."""
+        # Register stream with data
+        synchronizer.add_chunk(OutputModality.SPEECH, np.random.randn(2205), 100.0)
+        synchronizer.add_chunk(OutputModality.SPEECH, np.random.randn(2205), 100.0)
+        
+        # Verify buffer has data
+        assert synchronizer.streams[OutputModality.SPEECH].buffer_size() == 2
+        
+        # Apply degradation
+        synchronizer.apply_graceful_degradation(OutputModality.SPEECH)
+        
+        # Buffer should be cleared
+        assert synchronizer.streams[OutputModality.SPEECH].buffer_size() == 0
+    
+    def test_recover_from_error_success(self, synchronizer):
+        """Test successful error recovery."""
+        # Register stream and mark as error
+        synchronizer.register_stream(OutputModality.SPEECH)
+        synchronizer.streams[OutputModality.SPEECH].state = StreamState.ERROR
+        
+        # Attempt recovery
+        result = synchronizer.recover_from_error(OutputModality.SPEECH)
+        
+        # Should succeed
+        assert result is True
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.IDLE
+    
+    def test_recover_from_error_not_in_error_state(self, synchronizer):
+        """Test recovery attempt on non-error stream."""
+        # Register stream in playing state
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.streams[OutputModality.TEXT].state = StreamState.PLAYING
+        
+        # Attempt recovery
+        result = synchronizer.recover_from_error(OutputModality.TEXT)
+        
+        # Should fail (not in error state)
+        assert result is False
+        assert synchronizer.streams[OutputModality.TEXT].state == StreamState.PLAYING
+    
+    def test_recover_from_error_nonexistent_stream(self, synchronizer):
+        """Test recovery attempt on non-existent stream."""
+        # Attempt recovery on non-existent stream
+        result = synchronizer.recover_from_error(OutputModality.SPEECH)
+        
+        # Should fail
+        assert result is False
+    
+    def test_recover_from_error_resets_state(self, synchronizer):
+        """Test that recovery resets stream state properly."""
+        # Register stream with data and mark as error
+        synchronizer.add_chunk(OutputModality.SPEECH, np.random.randn(2205), 100.0)
+        synchronizer.streams[OutputModality.SPEECH].state = StreamState.ERROR
+        synchronizer.streams[OutputModality.SPEECH].current_position_ms = 100.0
+        synchronizer.streams[OutputModality.SPEECH].next_sequence = 5
+        
+        # Recover
+        result = synchronizer.recover_from_error(OutputModality.SPEECH)
+        
+        # Should reset state
+        assert result is True
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.IDLE
+        assert synchronizer.streams[OutputModality.SPEECH].buffer_size() == 0
+        assert synchronizer.streams[OutputModality.SPEECH].current_position_ms == 0.0
+        assert synchronizer.streams[OutputModality.SPEECH].next_sequence == 0
+    
+    def test_recover_from_error_exits_fallback(self, synchronizer):
+        """Test that recovery can exit fallback mode."""
+        # Register streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        
+        # Set text to playing, speech to error
+        synchronizer.streams[OutputModality.TEXT].state = StreamState.PLAYING
+        synchronizer.streams[OutputModality.SPEECH].state = StreamState.ERROR
+        
+        # Activate fallback
+        synchronizer._fallback_active = True
+        synchronizer._fallback_mode = "degraded_text"
+        
+        # Recover speech
+        result = synchronizer.recover_from_error(OutputModality.SPEECH)
+        
+        # Should exit fallback mode
+        assert result is True
+        assert synchronizer._fallback_active is False
+        assert synchronizer._fallback_mode is None
+    
+    def test_configure_fallback(self, synchronizer):
+        """Test configuring fallback behavior."""
+        # Configure fallback
+        synchronizer.configure_fallback(
+            enable_text_fallback=True,
+            enable_single_modality_fallback=False,
+            enable_auto_recovery=True,
+            recovery_retry_delay_ms=500.0
+        )
+        
+        # Check configuration
+        status = synchronizer.get_fallback_status()
+        config = status["fallback_config"]
+        
+        assert config["enable_text_fallback"] is True
+        assert config["enable_single_modality_fallback"] is False
+        assert config["enable_auto_recovery"] is True
+        assert config["recovery_retry_delay_ms"] == 500.0
+    
+    def test_configure_fallback_defaults(self, synchronizer):
+        """Test default fallback configuration."""
+        # Get default configuration
+        status = synchronizer.get_fallback_status()
+        config = status["fallback_config"]
+        
+        # Check defaults
+        assert config["enable_text_fallback"] is True
+        assert config["enable_single_modality_fallback"] is True
+        assert config["enable_auto_recovery"] is False
+        assert config["recovery_retry_delay_ms"] == 1000.0
+    
+    def test_get_fallback_status_no_fallback(self, synchronizer):
+        """Test fallback status when no fallback is active."""
+        # Register streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        
+        # Get status
+        status = synchronizer.get_fallback_status()
+        
+        # Should show no fallback
+        assert status["fallback_active"] is False
+        assert status["fallback_mode"] is None
+        assert len(status["failed_modalities"]) == 0
+    
+    def test_get_fallback_status_with_failures(self, synchronizer):
+        """Test fallback status with failed modalities."""
+        # Register streams
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        synchronizer.register_stream(OutputModality.VISUAL)
+        
+        # Mark some as error
+        synchronizer.streams[OutputModality.SPEECH].state = StreamState.ERROR
+        synchronizer.streams[OutputModality.VISUAL].state = StreamState.ERROR
+        
+        # Set text to playing
+        synchronizer.streams[OutputModality.TEXT].state = StreamState.PLAYING
+        
+        # Get status
+        status = synchronizer.get_fallback_status()
+        
+        # Should show failures
+        assert "speech" in status["failed_modalities"]
+        assert "visual" in status["failed_modalities"]
+        assert "text" in status["active_modalities"]
+        assert len(status["failed_modalities"]) == 2
+        assert len(status["active_modalities"]) == 1
+    
+    def test_fallback_integration_with_synchronize(self, synchronizer):
+        """Test fallback integration with synchronize() method."""
+        # Synchronize with multiple modalities
+        result = synchronizer.synchronize(
+            text_data=[("Hello", 100.0)],
+            speech_data=[(np.random.randn(2205), 100.0)],
+            visual_data=[("image", 100.0)]
+        )
+        
+        assert result["success"] is True
+        assert len(result["streams_registered"]) == 3
+        
+        # Simulate speech failure
+        synchronizer.apply_graceful_degradation(OutputModality.SPEECH)
+        
+        # Should still have text and visual
+        status = synchronizer.get_fallback_status()
+        assert len(status["active_modalities"]) == 2
+        assert "text" in status["active_modalities"]
+        assert "visual" in status["active_modalities"]
+    
+    def test_fallback_integration_with_streaming(self, synchronizer):
+        """Test fallback integration with streaming mode."""
+        # Start streaming
+        synchronizer.start_streaming([OutputModality.TEXT, OutputModality.SPEECH])
+        
+        # Add chunks
+        synchronizer.add_streaming_chunk(
+            modality=OutputModality.TEXT,
+            data="Hello",
+            duration_ms=100.0
+        )
+        
+        synchronizer.add_streaming_chunk(
+            modality=OutputModality.SPEECH,
+            data=np.random.randn(2205),
+            duration_ms=100.0
+        )
+        
+        # Simulate speech failure during streaming
+        synchronizer.apply_graceful_degradation(OutputModality.SPEECH)
+        
+        # Should continue with text only
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert "text" in status["active_modalities"]
+        assert "speech" in status["failed_modalities"]
+        
+        # Should still be able to get text chunks
+        chunks = synchronizer.get_streaming_chunks()
+        # Text might be available depending on timing
+        assert synchronizer.streams[OutputModality.TEXT].state != StreamState.ERROR
+    
+    def test_fallback_resource_limited_scenario(self, synchronizer):
+        """Test fallback in resource-limited scenario."""
+        # Synchronize with all modalities
+        result = synchronizer.synchronize(
+            text_data=[("Hello", 100.0)],
+            speech_data=[(np.random.randn(2205), 100.0)],
+            visual_data=[("image", 100.0)]
+        )
+        
+        assert result["success"] is True
+        
+        # Simulate resource limitation - fallback to single modality
+        synchronizer.fallback_to_single_modality()
+        
+        # Should keep only text (highest priority)
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert len(status["active_modalities"]) == 1
+        assert "text" in status["active_modalities"]
+    
+    def test_fallback_tts_failure_scenario(self, synchronizer):
+        """Test fallback when TTS fails (Requirement 4.7, 11.1)."""
+        # Synchronize text and speech
+        result = synchronizer.synchronize(
+            text_data=[("Hello world", 200.0)],
+            speech_data=[(np.random.randn(4410), 200.0)]
+        )
+        
+        assert result["success"] is True
+        
+        # Simulate TTS failure
+        synchronizer.apply_graceful_degradation(OutputModality.SPEECH)
+        
+        # Should continue with text only
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert "text" in status["active_modalities"]
+        assert "speech" in status["failed_modalities"]
+        
+        # Text stream should still be functional
+        assert synchronizer.streams[OutputModality.TEXT].state != StreamState.ERROR
+        assert synchronizer.streams[OutputModality.TEXT].buffer_size() > 0
+    
+    def test_fallback_recovery_workflow(self, synchronizer):
+        """Test complete fallback and recovery workflow."""
+        # Start with multiple modalities
+        synchronizer.register_stream(OutputModality.TEXT)
+        synchronizer.register_stream(OutputModality.SPEECH)
+        
+        # Set to playing
+        synchronizer.streams[OutputModality.TEXT].state = StreamState.PLAYING
+        synchronizer.streams[OutputModality.SPEECH].state = StreamState.PLAYING
+        
+        # Simulate failure
+        synchronizer.apply_graceful_degradation(OutputModality.SPEECH)
+        
+        # Verify fallback
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is True
+        assert "speech" in status["failed_modalities"]
+        
+        # Attempt recovery
+        result = synchronizer.recover_from_error(OutputModality.SPEECH)
+        assert result is True
+        
+        # Verify recovery
+        status = synchronizer.get_fallback_status()
+        assert status["fallback_active"] is False
+        assert "speech" not in status["failed_modalities"]
+    
+    def test_fallback_multiple_recovery_attempts(self, synchronizer):
+        """Test multiple recovery attempts."""
+        # Register stream and mark as error
+        synchronizer.register_stream(OutputModality.SPEECH)
+        synchronizer.streams[OutputModality.SPEECH].state = StreamState.ERROR
+        
+        # First recovery attempt
+        result1 = synchronizer.recover_from_error(OutputModality.SPEECH)
+        assert result1 is True
+        
+        # Mark as error again
+        synchronizer.streams[OutputModality.SPEECH].state = StreamState.ERROR
+        
+        # Second recovery attempt
+        result2 = synchronizer.recover_from_error(OutputModality.SPEECH)
+        assert result2 is True
+        
+        # Should be in idle state
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.IDLE

@@ -255,7 +255,7 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - Support pause/resume
     - _Requirements: 6.3, 6.4_
   
-  - [~] 6.4 Implement fallback handling
+  - [-] 6.4 Implement fallback handling
     - Fallback to text-only when TTS fails
     - Fallback to single modality when resources limited
     - _Requirements: 4.7, 11.1_

@@ -30,7 +30,7 @@ except ImportError:
 
 CHUNK = 1024
 RATE = 16000
-SILENCE_THRESHOLD = 500  # Adjust based on environment
+SILENCE_THRESHOLD = 150  # Adjust based on environment (lowered for better pickup)
 
 class AudioModule:
     """Manages microphone input stream."""
@@ -79,6 +79,8 @@ class AudioModule:
             self.sd_stream = sd.InputStream(
                 channels=1,
                 samplerate=RATE,
+                blocksize=CHUNK,
+                dtype='float32',
                 callback=callback,
                 device=self.device_index
             )
@@ -143,6 +145,7 @@ class AudioModule:
         if energy > SILENCE_THRESHOLD:
             if not self.is_recording:
                 self.is_recording = True
+                print("🎤 [VAD] Voice detected... Listening!")
                 logger.info("Voice detected...")
             self.recording_buffer.append(raw_bytes)
             self.silence_counter = 0
@@ -154,6 +157,7 @@ class AudioModule:
                     filepath = self._save_recording(self.recording_buffer)
                     self.recording_buffer = []
                     self.is_recording = False
+                    print("⏹️ [VAD] Voice ended. Processing audio...")
                     logger.info("Voice ended.")
                     if self.on_audio_ready and filepath:
                         import threading
