@@ -88,6 +88,7 @@ class WeightLoader:
         # Load Arrow table (memory-mapped, no deserialization)
         self._table: Optional[pa.Table] = None
         self._metadata: Optional[Dict[str, Any]] = None
+        self._layer_name_map: Optional[Dict[str, int]] = None
         
         logger.info(f"Initialized WeightLoader for {parquet_path}")
         logger.debug(f"Memory map: {use_memory_map}, Device: {device}, Cache: {cache_weights}")
@@ -109,6 +110,13 @@ class WeightLoader:
             
             load_time_ms = (time.time() - start_time) * 1000
             logger.info(f"Loaded Arrow table in {load_time_ms:.2f}ms (memory_map={self.use_memory_map})")
+            
+            # Cache layer name to row index mapping for O(1) lookup
+            self._layer_name_map = {
+                self._table['layer_name'][i].as_py(): i 
+                for i in range(len(self._table))
+            }
+            
             logger.debug(f"Table schema: {self._table.schema}")
             logger.debug(f"Table rows: {len(self._table)}")
         
@@ -192,12 +200,11 @@ class WeightLoader:
         # Load table and find layer
         table = self._load_table()
         
-        # Find row index for layer_name
-        layer_names = table['layer_name'].to_pylist()
-        if layer_name not in layer_names:
-            raise KeyError(f"Layer '{layer_name}' not found in weights. Available: {layer_names[:5]}...")
+        # Find row index for layer_name using cached map
+        if layer_name not in self._layer_name_map:
+            raise KeyError(f"Layer '{layer_name}' not found in weights.")
         
-        row_idx = layer_names.index(layer_name)
+        row_idx = self._layer_name_map[layer_name]
         
         # Convert to tensor
         tensor = self._row_to_tensor(table, row_idx)
@@ -228,16 +235,15 @@ class WeightLoader:
         # Extract row data
         shape = table['shape'][row_idx].as_py()
         dtype_str = table['dtype'][row_idx].as_py()
-        data_bytes = table['data'][row_idx].as_py()
+        # Direct buffer access for True Zero-Copy
+        data_buffer = table['data'][row_idx].as_buffer()
         
         # Convert dtype string to NumPy dtype
         numpy_dtype = self._torch_dtype_to_numpy(dtype_str)
         
-        # Zero-copy: Create NumPy array from bytes
-        # Note: We must use copy() here to make the array writable and own its memory.
-        # Otherwise, PyTorch throws a UserWarning about non-writable tensors, and
-        # any in-place operations would fail. This copy is necessary for safety.
-        numpy_array = np.frombuffer(data_bytes, dtype=numpy_dtype).copy()
+        # Zero-copy: Create NumPy array from buffer without copy()
+        # Arrow's as_buffer() provides a memory-mapped view
+        numpy_array = np.frombuffer(data_buffer, dtype=numpy_dtype)
 
         # Reshape to original shape
         numpy_array = numpy_array.reshape(shape)
@@ -354,3 +360,43 @@ class WeightLoader:
             f"params={params_str}, "
             f"cache={self.get_cache_size_mb():.1f}MB)"
         )
+
+
+class LazyWeightDict:
+    """
+    A proxy dictionary that loads weights from WeightLoader only when accessed.
+    Compatible with InferenceCore's weight loading logic.
+    """
+    def __init__(self, loader: WeightLoader):
+        self.loader = loader
+        self._layer_names = loader.get_layer_names()
+        self._cache = {}
+
+    def __getitem__(self, key):
+        if key not in self._cache:
+            self._cache[key] = self.loader.get_layer(key)
+        return self._cache[key]
+
+    def __contains__(self, key):
+        return key in self._layer_names
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def keys(self):
+        return self._layer_names
+
+    def __len__(self):
+        return len(self._layer_names)
+
+    def __iter__(self):
+        return iter(self._layer_names)
+
+    def values(self):
+        return (self.loader.get_layer(name) for name in self._layer_names)
+        
+    def items(self):
+        return ((name, self.loader.get_layer(name)) for name in self._layer_names)

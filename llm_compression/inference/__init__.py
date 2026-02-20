@@ -22,4 +22,5 @@ __all__ = [
     "InferenceCore",
     "TransformerLayer",
     "MultiHeadAttention",
+    "optimize_for_intel",
 ]

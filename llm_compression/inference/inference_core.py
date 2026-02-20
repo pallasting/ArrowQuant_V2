@@ -290,8 +290,8 @@ class InferenceCore(nn.Module):
             
             self.encoder_layers.append(layer)
         
-        weight_count = sum(1 for v in weights.values() if v is not None)
-        logger.debug(f"Loaded weights from {weight_count} tensors into model")
+        weight_count = len(weights)
+        logger.debug(f"Loaded {weight_count} weight tensors into model architecture")
 
     def _build_decoder_and_load(self, weights: Dict[str, torch.Tensor]):
         """Build causal LLM architecture and load weights."""

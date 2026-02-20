@@ -105,11 +105,28 @@ class FastTokenizer:
             tokenizer.enable_truncation(max_length=self.max_length)
         
         if self.padding:
+            # Try common pad tokens
+            pad_token = "[PAD]"
+            pad_id = tokenizer.token_to_id(pad_token)
+            
+            if pad_id is None:
+                # Common fallbacks for different models (LLama, Qwen, etc.)
+                for fallback in ["<|endoftext|>", "</s>", "<pad>", "<|padding|>"]:
+                    pad_id = tokenizer.token_to_id(fallback)
+                    if pad_id is not None:
+                        pad_token = fallback
+                        break
+            
+            if pad_id is None:
+                pad_id = 0 # Final fallback
+                pad_token = tokenizer.id_to_token(0) or "[PAD]"
+            
             tokenizer.enable_padding(
                 length=self.max_length if self.padding == "max_length" else None,
-                pad_id=tokenizer.token_to_id("[PAD]") or 0,
-                pad_token="[PAD]",
+                pad_id=pad_id,
+                pad_token=pad_token,
             )
+            logger.debug(f"Padding enabled: token={pad_token}, id={pad_id}")
         
         logger.info(f"Loaded Rust tokenizer: {tokenizer_file.name}")
         

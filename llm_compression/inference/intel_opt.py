@@ -6,10 +6,19 @@ Intel AI Acceleration optimization utilities.
 import torch
 from .device_utils import is_intel_ipex_available
 
-def optimize_for_intel(model, dtype=torch.float32):
+def optimize_for_intel(model, dtype=torch.float32, enable_compile=True):
     """
-    Apply Intel IPEX optimizations to a model.
+    Apply Intel IPEX optimizations and torch.compile to a model.
     """
+    if enable_compile:
+        try:
+            from llm_compression.logger import logger
+            logger.info("Applying torch.compile with backend='inductor'")
+            model = torch.compile(model, backend='inductor')
+        except Exception as e:
+            from llm_compression.logger import logger
+            logger.warning(f"Failed to apply torch.compile: {e}")
+
     if not is_intel_ipex_available():
         return model
     

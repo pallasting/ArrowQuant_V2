@@ -22,11 +22,12 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from llm_compression.inference.weight_loader import WeightLoader
+from llm_compression.inference.weight_loader import WeightLoader, LazyWeightDict
 from llm_compression.inference.fast_tokenizer import FastTokenizer
 from llm_compression.inference.inference_core import InferenceCore
 from llm_compression.inference.device_utils import get_best_device, get_device_info
 from llm_compression.inference.intel_opt import optimize_for_intel
+from llm_compression.inference.cuda_backend import optimize_for_cuda
 from llm_compression.logger import logger
 
 
@@ -73,6 +74,7 @@ class ArrowEngine:
         max_batch_size: int = 32,
         normalize_embeddings: bool = True,
         enable_intel_optimizations: bool = True,
+        lazy_load: bool = True,
     ):
         """
         Initialize ArrowEngine.
@@ -80,13 +82,14 @@ class ArrowEngine:
         Args:
             model_path: Path to converted model directory
             device: Device for inference ("cpu", "cuda", "mps", or None for auto)
-            max_batch_size: Maximum batch size for inference
             normalize_embeddings: L2-normalize embeddings by default
             enable_intel_optimizations: Enable Intel CPU optimizations (MKL, threading)
+            lazy_load: Load weights on-demand to reduce startup time
         """
         self.model_path = Path(model_path)
         self.max_batch_size = max_batch_size
         self.normalize_embeddings = normalize_embeddings
+        self.lazy_load = lazy_load
         
         if not self.model_path.exists():
             raise FileNotFoundError(f"Model path not found: {model_path}")
@@ -464,9 +467,13 @@ class ArrowEngine:
             cache_weights=True,
         )
         
-        self.weights = self.weight_loader.load_weights()
+        if self.lazy_load:
+            logger.info("Using LazyWeightDict for on-demand loading")
+            self.weights = LazyWeightDict(self.weight_loader)
+        else:
+            self.weights = self.weight_loader.load_weights()
         
-        logger.info(f"Loaded {len(self.weights)} weight tensors")
+        logger.info(f"Initialized weights (lazy={self.lazy_load})")
     
     def _load_tokenizer(self):
         """Load tokenizer using FastTokenizer."""
@@ -483,6 +490,7 @@ class ArrowEngine:
         self.tokenizer = FastTokenizer(
             tokenizer_path=str(tokenizer_path),
             max_length=max_length,
+            padding="longest",
         )
         
         logger.info(f"Loaded tokenizer with max_length={max_length}")
@@ -573,10 +581,15 @@ class ArrowEngine:
             'vocab_size': vocab_size,
             'layer_norm_eps': layer_norm_eps,
             'architecture': model_info.get('architecture', ''),
-            'rope_theta': model_info.get('rope_theta', 10000.0),
-            'num_key_value_heads': model_info.get('num_key_value_heads', num_attention_heads),
-            'rms_norm_eps': model_info.get('rms_norm_eps', 1e-6),
         }
+        
+        # Decoder-specific configs: only add if present in metadata
+        if 'rope_theta' in model_info:
+            config['rope_theta'] = model_info['rope_theta']
+        if 'num_key_value_heads' in model_info:
+            config['num_key_value_heads'] = model_info['num_key_value_heads']
+        if 'rms_norm_eps' in model_info:
+            config['rms_norm_eps'] = model_info['rms_norm_eps']
         
         self.inference_core = InferenceCore(
             weights=self.weights,
@@ -584,9 +597,22 @@ class ArrowEngine:
             device=self.device,
         )
         
-        # Apply Intel/Hardware specific optimizations
+        # Apply Hardware specific optimizations
         dtype = torch.float16 if model_info.get('use_float16') else torch.float32
-        self.inference_core = optimize_for_intel(self.inference_core, dtype=dtype)
+        
+        if self.device == "cuda":
+            from llm_compression.inference.cuda_backend import check_vram_limit
+            if not check_vram_limit():
+                logger.warning("Insufficient VRAM, falling back to CPU")
+                self.device = "cpu"
+                self.inference_core = self.inference_core.to("cpu")
+            else:
+                self.inference_core = optimize_for_cuda(self.inference_core, use_amp=(dtype == torch.float16))
+        
+        if self.device == "cpu":
+            self.inference_core = optimize_for_intel(self.inference_core, dtype=dtype)
+        elif self.device == "xpu":
+            self.inference_core = optimize_for_intel(self.inference_core, dtype=dtype)
         
         logger.info(
             f"InferenceCore: hidden={hidden_size}, layers={num_layers}, "
