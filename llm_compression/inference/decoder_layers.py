@@ -41,14 +41,27 @@ def apply_rotary_emb(
     xk: torch.Tensor,
     freqs_cis: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Apply RoPE to queries and keys."""
+    """Apply RoPE to queries and keys using a more compatible rotate_half style."""
     # xq: [batch, seq_len, num_heads, head_dim]
-    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
-    xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
-    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
+    # freqs_cis: [seq_len, head_dim] (pre-expanded from polar to cos/sin)
     
-    xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
-    xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
+    # In precompute_freqs_cis, we used torch.polar. Let's simplify and use cos/sin directly.
+    cos = freqs_cis.real.view(1, freqs_cis.shape[0], 1, -1)
+    sin = freqs_cis.imag.view(1, freqs_cis.shape[0], 1, -1)
+    
+    def rotate_half(x):
+        """Rotates half the hidden dims of the input using split (Llama/Qwen style)."""
+        x1 = x[..., : x.shape[-1] // 2]
+        x2 = x[..., x.shape[-1] // 2 :]
+        return torch.cat((-x2, x1), dim=-1)
+
+    # For split-style, cos and sin also need to be concatenated, not interleaved
+    cos = torch.cat((cos, cos), dim=-1)
+    sin = torch.cat((sin, sin), dim=-1)
+
+    xq_out = (xq * cos) + (rotate_half(xq) * sin)
+    xk_out = (xk * cos) + (rotate_half(xk) * sin)
+    
     return xq_out.type_as(xq), xk_out.type_as(xk)
 
 class KVCache:

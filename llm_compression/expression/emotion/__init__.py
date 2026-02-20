@@ -1,17 +1,17 @@
 """
-Emotional Expression module.
+Emotion system for the Expression & Presentation Layer.
 
-Provides emotion detection and mapping capabilities:
-- Emotion detection from user input
-- Emotion-to-voice parameter mapping
-- Emotion-to-text style mapping
-- Multi-modal emotion consistency
-
-Public API:
-    - EmotionMapper: Maps emotions to voice and text parameters
-    - EmotionDetector: Detects emotions from input (optional)
+This module provides emotion mapping capabilities for both voice (TTS)
+and text (NLG) generation, enabling emotionally-aware expression across
+multiple modalities.
 """
 
-__all__ = []
+from llm_compression.expression.emotion.text_style_mapper import (
+    TextStyleMapper,
+    TextStyleParameters
+)
 
-__version__ = "0.1.0"
+__all__ = [
+    "TextStyleMapper",
+    "TextStyleParameters",
+]

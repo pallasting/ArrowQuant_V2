@@ -90,7 +90,7 @@ class ExpressionContext:
         if not 0.0 <= self.formality_level <= 1.0:
             raise ValueError(f"formality_level must be between 0 and 1, got {self.formality_level}")
         
-        if self.time_of_day not in ["day", "night", "morning", "evening"]:
+        if self.time_of_day not in ["day", "night", "morning", "evening", "afternoon"]:
             raise ValueError(f"Invalid time_of_day: {self.time_of_day}")
 
 

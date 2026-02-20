@@ -233,14 +233,17 @@ class WeightLoader:
         # Convert dtype string to NumPy dtype
         numpy_dtype = self._torch_dtype_to_numpy(dtype_str)
         
-        # Zero-copy: Create NumPy array from bytes (no copy)
-        numpy_array = np.frombuffer(data_bytes, dtype=numpy_dtype)
+        # Zero-copy: Create NumPy array from bytes
+        # Note: We must use copy() here to make the array writable and own its memory.
+        # Otherwise, PyTorch throws a UserWarning about non-writable tensors, and
+        # any in-place operations would fail. This copy is necessary for safety.
+        numpy_array = np.frombuffer(data_bytes, dtype=numpy_dtype).copy()
 
         # Reshape to original shape
         numpy_array = numpy_array.reshape(shape)
 
-        # Convert to PyTorch tensor (shares memory with NumPy array)
-        tensor = torch.from_numpy(numpy_array.copy())  # Copy to avoid ownership issues
+        # Convert to PyTorch tensor
+        tensor = torch.from_numpy(numpy_array)
 
         # Upcast float16 → float32 to prevent cumulative precision loss through
         # deep transformer stacks (12+ layers). Without this, Vision/Audio encoders

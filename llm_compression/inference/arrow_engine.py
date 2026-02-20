@@ -531,8 +531,11 @@ class ArrowEngine:
         intermediate_size = model_info.get('intermediate_size')
         if not intermediate_size:
             ffn_key = "encoder.layer.0.intermediate.dense.weight"
+            gate_key = "model.layers.0.mlp.gate_proj.weight"
             if ffn_key in self.weights:
                 intermediate_size = self.weights[ffn_key].shape[0]
+            elif gate_key in self.weights:
+                intermediate_size = self.weights[gate_key].shape[0]
             else:
                 intermediate_size = hidden_size * 4
         
@@ -543,14 +546,17 @@ class ArrowEngine:
             if pos_key in self.weights:
                 max_position = self.weights[pos_key].shape[0]
             else:
-                max_position = 512
+                max_position = model_info.get('max_seq_length') or 512
         
         # vocab_size: from metadata or weight shape
         vocab_size = model_info.get('vocab_size')
         if not vocab_size:
             vocab_key = "embeddings.word_embeddings.weight"
+            embed_key = "model.embed_tokens.weight"
             if vocab_key in self.weights:
                 vocab_size = self.weights[vocab_key].shape[0]
+            elif embed_key in self.weights:
+                vocab_size = self.weights[embed_key].shape[0]
             else:
                 vocab_size = 30522
         
@@ -604,17 +610,18 @@ class ArrowEngine:
             return '{"action": "wait", "params": {}}'
             
         # Tokenize (using HuggingFace-like Rust tokenizers)
-        # Assuming encode returns an Encoding object with .ids
-        encoded = self.tokenizer.tokenizer.encode(prompt)
-        tokens = encoded.ids
-        input_ids = torch.tensor([tokens], device=self.device)
+        # FastTokenizer wrapper provides .encode which returns a dict
+        encoded = self.tokenizer.encode(prompt, add_special_tokens=False)
+        tokens = encoded["input_ids"][0]
+        input_ids = tokens.unsqueeze(0).to(self.device)
+        tokens_list = tokens.tolist()
         
         # Initialize KV Cache
         from llm_compression.inference.decoder_layers import KVCache
         kv_cache = [
             KVCache(
                 max_batch_size=1, 
-                max_seq_len=len(tokens) + max_tokens, 
+                max_seq_len=len(tokens_list) + max_tokens, 
                 num_kv_heads=self.inference_core.num_key_value_heads, 
                 head_dim=self.inference_core.head_size, 
                 device=self.device, 
@@ -632,19 +639,24 @@ class ArrowEngine:
             
             # Sample next token
             if temperature > 0.0:
-                probs = torch.softmax(logits / temperature, dim=-1)
+                logits_scaled = logits / temperature
                 if top_p < 1.0:
-                    sorted_probs, sorted_indices = torch.sort(probs, descending=True)
-                    cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                    sorted_logits, sorted_indices = torch.sort(logits_scaled, descending=True)
+                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
                     
+                    # Remove tokens with cumulative probability above the threshold
                     sorted_indices_to_remove = cumulative_probs > top_p
+                    # Shift the indices to the right to keep also the first token above the threshold
                     sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
                     sorted_indices_to_remove[..., 0] = 0
                     
-                    indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
-                    logits[indices_to_remove] = float('-inf')
-                    probs = torch.softmax(logits, dim=-1)
+                    # Scatter sorted tensors to original indexing
+                    indices_to_remove = torch.zeros_like(logits_scaled, dtype=torch.bool).scatter_(
+                        1, sorted_indices, sorted_indices_to_remove
+                    )
+                    logits_scaled[indices_to_remove] = float('-inf')
                     
+                probs = torch.softmax(logits_scaled, dim=-1)
                 next_token = torch.multinomial(probs, num_samples=1)
             else:
                 next_token = torch.argmax(logits, dim=-1, keepdim=True)
@@ -658,7 +670,7 @@ class ArrowEngine:
                 
             current_input = torch.tensor([[token_id]], device=self.device)
             
-        generated_text = self.tokenizer.tokenizer.decode(generated_tokens)
+        generated_text = self.tokenizer.decode(generated_tokens)
         return generated_text
 
     def encode(

@@ -1,9 +1,14 @@
 llm:
-  cloud_endpoint: http://localhost:8045
-  cloud_api_key: null
-  timeout: 30.0
+  cloud_endpoint: http://192.168.1.99:8046/openai-iflow/v1
+  cloud_api_key: sk-0437c02b1560470981866f50b05759e3
+  timeout: 60.0
   max_retries: 3
-  rate_limit: 60
+  rate_limit: 120
+
+evolution:
+  teacher_model: glm-5
+  teacher_provider: openai
+
 model:
   prefer_local: true
   local_endpoints:

@@ -69,13 +69,48 @@ class MultiModalExpressor:
             ExpressionResult with generated content
         """
         if modality == "text":
-            return await self._express_text(memories, style, max_length)
+            return await self._express_text(memories, None, style, max_length)
         elif modality == "image":
             raise NotImplementedError("Image generation not yet implemented")
         elif modality == "audio":
-            raise NotImplementedError("Audio generation not yet implemented")
+            return await self._express_audio(memories, None, style, max_length)
         else:
             raise ValueError(f"Unsupported modality: {modality}")
+            
+    async def express_audio(
+        self,
+        memories: List[Any],
+        query: Optional[str] = None,
+        style: Optional[str] = None,
+        max_length: int = 500
+    ) -> ExpressionResult:
+        """
+        Convenience method for audio expression.
+        
+        Args:
+            memories: List of CompressedMemory or MemoryPrimitive
+            query: Optional query context
+            style: Optional style hint
+            max_length: Maximum output length
+            
+        Returns:
+            ExpressionResult with generated audio path
+        """
+        # Convert to MemoryPrimitive if needed
+        mem_primitives = []
+        for mem in memories:
+            if isinstance(mem, MemoryPrimitive):
+                mem_primitives.append(mem)
+            elif isinstance(mem, CompressedMemory):
+                mem_primitives.append(MemoryPrimitive(
+                    id=mem.memory_id,
+                    content=mem,
+                    embedding=np.array(mem.embedding)
+                ))
+            else:
+                continue
+                
+        return await self._express_audio(mem_primitives, query, style, max_length)
     
     async def express_text(
         self,
@@ -157,6 +192,55 @@ class MultiModalExpressor:
             modality="text",
             quality_score=quality,
             source_memories=memory_ids
+        )
+        
+    async def _express_audio(
+        self,
+        memories: List[MemoryPrimitive],
+        query: Optional[str],
+        style: Optional[str],
+        max_length: int
+    ) -> ExpressionResult:
+        """
+        Generate audio from memories using TTSEngine.
+        """
+        import os
+        import time
+        import soundfile as sf
+        from llm_compression.expression.tts.tts_engine import TTSEngine
+        from llm_compression.expression.expression_types import TTSConfig, TTSBackend
+        
+        # 1. Generate textual response from memories
+        text_result = await self._express_text(memories, query, style, max_length)
+        
+        if not text_result.content:
+            return text_result
+            
+        # 2. Synthesize using TTSEngine
+        config = TTSConfig(
+            backend=TTSBackend.PIPER,
+            streaming=False,
+            cache_enabled=True
+        )
+        tts = TTSEngine(config)
+        chunks = list(tts.synthesize(text_result.content))
+        
+        if not chunks:
+            return text_result  # Fallback to text if TTS fails
+            
+        audio_array = chunks[0]
+        
+        # 3. Save to file
+        output_dir = "output_audio"
+        os.makedirs(output_dir, exist_ok=True)
+        filename = f"{output_dir}/speech_{int(time.time())}.wav"
+        sf.write(filename, audio_array, config.sample_rate)
+        
+        return ExpressionResult(
+            content=filename,
+            modality="audio",
+            quality_score=text_result.quality_score,
+            source_memories=text_result.source_memories
         )
     
     def _combine_texts(self, texts: List[str]) -> str:

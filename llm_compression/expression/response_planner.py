@@ -307,34 +307,64 @@ class ResponsePlanner:
         return OutputModality.TEXT
     
     def _select_style(
-        self,
-        intent: str,
-        context: ExpressionContext
-    ) -> ExpressionStyle:
-        """
-        Select expression style based on context.
-        
-        Args:
-            intent: Intent to express
-            context: Expression context
-            
-        Returns:
-            Selected expression style
-            
-        Requirements: 8.2, 8.3, 15.3
-        """
-        # Check intent-based rules first
-        for pattern, style in self.style_rules.items():
-            if pattern in intent.lower():
-                return style
-        
-        # Fallback to formality-based selection
-        if context.formality_level > 0.7:
-            return ExpressionStyle.FORMAL
-        elif context.formality_level < 0.3:
-            return ExpressionStyle.CASUAL
-        else:
-            return ExpressionStyle.TECHNICAL
+            self,
+            intent: str,
+            context: ExpressionContext
+        ) -> ExpressionStyle:
+            """
+            Select expression style based on context.
+
+            Implements context-to-style mapping with:
+            - Intent-based rules (highest priority)
+            - User preference integration
+            - Language-specific adjustments
+            - Formality-based fallback
+
+            Args:
+                intent: Intent to express
+                context: Expression context
+
+            Returns:
+                Selected expression style
+
+            Requirements: 8.2, 8.3, 15.3
+            """
+            # Check user preferences first (Requirement 8.3)
+            if context.user_preferences:
+                preferred_style = context.user_preferences.get("preferred_style")
+                if preferred_style and hasattr(ExpressionStyle, preferred_style.upper()):
+                    # Only use preference if it's a valid style
+                    try:
+                        return ExpressionStyle(preferred_style.lower())
+                    except ValueError:
+                        logger.warning(f"Invalid preferred style: {preferred_style}")
+
+            # Check intent-based rules (Requirement 8.2)
+            for pattern, style in self.style_rules.items():
+                if pattern in intent.lower():
+                    return style
+
+            # Apply language-specific style adjustments (Requirement 15.3)
+            base_formality = context.formality_level
+
+            # Get language-specific formality adjustment
+            if hasattr(self, 'language_detector'):
+                rules = self.language_detector.language_rules.get(
+                    context.language, 
+                    self.language_detector.language_rules["en"]
+                )
+                # If formality is at default, use language default
+                if base_formality == 0.5:
+                    base_formality = rules["formality_default"]
+
+            # Fallback to formality-based selection with language adjustments
+            if base_formality > 0.7:
+                return ExpressionStyle.FORMAL
+            elif base_formality < 0.3:
+                return ExpressionStyle.CASUAL
+            else:
+                return ExpressionStyle.TECHNICAL
+
     
     def _select_emotion(
         self,

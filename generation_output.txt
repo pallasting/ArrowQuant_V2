@@ -1,0 +1,12 @@
+==================================================
+PROMPT:
+<|im_start|>system
+You are a helpful assistant.<|im_end|>
+<|im_start|>user
+What is the most important feature of an AI agent?<|im_end|>
+<|im_start|>assistant
+
+--------------------------------------------------
+GENERATED RESPONSE:
+The most important feature of an AI agent is its ability to learn and adapt to new situations. This requires the agent to be able to understand the context and semantics of the input, and to be able to make decisions based on that understanding. It also
+==================================================

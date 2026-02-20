@@ -5,7 +5,7 @@ Based on Design Spec: ARROWENGINE_NATIVE_ARCHITECTURE_VISION.md
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Dict, Any
 import numpy as np
 import torch
 

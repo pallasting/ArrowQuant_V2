@@ -33,7 +33,7 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - Set up mock backends for testing
     - _Requirements: 13.1_
 
-- [-] 2. Implement Response Planner
+- [x] 2. Implement Response Planner
   - [x] 2.1 Create LanguageDetector class
     - Implement automatic language detection
     - Initialize language-specific expression rules
@@ -58,27 +58,27 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - Estimate response duration
     - _Requirements: 4.2, 4.4, 8.2, 15.6_
   
-  - [-] 2.4 Implement style selection logic
+  - [x] 2.4 Implement style selection logic
     - Create context-to-style mapping rules
     - Implement formality-based selection
     - Add user preference integration
     - Apply language-specific adjustments
     - _Requirements: 8.2, 8.3, 15.3_
   
-  - [ ] 2.5 Implement emotion selection logic
+  - [x] 2.5 Implement emotion selection logic
     - Map intents to emotions
     - Calculate emotion intensity
     - Consider context emotion state
     - Apply language-specific emotion adjustments
     - _Requirements: 3.1, 3.2, 8.4, 15.3_
   
-  - [ ] 2.6 Write unit tests for LanguageDetector
+  - [x] 2.6 Write unit tests for LanguageDetector
     - Test language detection accuracy
     - Test language-specific rule application
     - Test language consistency
     - _Requirements: 15.1, 15.2_
   
-  - [ ] 2.7 Write unit tests for ResponsePlanner
+  - [x] 2.7 Write unit tests for ResponsePlanner
     - Test modality selection
     - Test style selection
     - Test emotion selection
@@ -86,52 +86,52 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - Test multi-language support
     - _Requirements: 13.1, 15.6_
 
-- [ ] 3. Implement NLG Engine
-  - [ ] 3.1 Create NLGEngine class
+- [-] 3. Implement NLG Engine
+  - [x] 3.1 Create NLGEngine class
     - Implement `__init__` with backend configuration
     - Initialize OpenAI/Anthropic/Local backend
     - Initialize template engine fallback
     - _Requirements: 2.1, 2.2_
   
-  - [ ] 3.2 Implement generate() method
+  - [x] 3.2 Implement generate() method
     - Build system prompt with style instructions
     - Call backend API with streaming support
     - Handle errors with template fallback
     - Yield generated tokens
     - _Requirements: 2.3, 2.7, 11.2_
   
-  - [ ] 3.3 Implement OpenAI backend
+  - [x] 3.3 Implement OpenAI backend
     - Initialize OpenAI client
     - Implement streaming generation
     - Implement complete generation
     - Handle API errors and rate limits
     - _Requirements: 2.1, 2.3_
   
-  - [ ] 3.4 Implement Anthropic backend (optional)
+  - [x] 3.4 Implement Anthropic backend (optional)
     - Initialize Anthropic client
     - Implement streaming generation
     - Implement complete generation
     - _Requirements: 2.1_
   
-  - [ ] 3.5 Implement Local backend (optional)
+  - [x] 3.5 Implement Local backend (optional)
     - Initialize Ollama client
     - Implement streaming generation
     - Support local model selection
     - _Requirements: 2.1, 12.3_
   
-  - [ ] 3.6 Implement TemplateEngine fallback
+  - [x] 3.6 Implement TemplateEngine fallback
     - Create template library for common responses
     - Implement template selection
     - Implement variable substitution
     - _Requirements: 4.4, 11.2_
   
-  - [ ] 3.7 Add context management
+  - [x] 3.7 Add context management
     - Implement conversation history tracking
     - Implement context window management
     - Support multi-turn coherence
     - _Requirements: 2.2, 2.6_
   
-  - [ ] 3.8 Write unit tests for NLGEngine
+  - [x] 3.8 Write unit tests for NLGEngine
     - Test OpenAI backend
     - Test template fallback
     - Test streaming generation
@@ -139,14 +139,14 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - _Requirements: 13.1, 13.6_
 
 - [ ] 4. Implement TTS Engine
-  - [ ] 4.1 Create TTSEngine class
+  - [x] 4.1 Create TTSEngine class
     - Implement `__init__` with backend configuration
     - Initialize Piper/Coqui/Azure/OpenAI backend
     - Initialize TTS cache
     - Initialize emotion mapper
     - _Requirements: 1.1, 1.3_
   
-  - [ ] 4.2 Implement synthesize() method
+  - [x] 4.2 Implement synthesize() method
     - Check cache for existing audio
     - Apply emotion to voice parameters
     - Generate speech (streaming or complete)
@@ -154,44 +154,44 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - Handle errors with silence fallback
     - _Requirements: 1.2, 1.7, 11.1_
   
-  - [ ] 4.3 Implement Piper backend (recommended)
+  - [x] 4.3 Implement Piper backend (recommended)
     - Initialize Piper voice model
     - Implement fast local synthesis
     - Support voice parameter control
     - _Requirements: 1.1, 1.2, 1.3_
   
-  - [ ] 4.4 Implement Coqui TTS backend (optional)
+  - [~] 4.4 Implement Coqui TTS backend (optional)
     - Initialize Coqui TTS model
     - Implement high-quality synthesis
     - Support emotion control
     - _Requirements: 1.1, 1.4_
   
-  - [ ] 4.5 Implement Azure TTS backend (optional)
+  - [~] 4.5 Implement Azure TTS backend (optional)
     - Initialize Azure Speech SDK
     - Implement cloud synthesis
     - Support multiple voices and languages
     - _Requirements: 1.1, 1.3_
   
-  - [ ] 4.6 Implement OpenAI TTS backend (optional)
+  - [~] 4.6 Implement OpenAI TTS backend (optional)
     - Initialize OpenAI client
     - Implement cloud synthesis
     - Support voice selection
     - _Requirements: 1.1, 1.6_
   
-  - [ ] 4.7 Implement streaming synthesis
+  - [x] 4.7 Implement streaming synthesis
     - Split text into sentences
     - Synthesize sentence-by-sentence
     - Yield audio chunks
     - _Requirements: 1.7, 6.2_
   
-  - [ ] 4.8 Implement TTSCache
+  - [x] 4.8 Implement TTSCache
     - Create cache with size limit
     - Implement get/put methods
     - Implement FIFO eviction
     - Generate cache keys from text and voice config
     - _Requirements: 10.5_
   
-  - [ ] 4.9 Write unit tests for TTSEngine
+  - [x] 4.9 Write unit tests for TTSEngine
     - Test Piper backend
     - Test streaming synthesis
     - Test cache functionality
@@ -199,21 +199,21 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - _Requirements: 13.1, 13.6_
 
 - [ ] 5. Implement Emotion System
-  - [ ] 5.1 Create EmotionMapper class
+  - [x] 5.1 Create EmotionMapper class
     - Define emotion-to-parameter mappings
     - Implement apply_emotion() method
     - Support 8 basic emotions
     - Support intensity scaling
     - _Requirements: 3.2, 3.4, 3.5_
   
-  - [ ] 5.2 Implement voice parameter mapping
+  - [x] 5.2 Implement voice parameter mapping
     - Map emotions to speed adjustments
     - Map emotions to pitch adjustments
     - Map emotions to volume adjustments
     - Apply intensity scaling
     - _Requirements: 3.2, 3.5_
   
-  - [ ] 5.3 Implement text style mapping
+  - [x] 5.3 Implement text style mapping
     - Map emotions to text generation style
     - Adjust formality based on emotion
     - Adjust word choice based on emotion
@@ -230,7 +230,7 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - Warn on inconsistencies
     - _Requirements: 3.6_
   
-  - [ ] 5.6 Write unit tests for EmotionMapper
+  - [x] 5.6 Write unit tests for EmotionMapper
     - Test parameter mapping
     - Test intensity scaling
     - Test all 8 emotions

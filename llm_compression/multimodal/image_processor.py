@@ -63,30 +63,45 @@ class ImageProcessor:
         if isinstance(image, str):
             image = Image.open(image).convert("RGB")
         
-        # Convert PIL to numpy if needed
-        if isinstance(image, Image.Image):
-            image = np.array(image)
-        
-        # Ensure RGB format
-        if image.ndim == 2:
-            # Grayscale to RGB
-            image = np.stack([image] * 3, axis=-1)
-        elif image.shape[-1] == 4:
-            # RGBA to RGB
-            image = image[:, :, :3]
-        
-        # Resize to target size
-        if image.shape[0] != self.image_size or image.shape[1] != self.image_size:
-            pil_img = Image.fromarray(image)
-            pil_img = pil_img.resize((self.image_size, self.image_size), Image.BILINEAR)
-            image = np.array(pil_img)
-        
+        # Ensure we have a PIL image for resizing/cropping
+        if isinstance(image, np.ndarray):
+            # Ensure RGB format for numpy
+            if image.ndim == 2:
+                image = np.stack([image] * 3, axis=-1)
+            elif image.shape[-1] == 4:
+                image = image[:, :, :3]
+            image = Image.fromarray(image)
+        elif isinstance(image, Image.Image):
+             if image.mode != "RGB":
+                 image = image.convert("RGB")
+
+        # Resize (shortest edge) and Center Crop
+        # Logic: Resize so shortest edge is self.image_size, keeping aspect ratio
+        w, h = image.size
+        scale = self.image_size / min(w, h)
+        new_w = int(round(w * scale))
+        new_h = int(round(h * scale))
+
+        # Resize with BICUBIC (CLIP standard)
+        image = image.resize((new_w, new_h), resample=Image.BICUBIC)
+
+        # Center Crop
+        left = (new_w - self.image_size) // 2
+        top = (new_h - self.image_size) // 2
+        right = left + self.image_size
+        bottom = top + self.image_size
+
+        image = image.crop((left, top, right, bottom))
+
+        # Convert to numpy
+        image = np.array(image)
+
         # Convert to float32 and normalize to [0, 1]
         image = image.astype(np.float32) / 255.0
-        
+
         # Apply normalization (zero-copy operation)
         image = (image - self.mean) / self.std
-        
+
         return image
     
     def preprocess_batch(

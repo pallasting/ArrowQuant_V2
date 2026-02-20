@@ -1,18 +1,18 @@
 """
-Text-to-Speech (TTS) module.
+Text-to-Speech module for the Expression & Presentation Layer.
 
-Provides speech synthesis capabilities with multiple backends:
-- Piper: Fast local TTS
-- Coqui TTS: High-quality local TTS
-- Azure TTS: Cloud-based TTS with many voices
-- OpenAI TTS: Cloud-based natural TTS
-
-Public API:
-    - TTSEngine: Main TTS engine with backend abstraction
-    - TTSCache: Caching for generated speech
-    - EmotionMapper: Maps emotions to voice parameters
+This module provides TTS capabilities with multiple backend support,
+emotion control, caching, and streaming.
 """
 
-__all__ = []
+from llm_compression.expression.tts.tts_engine import (
+    TTSEngine,
+    TTSCache,
+    EmotionMapper
+)
 
-__version__ = "0.1.0"
+__all__ = [
+    "TTSEngine",
+    "TTSCache",
+    "EmotionMapper"
+]

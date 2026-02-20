@@ -29,3 +29,6 @@ aiohttp>=3.9.0
 # Action Recording & Execution
 pynput>=1.7.0
 pyautogui>=0.9.54
+
+# Expression Layer - TTS
+piper-tts>=1.2.0  # Fast local TTS engine

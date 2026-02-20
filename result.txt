@@ -1,0 +1,61 @@
+2026-02-19 22:49:25,125 - DecoderTest - INFO - Downloading qwen/Qwen2.5-0.5B-Instruct from ModelScope...
+2026-02-19 22:49:31,783 - modelscope - INFO - Target directory already exists, skipping creation.
+2026-02-19 22:49:31,792 - DecoderTest - INFO - Model downloaded to C:\Users\Admin\.cache\modelscope\hub\models\qwen\Qwen2___5-0___5B-Instruct
+2026-02-19 22:49:31,796 - DecoderTest - INFO - Model already converted at models\qwen2.5-0.5b-arrow
+2026-02-19 22:49:31,889 - DecoderTest - INFO - Initializing ArrowEngine (Observe the Zero-Copy load speed!)...
+Downloading Model from https://www.modelscope.cn to directory: C:\Users\Admin\.cache\modelscope\hub\models\qwen\Qwen2.5-0.5B-Instruct
+2026-02-19 22:49:31 - llm_compression - INFO - Intel CPU optimizations enabled:
+2026-02-19 22:49:31,970 - llm_compression - INFO - Intel CPU optimizations enabled:
+2026-02-19 22:49:31 - llm_compression - INFO -   - Intra-op threads: 12
+2026-02-19 22:49:31,979 - llm_compression - INFO -   - Intra-op threads: 12
+2026-02-19 22:49:31 - llm_compression - INFO -   - Inter-op threads: 2
+2026-02-19 22:49:31,989 - llm_compression - INFO -   - Inter-op threads: 2
+2026-02-19 22:49:31 - llm_compression - INFO -   - MKL-DNN: True
+2026-02-19 22:49:31,998 - llm_compression - INFO -   - MKL-DNN: True
+2026-02-19 22:49:32 - llm_compression - INFO - Initialized on CPU (cpu)
+2026-02-19 22:49:32,017 - llm_compression - INFO - Initialized on CPU (cpu)
+2026-02-19 22:49:32 - llm_compression - INFO - Initialized WeightLoader for models\qwen2.5-0.5b-arrow\weights.parquet
+2026-02-19 22:49:32,068 - llm_compression - INFO - Initialized WeightLoader for models\qwen2.5-0.5b-arrow\weights.parquet
+Traceback (most recent call last):
+  File "M:\Documents\ai-os-memory\verify_arrow_decoder.py", line 90, in <module>
+    main()
+    ~~~~^^
+  File "M:\Documents\ai-os-memory\verify_arrow_decoder.py", line 58, in main
+    engine = ArrowEngine(
+        str(output_dir),
+        device="cpu",
+        enable_intel_optimizations=True
+    )
+  File "M:\Documents\ai-os-memory\llm_compression\inference\arrow_engine.py", line 103, in __init__
+    self._load_weights()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "M:\Documents\ai-os-memory\llm_compression\inference\arrow_engine.py", line 467, in _load_weights
+    self.weights = self.weight_loader.load_weights()
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "M:\Documents\ai-os-memory\llm_compression\inference\weight_loader.py", line 136, in load_weights
+    table = self._load_table()
+  File "M:\Documents\ai-os-memory\llm_compression\inference\weight_loader.py", line 105, in _load_table
+    self._table = pq.read_table(
+                  ~~~~~~~~~~~~~^
+        self.parquet_path,
+        ^^^^^^^^^^^^^^^^^^
+        memory_map=self.use_memory_map,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Python314\Lib\site-packages\pyarrow\parquet\core.py", line 1926, in read_table
+    return dataset.read(columns=columns, use_threads=use_threads,
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        use_pandas_metadata=use_pandas_metadata)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\pyarrow\parquet\core.py", line 1552, in read
+    table = self._dataset.to_table(
+        columns=columns, filter=self._filter_expression,
+        use_threads=use_threads
+    )
+  File "pyarrow/_dataset.pyx", line 589, in pyarrow._dataset.Dataset.to_table
+  File "pyarrow/_dataset.pyx", line 3969, in pyarrow._dataset.Scanner.to_table
+  File "pyarrow/error.pxi", line 155, in pyarrow.lib.pyarrow_internal_check_status
+  File "pyarrow/error.pxi", line 92, in pyarrow.lib.check_status
+OSError: [WinError 8] PrefetchVirtualMemory failed. Detail: [Windows error 8] \u5185\u5b58\u8d44\u6e90\u4e0d\u8db3\uff0c\u65e0\u6cd5\u5904\u7406\u6b64\u547d\u4ee4\u3002
+

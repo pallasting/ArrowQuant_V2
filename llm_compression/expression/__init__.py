@@ -30,6 +30,12 @@ from llm_compression.expression.expression_types import (
     TTSConfig,
 )
 
+from llm_compression.expression.tts import (
+    TTSEngine,
+    TTSCache,
+    EmotionMapper,
+)
+
 __all__ = [
     # Enums
     "OutputModality",
@@ -42,6 +48,10 @@ __all__ = [
     "VoiceConfig",
     "NLGConfig",
     "TTSConfig",
+    # TTS Components
+    "TTSEngine",
+    "TTSCache",
+    "EmotionMapper",
 ]
 
 __version__ = "0.1.0"

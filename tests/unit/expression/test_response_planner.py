@@ -227,6 +227,74 @@ class TestResponsePlanner:
             content_length=100
         )
         assert plan.style == ExpressionStyle.CASUAL
+
+    def test_style_selection_user_preferences(self):
+        """Test style selection based on user preferences (Requirement 8.3)."""
+        # Context with user preference for playful style
+        context_with_pref = ExpressionContext(
+            user_id="test_user",
+            conversation_history=[],
+            formality_level=0.8,  # Would normally be formal
+            user_preferences={"preferred_style": "playful"}
+        )
+        
+        plan = self.planner.plan_response(
+            intent="unknown_intent",
+            context=context_with_pref,
+            content_length=100
+        )
+        # User preference should override formality
+        assert plan.style == ExpressionStyle.PLAYFUL
+        
+        # Test invalid preference falls back to formality
+        context_invalid_pref = ExpressionContext(
+            user_id="test_user",
+            conversation_history=[],
+            formality_level=0.8,
+            user_preferences={"preferred_style": "invalid_style"}
+        )
+        
+        plan = self.planner.plan_response(
+            intent="unknown_intent",
+            context=context_invalid_pref,
+            content_length=100
+        )
+        # Should fall back to formality-based selection
+        assert plan.style == ExpressionStyle.FORMAL
+
+    def test_style_selection_language_specific(self):
+        """Test style selection with language-specific adjustments (Requirement 15.3)."""
+        # Japanese context (high formality default)
+        japanese_context = ExpressionContext(
+            user_id="test_user",
+            conversation_history=[],
+            formality_level=0.5,  # Default value
+            language="ja"
+        )
+        
+        plan = self.planner.plan_response(
+            intent="unknown_intent",
+            context=japanese_context,
+            content_length=100
+        )
+        # Should use Japanese formality default (0.8) -> FORMAL
+        assert plan.style == ExpressionStyle.FORMAL
+        
+        # Spanish context (moderate formality default)
+        spanish_context = ExpressionContext(
+            user_id="test_user",
+            conversation_history=[],
+            formality_level=0.5,  # Default value
+            language="es"
+        )
+        
+        plan = self.planner.plan_response(
+            intent="unknown_intent",
+            context=spanish_context,
+            content_length=100
+        )
+        # Should use Spanish formality default (0.6) -> TECHNICAL
+        assert plan.style == ExpressionStyle.TECHNICAL
     
     def test_emotion_selection_intent_based(self):
         """Test emotion selection based on intent patterns."""

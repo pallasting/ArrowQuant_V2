@@ -10,8 +10,16 @@ Provides text generation capabilities with multiple backends:
 Public API:
     - NLGEngine: Main NLG engine with backend abstraction
     - TemplateEngine: Template-based fallback generation
+    - NLGError: NLG-specific exceptions
 """
 
-__all__ = []
+from .nlg_engine import NLGEngine, NLGError, TemplateEngine, ConversationHistory
+
+__all__ = [
+    "NLGEngine",
+    "NLGError", 
+    "TemplateEngine",
+    "ConversationHistory"
+]
 
 __version__ = "0.1.0"

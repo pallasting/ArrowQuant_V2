@@ -294,11 +294,21 @@ class ModelConverter:
                 raise ImportError("transformers not installed. Install with: pip install transformers")
 
             if model_type == "causallm":
-                model = AutoModelForCausalLM.from_pretrained(model_name)
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    low_cpu_mem_usage=True,
+                    torch_dtype="auto",
+                    trust_remote_code=True
+                )
             else:
-                model = AutoModel.from_pretrained(model_name)
+                model = AutoModel.from_pretrained(
+                    model_name,
+                    low_cpu_mem_usage=True,
+                    torch_dtype="auto",
+                    trust_remote_code=True
+                )
                 
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
             cfg = model.config
             
             # Extract model info including full BERT/LLM architecture config
@@ -414,8 +424,8 @@ class ModelConverter:
             
         optimized = {}
         for name, tensor in weights.items():
-            if tensor.dtype == torch.float32:
-                optimized[name] = tensor.half()  # Convert to float16
+            if tensor.dtype in (torch.float32, torch.bfloat16):
+                optimized[name] = tensor.half()  # Convert float32 or bfloat16 to float16
             else:
                 optimized[name] = tensor
         return optimized

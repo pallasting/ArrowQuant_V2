@@ -55,8 +55,8 @@ class FastTokenizer:
         self,
         tokenizer_path: str,
         max_length: int = 512,
-        padding: str = "max_length",
-        truncation: bool = True,
+        padding: Union[str, bool] = False,
+        truncation: bool = False,
     ):
         """
         Initialize FastTokenizer.

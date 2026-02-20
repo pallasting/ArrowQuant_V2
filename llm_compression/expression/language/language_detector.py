@@ -127,31 +127,40 @@ class LanguageDetector:
             
         Requirements: 15.1, 15.2, 15.3, 15.5
         """
-        # Detect language
-        detected_lang = self.detect_language(text)
-        
-        # Update language history (keep last 10 detections)
-        self.language_history.append(detected_lang)
-        if len(self.language_history) > 10:
-            self.language_history.pop(0)
-        
-        # Determine current language (majority vote from recent history)
-        # This provides language consistency across conversation
-        lang_counts = Counter(self.language_history)
-        self.current_language = lang_counts.most_common(1)[0][0]
-        
-        # Update context
-        context.language = self.current_language
+        # Only detect language if text is provided and not empty
+        if text and text.strip():
+            detected_lang = self.detect_language(text)
+            
+            # Update language history (keep last 10 detections)
+            self.language_history.append(detected_lang)
+            if len(self.language_history) > 10:
+                self.language_history.pop(0)
+            
+            # Determine current language (majority vote from recent history)
+            # This provides language consistency across conversation
+            lang_counts = Counter(self.language_history)
+            self.current_language = lang_counts.most_common(1)[0][0]
+            
+            # Update context language
+            context.language = self.current_language
+        else:
+            # No text provided, use existing context language or current language
+            if context.language and context.language != "en":
+                # Preserve existing non-default language
+                self.current_language = context.language
+            else:
+                # Use current language from detector
+                context.language = self.current_language
         
         # Apply language-specific rules
-        rules = self.language_rules.get(self.current_language, self.language_rules["en"])
+        rules = self.language_rules.get(context.language, self.language_rules["en"])
         
         # Adjust formality if not explicitly set (still at default value)
         if context.formality_level == 0.5:  # Default value
             context.formality_level = rules["formality_default"]
         
         logger.info(
-            f"Language detected: {self.current_language}, "
+            f"Language detected: {context.language}, "
             f"formality: {context.formality_level}"
         )
         
