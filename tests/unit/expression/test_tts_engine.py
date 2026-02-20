@@ -656,10 +656,12 @@ class TestTTSEngineErrorHandling:
         text = "Hello world"
         chunks = list(engine.synthesize(text, streaming=False))
         
-        # Should return silence instead of crashing
+        # Should return fallback audio instead of crashing
         assert len(chunks) == 1
         assert isinstance(chunks[0], np.ndarray)
-        assert len(chunks[0]) == config.sample_rate
+        # Fallback audio duration is based on text length, not fixed
+        assert len(chunks[0]) > 0
+        assert np.all(chunks[0] == 0.0)  # Should be silence
     
     def test_backend_initialization_failure(self):
         """Test engine handles backend initialization failure."""

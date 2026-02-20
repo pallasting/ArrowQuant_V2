@@ -8,11 +8,13 @@ emotion control, caching, and streaming.
 from llm_compression.expression.tts.tts_engine import (
     TTSEngine,
     TTSCache,
-    EmotionMapper
+    EmotionMapper,
+    TTSError
 )
 
 __all__ = [
     "TTSEngine",
     "TTSCache",
-    "EmotionMapper"
+    "EmotionMapper",
+    "TTSError"
 ]

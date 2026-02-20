@@ -247,13 +247,17 @@ class TestTimeoutHandling:
         config = TTSConfig(backend=TTSBackend.PIPER)
         engine = TTSEngine(config)
         
-        # Mock to raise TimeoutError
-        with patch.object(engine, '_synthesize_complete_safe', side_effect=TimeoutError("Timeout")):
-            text = "Hello world"
+        # Directly create a timeout scenario
+        text = "Hello world"
+        voice = VoiceConfig(voice_id="test")
+        
+        # Mock _synthesize_complete to raise TimeoutError
+        with patch.object(engine, '_synthesize_complete', side_effect=TimeoutError("Timeout")):
+            # Call the safe wrapper which should handle the timeout
+            audio = engine._synthesize_complete_safe(text, voice, timeout_seconds=1.0)
             
-            # Manually call the safe method to trigger timeout handling
-            audio = engine._synthesize_complete_safe(text, VoiceConfig(voice_id="test"), timeout_seconds=1.0)
-            
+            # Should return fallback audio
+            assert isinstance(audio, np.ndarray)
             assert engine.last_error is not None
             assert engine.last_error.error_type == "timeout"
     
@@ -344,16 +348,21 @@ class TestBackendSpecificErrors:
         config = TTSConfig(backend=TTSBackend.PIPER)
         engine = TTSEngine(config)
         engine.piper_available = True
+        engine.piper_voice = None
         
-        # Mock piper import to fail
-        with patch('llm_compression.expression.tts.tts_engine.PiperVoice', side_effect=ImportError("No piper")):
-            text = "Hello world"
-            voice = VoiceConfig(voice_id="test")
+        # Mock the import inside _synthesize_piper to fail
+        text = "Hello world"
+        voice = VoiceConfig(voice_id="test")
+        
+        # Patch the import at the point where it's used
+        with patch('builtins.__import__', side_effect=ImportError("No piper")):
             audio = engine._synthesize_piper(text, voice)
             
             # Should return fallback
             assert isinstance(audio, np.ndarray)
             assert np.all(audio == 0.0)
+            assert engine.last_error is not None
+            assert engine.last_error.error_type == "backend_init"
     
     def test_piper_voice_load_error_returns_fallback(self):
         """Test Piper voice loading error returns fallback."""
@@ -362,18 +371,19 @@ class TestBackendSpecificErrors:
         engine.piper_available = True
         engine.piper_voice = None
         
-        # Mock to fail during voice loading
-        with patch('llm_compression.expression.tts.tts_engine.PiperVoice') as mock_piper:
-            mock_piper.load.side_effect = RuntimeError("Load failed")
-            
-            text = "Hello world"
-            voice = VoiceConfig(voice_id="test")
-            audio = engine._synthesize_piper(text, voice)
-            
-            # Should return fallback
-            assert isinstance(audio, np.ndarray)
-            assert engine.last_error is not None
-            assert engine.last_error.error_type == "backend_init"
+        text = "Hello world"
+        voice = VoiceConfig(voice_id="test")
+        
+        # Mock Path.exists to return True so it tries to load
+        # Then mock PiperVoice.load to fail
+        with patch('pathlib.Path.exists', return_value=True):
+            with patch('piper.PiperVoice.load', side_effect=RuntimeError("Load failed")):
+                audio = engine._synthesize_piper(text, voice)
+                
+                # Should return fallback
+                assert isinstance(audio, np.ndarray)
+                assert engine.last_error is not None
+                assert engine.last_error.error_type == "backend_init"
     
     def test_piper_synthesis_error_returns_fallback(self):
         """Test Piper synthesis error returns fallback."""

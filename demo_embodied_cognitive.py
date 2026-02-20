@@ -11,9 +11,10 @@ from llm_compression.sensors.asr_engine import ASREngine
 from llm_compression.expression.tts.tts_engine import TTSEngine
 from llm_compression.expression.expression_types import TTSConfig, TTSBackend
 from llm_compression.action.manager import ActionManager
-from llm_compression.llm_client import LLMClient
+from llm_compression.llm_client import LLMClient, ArrowLLMClient
 from llm_compression.compressor import LLMCompressor
 from llm_compression.conversational_agent import ConversationalAgent
+from llm_compression.inference.arrow_engine import ArrowEngine
 
 import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -55,9 +56,20 @@ async def run_embodied_agent():
     os.makedirs("workspace", exist_ok=True)
     action_manager = ActionManager("workspace", tts_engine=tts)
 
-    # Load LLM Core (Ollama fallback)
-    print("🔗 Connecting to local LLM Inference API...")
-    llm_client = LLMClient(endpoint="http://localhost:11434", api_type="ollama")
+    # Load LLM Core (Arrow Native Engine Memory vs Remote LLM API)
+    print("🔗 Connecting to native ArrowEngine Inference Kernel...")
+    model_path = "llm_compression/models/llm_native_model"
+    
+    # Check if a model exists natively in Arrow format
+    if os.path.exists(model_path):
+        print("  -> Booting localized memory state via Apache Arrow (Zero-Copy) engine.")
+        arrow_engine = ArrowEngine(model_path=model_path, device="auto")
+        llm_client = ArrowLLMClient(arrow_engine)
+    else:
+        print(f"  -> ⚠️ Target {model_path} missing Arrow model chunks.")
+        print("  -> Initiating Fallback (Ollama API Layer Emulator) for local development testing...")
+        llm_client = LLMClient(endpoint="http://localhost:11434", api_type="ollama")
+        
     compressor = LLMCompressor(llm_client)
     agent = ConversationalAgent(
         llm_client=llm_client,

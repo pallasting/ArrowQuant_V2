@@ -612,3 +612,47 @@ class LLMClient:
         self._closed = True
         await self.connection_pool.close()
         logger.info("LLMClient closed")
+
+
+class ArrowLLMClient(LLMClient):
+    """
+    Arrow 引擎原生客户端。
+    不再依赖外部 HTTP API，而是直接调用底层的 ArrowEngine 进行 Zero-Copy 的快速推理。
+    """
+    def __init__(self, arrow_engine):
+        # 绕过连接池和外部API类型检测
+        super().__init__(endpoint="local://arrow_memory", eager_init=False, api_type="arrow")
+        self.arrow_engine = arrow_engine
+
+    async def _make_request(
+        self,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        stop_sequences: Optional[List[str]]
+    ) -> LLMResponse:
+        """执行原生内存的生成直接穿透 ArrowEngine"""
+        start_time = time.time()
+        
+        try:
+            # CPU/GPU 纯本地运算，脱离网络协议栈
+            text = self.arrow_engine.generate(
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            
+            latency_ms = (time.time() - start_time) * 1000
+            tokens_used = len(text.split()) + len(prompt.split())  # 简单估算
+            
+            return LLMResponse(
+                text=text,
+                tokens_used=tokens_used,
+                latency_ms=latency_ms,
+                model="arrow-native-llm",
+                finish_reason="stop",
+                metadata={"source": "ArrowEngine"}
+            )
+        except Exception as e:
+            logger.error(f"ArrowEngine native generation failed: {e}")
+            raise LLMAPIError(f"Arrow Native Inference Error: {e}") from e

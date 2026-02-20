@@ -452,13 +452,13 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - _Requirements: 13.4_
 
 - [ ] 12. Implement Error Handling
-  - [-] 12.1 Add TTS error handling
+  - [x] 12.1 Add TTS error handling
     - Fallback to text-only on TTS failure
     - Log errors with context
     - Provide user-friendly messages
     - _Requirements: 11.1, 11.5, 11.6_
   
-  - [~] 12.2 Add NLG error handling
+  - [-] 12.2 Add NLG error handling
     - Fallback to templates on NLG failure
     - Handle API timeouts
     - Handle rate limits
