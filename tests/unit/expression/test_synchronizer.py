@@ -445,8 +445,8 @@ class TestFallback:
         
         # Check that only text stream is active
         assert synchronizer.streams[OutputModality.TEXT].state == StreamState.PLAYING
-        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.IDLE
-        assert synchronizer.streams[OutputModality.VISUAL].state == StreamState.IDLE
+        assert synchronizer.streams[OutputModality.SPEECH].state == StreamState.ERROR
+        assert synchronizer.streams[OutputModality.VISUAL].state == StreamState.ERROR
     
     def test_buffer_underrun(self, synchronizer):
         """Test buffer underrun handling."""

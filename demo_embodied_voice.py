@@ -8,6 +8,9 @@ from llm_compression.sensors.asr_engine import ASREngine
 from llm_compression.expression.tts.tts_engine import TTSEngine
 from llm_compression.expression.expression_types import TTSConfig, TTSBackend
 from llm_compression.action.manager import ActionManager
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 def tts_play(tts_engine, text):
     """Play TTS audibly."""
@@ -37,19 +40,22 @@ def main():
     def on_voice_command(filepath):
         print(f"\n[ASR] Transcribing Voice Command...")
         try:
-            text = asr.transcribe_sync(filepath, language="en")
+            # Let Whisper auto-detect language or force target
+            text = asr.transcribe_sync(filepath, language="zh") # Default to Chinese detection
             print(f"👂 [User Said]: {text}")
             
-            # Simple keyword-based intent resolution (To be replaced by CognitiveLoop LLM in future)
+            # Bilingual keyword matching
             ltext = text.lower()
-            if "move" in ltext or "right" in ltext:
-                action.execute("move", x=1000, y=500)
-            elif "click" in ltext:
+            if any(k in ltext for k in ["move", "right", "移", "右", "动"]):
+                import pyautogui
+                w, h = pyautogui.size()
+                action.execute("move", x=w//2, y=h//2) # move to center
+            elif any(k in ltext for k in ["click", "点", "击"]):
                 action.execute("click", clicks=1)
-            elif "type" in ltext or "hello" in ltext:
+            elif any(k in ltext for k in ["type", "hello", "打", "写", "字"]):
                 action.execute("type", text="hello from voice ai ")
             else:
-                pass # Unrecognized
+                print("🤔 [Intent] Command not recognized.")
         except Exception as e:
             print(f"Error handling voice command: {e}")
 
@@ -60,10 +66,10 @@ def main():
     tts_play(tts, "Voice control initialized. Say move or click to test actions.")
     print("\n=============================================")
     print("🎙️ Microphone Live! System is listening...")
-    print("Try speaking a command in English:")
-    print("  - 'move right'")
-    print("  - 'click'")
-    print("  - 'type something'")
+    print("Try speaking a command (in Chinese or English):")
+    print("  - 'move right' / '往右移'")
+    print("  - 'click' / '点击'")
+    print("  - 'type something' / '打字'")
     print("Press Ctrl+C to stop.")
     print("=============================================\n")
     

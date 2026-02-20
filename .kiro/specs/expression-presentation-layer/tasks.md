@@ -255,12 +255,12 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - Support pause/resume
     - _Requirements: 6.3, 6.4_
   
-  - [-] 6.4 Implement fallback handling
+  - [x] 6.4 Implement fallback handling
     - Fallback to text-only when TTS fails
     - Fallback to single modality when resources limited
     - _Requirements: 4.7, 11.1_
   
-  - [~] 6.5 Write unit tests for Synchronizer
+  - [x] 6.5 Write unit tests for Synchronizer
     - Test timing coordination
     - Test buffer management
     - Test fallback logic
@@ -311,7 +311,7 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - _Requirements: 13.1_
 
 - [ ] 8. Implement Voice Customization
-  - [~] 8.1 Create VoiceManager class
+  - [-] 8.1 Create VoiceManager class
     - Store voice presets
     - Store user voice preferences
     - Support voice selection
