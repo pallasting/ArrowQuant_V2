@@ -33,8 +33,8 @@ def main():
     os.makedirs("workspace", exist_ok=True)
     action = ActionManager("workspace", tts_engine=tts)
 
-    # Load ASR (Auditory Perception)
-    asr = ASREngine(model_size="tiny", device="auto")
+    # Load ASR (Auditory Perception) - Upgraded to 'small' for better Chinese accuracy
+    asr = ASREngine(model_size="small", device="auto")
 
     # The Command Evaluation loop (A prototype cognitive intent matcher)
     def on_voice_command(filepath):

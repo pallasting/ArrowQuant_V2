@@ -311,13 +311,13 @@ The implementation follows a phased approach: Core TTS/NLG â†’ Emotion System â†
     - _Requirements: 13.1_
 
 - [ ] 8. Implement Voice Customization
-  - [-] 8.1 Create VoiceManager class
+  - [x] 8.1 Create VoiceManager class
     - Store voice presets
     - Store user voice preferences
     - Support voice selection
     - _Requirements: 7.1, 7.4_
   
-  - [~] 8.2 Implement voice parameter adjustment
+  - [-] 8.2 Implement voice parameter adjustment
     - Adjust pitch, speed, timbre
     - Validate parameter ranges
     - Preview voice changes

@@ -1,3 +1,10 @@
 {"timestamp": 1771578619.4342554, "action": "move", "params": {"x": 1000, "y": 500}, "state_before": null, "state_after": null, "platform": "Windows"}
 {"timestamp": 1771578627.6706092, "action": "move", "params": {"x": 1000, "y": 500}, "state_before": null, "state_after": null, "platform": "Windows"}
 {"timestamp": 1771578643.8189569, "action": "click", "params": {"clicks": 1}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771579225.3863297, "action": "move", "params": {"x": 1440, "y": 900}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771579285.0437794, "action": "move", "params": {"x": 1440, "y": 900}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771579294.6586008, "action": "move", "params": {"x": 1440, "y": 900}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771579305.4708812, "action": "move", "params": {"x": 1440, "y": 900}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771579307.0316882, "action": "move", "params": {"x": 1440, "y": 900}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771579317.0092921, "action": "move", "params": {"x": 1440, "y": 900}, "state_before": null, "state_after": null, "platform": "Windows"}
+{"timestamp": 1771579327.9570413, "action": "move", "params": {"x": 1440, "y": 900}, "state_before": null, "state_after": null, "platform": "Windows"}
