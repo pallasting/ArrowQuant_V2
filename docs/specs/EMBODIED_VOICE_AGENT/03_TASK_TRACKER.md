@@ -24,10 +24,10 @@
 ## 3. Pending Tasks / Future Evolution 🚧
 
 ### Phase 3: Conversational Intelligence Handoff
-- [ ] Decouple hardcoded dictionary keyword logic (`ltext in ["move", "right"]`) from root listener scripts.
-- [ ] Connect transcribing stream into `CognitiveLoop`.
-- [ ] Configure `LLMCompressor` and prompt injection so language brains command `ActionManager.execute` natively through formatted tool calls.
-- [ ] Allow TTS `ActionManager` narrative engine to consume exact response intents constructed by `ConversationalAgent`.
+- [x] Decouple hardcoded dictionary keyword logic (`ltext in ["move", "right"]`) from root listener scripts.
+- [x] Connect transcribing stream into `CognitiveLoop`.
+- [x] Configure `LLMCompressor` and prompt injection so language brains command `ActionManager.execute` natively through formatted tool calls.
+- [x] Allow TTS `ActionManager` narrative engine to consume exact response intents constructed by `ConversationalAgent`.
 
 ### Phase 4: Multi-Modal Machine Vision Incorporation
 - [ ] Inject `sensors/vision.py` OpenCV snapshots upon ASR completion hook events.

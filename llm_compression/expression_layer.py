@@ -117,7 +117,8 @@ class MultiModalExpressor:
         memories: List[Any],
         query: Optional[str] = None,
         style: Optional[str] = None,
-        max_length: int = 500
+        max_length: int = 500,
+        system_prompt: Optional[str] = None
     ) -> ExpressionResult:
         """
         Convenience method for text expression.
@@ -148,14 +149,15 @@ class MultiModalExpressor:
                 print(f"Warning: Unknown memory type: {type(mem)}")
                 continue
         
-        return await self._express_text(mem_primitives, query, style, max_length)
+        return await self._express_text(mem_primitives, query, style, max_length, system_prompt)
     
     async def _express_text(
         self,
         memories: List[MemoryPrimitive],
         query: Optional[str],
         style: Optional[str],
-        max_length: int
+        max_length: int,
+        system_prompt: Optional[str] = None
     ) -> ExpressionResult:
         """
         Generate text from memories.
@@ -182,7 +184,7 @@ class MultiModalExpressor:
         combined = self._combine_texts(reconstructed_texts)
         
         # 3. Generate coherent output
-        generated = await self._generate_text(combined, query, style, max_length)
+        generated = await self._generate_text(combined, query, style, max_length, system_prompt)
         
         # 4. Calculate quality (simple heuristic)
         quality = self._estimate_quality(generated, combined)
@@ -267,7 +269,8 @@ class MultiModalExpressor:
         context: str,
         query: Optional[str],
         style: Optional[str],
-        max_length: int
+        max_length: int,
+        system_prompt: Optional[str] = None
     ) -> str:
         """
         Generate text using LLM.

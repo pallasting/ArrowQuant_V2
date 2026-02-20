@@ -58,7 +58,8 @@ class ConversationalAgent:
     async def chat(
         self,
         user_message: str,
-        max_context_turns: int = 5
+        max_context_turns: int = 5,
+        system_prompt: Optional[str] = None
     ) -> AgentResponse:
         """
         处理用户消息
@@ -84,7 +85,8 @@ class ConversationalAgent:
         result = await self.cognitive_loop.process(
             query=user_message,
             query_embedding=query_embedding,
-            max_memories=5
+            max_memories=5,
+            system_prompt=system_prompt
         )
         
         # 4. 个性化回复

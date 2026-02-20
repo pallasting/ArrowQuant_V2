@@ -5,13 +5,14 @@ This module implements the core TTS engine that supports multiple backends
 (Piper, Coqui, Azure, OpenAI) for speech synthesis with emotion control,
 caching, and streaming capabilities.
 
-Requirements: 1.1, 1.3
+Requirements: 1.1, 1.3, 11.1, 11.5, 11.6
 """
 
 import logging
-from typing import Iterator, Optional, Dict, Any
+from typing import Iterator, Optional, Dict, Any, Tuple
 from pathlib import Path
 import numpy as np
+from dataclasses import dataclass
 
 from llm_compression.expression.expression_types import (
     TTSConfig,
@@ -20,6 +21,20 @@ from llm_compression.expression.expression_types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TTSError:
+    """
+    TTS error information for user-friendly reporting.
+    
+    Requirements: 11.5, 11.6
+    """
+    error_type: str  # "backend_init", "synthesis", "timeout", "network"
+    message: str  # User-friendly message
+    details: str  # Technical details for logging
+    fallback_used: bool  # Whether fallback was applied
+    original_exception: Optional[Exception] = None
 
 
 class TTSCache:
@@ -195,9 +210,10 @@ class TTSEngine:
     - Emotion-aware synthesis
     - Output caching
     - Streaming support
-    - Graceful error handling
+    - Graceful error handling with fallbacks
+    - User-friendly error messages
     
-    Requirements: 1.1, 1.3
+    Requirements: 1.1, 1.3, 11.1, 11.5, 11.6
     """
     
     def __init__(self, config: TTSConfig):
@@ -211,13 +227,16 @@ class TTSEngine:
         self.backend = None
         self.cache = TTSCache() if config.cache_enabled else None
         self.emotion_mapper = EmotionMapper()
+        self.last_error: Optional[TTSError] = None
+        self.error_count = 0
+        self.fallback_mode = False
         
         logger.info(
             f"Initializing TTS engine with backend: {config.backend.value}, "
             f"cache_enabled: {config.cache_enabled}"
         )
         
-        # Initialize backend
+        # Initialize backend with error handling
         self._init_backend()
     
     def _init_backend(self):
@@ -225,7 +244,9 @@ class TTSEngine:
         Initialize TTS backend based on configuration.
         
         Loads the appropriate backend (Piper, Coqui, Azure, OpenAI) and
-        prepares it for synthesis.
+        prepares it for synthesis. Handles initialization errors gracefully.
+        
+        Requirements: 11.1, 11.5, 11.6
         """
         try:
             if self.config.backend == TTSBackend.PIPER:
@@ -240,10 +261,69 @@ class TTSEngine:
                 raise ValueError(f"Unsupported TTS backend: {self.config.backend}")
             
             logger.info(f"Successfully initialized {self.config.backend.value} backend")
+            self.fallback_mode = False
         
         except Exception as e:
-            logger.error(f"Failed to initialize TTS backend: {e}")
+            error = TTSError(
+                error_type="backend_init",
+                message=f"Failed to initialize {self.config.backend.value} TTS backend. Text-only mode will be used.",
+                details=f"Backend initialization error: {str(e)}",
+                fallback_used=True,
+                original_exception=e
+            )
+            self._handle_error(error)
             self.backend = None
+            self.fallback_mode = True
+    
+    def _handle_error(self, error: TTSError):
+        """
+        Handle TTS errors with logging and user-friendly messages.
+        
+        Args:
+            error: TTSError with error information
+            
+        Requirements: 11.5, 11.6
+        """
+        self.last_error = error
+        self.error_count += 1
+        
+        # Log with context
+        logger.error(
+            f"TTS Error [{error.error_type}]: {error.details}",
+            extra={
+                "error_type": error.error_type,
+                "fallback_used": error.fallback_used,
+                "error_count": self.error_count,
+                "backend": self.config.backend.value
+            },
+            exc_info=error.original_exception
+        )
+        
+        # Log user-friendly message at warning level
+        if error.fallback_used:
+            logger.warning(f"User message: {error.message}")
+    
+    def get_last_error(self) -> Optional[TTSError]:
+        """
+        Get the last error that occurred.
+        
+        Returns:
+            Last TTSError or None if no errors
+            
+        Requirements: 11.6
+        """
+        return self.last_error
+    
+    def is_fallback_mode(self) -> bool:
+        """
+        Check if engine is in fallback mode (text-only).
+        
+        Returns:
+            True if in fallback mode, False otherwise
+            
+        Requirements: 11.1
+        """
+        return self.fallback_mode
     
     def _init_piper_backend(self):
         """
@@ -323,58 +403,84 @@ class TTSEngine:
         self,
         text: str,
         voice_config: Optional[VoiceConfig] = None,
-        streaming: Optional[bool] = None
+        streaming: Optional[bool] = None,
+        timeout_seconds: Optional[float] = None
     ) -> Iterator[np.ndarray]:
         """
-        Synthesize speech from text.
+        Synthesize speech from text with comprehensive error handling.
         
         Args:
             text: Input text to synthesize
             voice_config: Voice configuration (overrides default)
             streaming: Enable streaming (overrides config)
+            timeout_seconds: Timeout for synthesis (optional)
             
         Yields:
             Audio chunks as numpy arrays (float32, sample_rate from config)
+            Falls back to silence if synthesis fails
             
-        Requirements: 1.2, 1.7, 11.1
+        Requirements: 1.2, 1.7, 11.1, 11.4, 11.5, 11.6
         """
         voice = voice_config or self.config.voice
         streaming = streaming if streaming is not None else self.config.streaming
         
         logger.info(
             f"Synthesizing text (length={len(text)}, "
-            f"voice={voice.voice_id}, streaming={streaming})"
+            f"voice={voice.voice_id}, streaming={streaming}, "
+            f"fallback_mode={self.fallback_mode})"
         )
+        
+        # If in fallback mode, return silence immediately
+        if self.fallback_mode:
+            logger.warning("TTS in fallback mode, returning silence")
+            yield self._create_fallback_audio(text, voice)
+            return
         
         # Check cache first (only for non-streaming)
         if not streaming and self.cache:
-            cached = self.cache.get(text, voice)
-            if cached is not None:
-                logger.info("Using cached audio")
-                yield cached
-                return
+            try:
+                cached = self.cache.get(text, voice)
+                if cached is not None:
+                    logger.info("Using cached audio")
+                    yield cached
+                    return
+            except Exception as e:
+                logger.warning(f"Cache retrieval failed: {e}, proceeding with synthesis")
         
         # Apply emotion to voice parameters
-        voice = self.emotion_mapper.apply_emotion(voice)
+        try:
+            voice = self.emotion_mapper.apply_emotion(voice)
+        except Exception as e:
+            logger.warning(f"Emotion mapping failed: {e}, using original voice config")
         
-        # Generate speech
+        # Generate speech with error handling
         try:
             if streaming:
-                yield from self._synthesize_streaming(text, voice)
+                yield from self._synthesize_streaming_safe(text, voice, timeout_seconds)
             else:
-                audio = self._synthesize_complete(text, voice)
+                audio = self._synthesize_complete_safe(text, voice, timeout_seconds)
                 
                 # Cache the result
-                if self.cache:
-                    self.cache.put(text, voice, audio)
+                if self.cache and audio is not None:
+                    try:
+                        self.cache.put(text, voice, audio)
+                    except Exception as e:
+                        logger.warning(f"Failed to cache audio: {e}")
                 
                 yield audio
         
         except Exception as e:
-            logger.error(f"TTS synthesis failed: {e}")
-            # Return silence as fallback
-            silence = np.zeros(self.config.sample_rate, dtype=np.float32)
-            yield silence
+            error = TTSError(
+                error_type="synthesis",
+                message="Speech synthesis failed. Audio output unavailable.",
+                details=f"Unexpected synthesis error: {str(e)}",
+                fallback_used=True,
+                original_exception=e
+            )
+            self._handle_error(error)
+            
+            # Return fallback audio
+            yield self._create_fallback_audio(text, voice)
     
     def _synthesize_streaming(
         self,
@@ -404,6 +510,169 @@ class TTSEngine:
                 logger.debug(f"Synthesizing sentence {i+1}/{len(sentences)}: {sentence[:50]}...")
                 audio = self._synthesize_sentence(sentence, voice)
                 yield audio
+    
+    def _synthesize_streaming_safe(
+        self,
+        text: str,
+        voice: VoiceConfig,
+        timeout_seconds: Optional[float] = None
+    ) -> Iterator[np.ndarray]:
+        """
+        Synthesize speech in streaming mode with error handling.
+        
+        Args:
+            text: Input text
+            voice: Voice configuration
+            timeout_seconds: Timeout for each sentence
+            
+        Yields:
+            Audio chunks for each sentence, with fallback on errors
+            
+        Requirements: 11.1, 11.4, 11.5
+        """
+        sentences = self._split_sentences(text)
+        
+        logger.debug(f"Safe streaming synthesis for {len(sentences)} sentences")
+        
+        for i, sentence in enumerate(sentences):
+            if not sentence.strip():
+                continue
+                
+            try:
+                logger.debug(f"Synthesizing sentence {i+1}/{len(sentences)}: {sentence[:50]}...")
+                
+                # Apply timeout if specified
+                if timeout_seconds:
+                    import signal
+                    
+                    def timeout_handler(signum, frame):
+                        raise TimeoutError(f"Synthesis timeout after {timeout_seconds}s")
+                    
+                    # Set timeout (Unix-like systems only)
+                    try:
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(int(timeout_seconds))
+                        audio = self._synthesize_sentence(sentence, voice)
+                        signal.alarm(0)  # Cancel alarm
+                    except AttributeError:
+                        # Windows doesn't support SIGALRM, use simple approach
+                        audio = self._synthesize_sentence(sentence, voice)
+                else:
+                    audio = self._synthesize_sentence(sentence, voice)
+                
+                yield audio
+                
+            except TimeoutError as e:
+                error = TTSError(
+                    error_type="timeout",
+                    message=f"Speech synthesis timed out for sentence {i+1}.",
+                    details=f"Timeout after {timeout_seconds}s: {str(e)}",
+                    fallback_used=True,
+                    original_exception=e
+                )
+                self._handle_error(error)
+                yield self._create_fallback_audio(sentence, voice)
+                
+            except Exception as e:
+                error = TTSError(
+                    error_type="synthesis",
+                    message=f"Failed to synthesize sentence {i+1}.",
+                    details=f"Sentence synthesis error: {str(e)}",
+                    fallback_used=True,
+                    original_exception=e
+                )
+                self._handle_error(error)
+                yield self._create_fallback_audio(sentence, voice)
+    
+    def _synthesize_complete_safe(
+        self,
+        text: str,
+        voice: VoiceConfig,
+        timeout_seconds: Optional[float] = None
+    ) -> np.ndarray:
+        """
+        Synthesize complete speech with error handling.
+        
+        Args:
+            text: Input text
+            voice: Voice configuration
+            timeout_seconds: Timeout for synthesis
+            
+        Returns:
+            Complete audio as numpy array, or fallback audio on error
+            
+        Requirements: 11.1, 11.4, 11.5
+        """
+        try:
+            # Apply timeout if specified
+            if timeout_seconds:
+                import signal
+                
+                def timeout_handler(signum, frame):
+                    raise TimeoutError(f"Synthesis timeout after {timeout_seconds}s")
+                
+                try:
+                    signal.signal(signal.SIGALRM, timeout_handler)
+                    signal.alarm(int(timeout_seconds))
+                    audio = self._synthesize_complete(text, voice)
+                    signal.alarm(0)
+                    return audio
+                except AttributeError:
+                    # Windows doesn't support SIGALRM
+                    return self._synthesize_complete(text, voice)
+            else:
+                return self._synthesize_complete(text, voice)
+                
+        except TimeoutError as e:
+            error = TTSError(
+                error_type="timeout",
+                message="Speech synthesis timed out. Partial audio may be available.",
+                details=f"Timeout after {timeout_seconds}s: {str(e)}",
+                fallback_used=True,
+                original_exception=e
+            )
+            self._handle_error(error)
+            return self._create_fallback_audio(text, voice)
+            
+        except Exception as e:
+            error = TTSError(
+                error_type="synthesis",
+                message="Speech synthesis failed. Audio output unavailable.",
+                details=f"Complete synthesis error: {str(e)}",
+                fallback_used=True,
+                original_exception=e
+            )
+            self._handle_error(error)
+            return self._create_fallback_audio(text, voice)
+    
+    def _create_fallback_audio(
+        self,
+        text: str,
+        voice: VoiceConfig
+    ) -> np.ndarray:
+        """
+        Create fallback audio (silence) when synthesis fails.
+        
+        Args:
+            text: Input text (for duration estimation)
+            voice: Voice configuration (for speed adjustment)
+            
+        Returns:
+            Silence audio with appropriate duration
+            
+        Requirements: 11.1
+        """
+        # Estimate duration: ~150 chars/sec at normal speed
+        base_duration_seconds = len(text) / 150.0
+        duration_seconds = base_duration_seconds / voice.speed
+        
+        # Generate silence
+        samples = int(duration_seconds * self.config.sample_rate)
+        audio = np.zeros(samples, dtype=np.float32)
+        
+        logger.debug(f"Created fallback audio: {samples} samples, {duration_seconds:.2f}s")
+        
+        return audio
     
     def _synthesize_complete(
         self,
@@ -506,19 +775,18 @@ class TTSEngine:
         Returns:
             Audio as numpy array (float32, sample_rate from config)
             
-        Requirements: 1.1, 1.2, 1.3
+        Requirements: 1.1, 1.2, 1.3, 11.1, 11.5
         """
         try:
             if not self.piper_available:
-                logger.warning("Piper not available, using mock synthesis")
-                return self._synthesize_mock(text, voice)
+                logger.warning("Piper not available, using fallback")
+                return self._create_fallback_audio(text, voice)
             
             # Import piper
             from piper import PiperVoice
             
             # Load voice model if not already loaded
             if self.piper_voice is None:
-                # Basic piper voice for English
                 voice_name = "en_US-lessac-medium"
                 
                 # Ensure model directory exists
@@ -541,8 +809,15 @@ class TTSEngine:
                     logger.info(f"Loaded Piper voice: {voice_name}")
                     
                 except Exception as e:
-                    logger.warning(f"Failed to load Piper voice: {e}, using mock synthesis")
-                    return self._synthesize_mock(text, voice)
+                    error = TTSError(
+                        error_type="backend_init",
+                        message="Failed to load Piper voice model.",
+                        details=f"Piper voice loading error: {str(e)}",
+                        fallback_used=True,
+                        original_exception=e
+                    )
+                    self._handle_error(error)
+                    return self._create_fallback_audio(text, voice)
             
             # Synthesize with Piper
             from piper.config import SynthesisConfig
@@ -554,7 +829,8 @@ class TTSEngine:
             # Piper yields chunks; we collect the float32 numpy arrays
             arrays = [chunk.audio_float_array for chunk in self.piper_voice.synthesize(text, syn_config=syn_config)]
             if not arrays:
-                return self._synthesize_mock(text, voice)
+                logger.warning("Piper returned no audio, using fallback")
+                return self._create_fallback_audio(text, voice)
                 
             audio = np.concatenate(arrays)
             
@@ -572,9 +848,27 @@ class TTSEngine:
             
             return audio
             
+        except ImportError as e:
+            error = TTSError(
+                error_type="backend_init",
+                message="Piper TTS library not installed.",
+                details=f"Import error: {str(e)}. Install with: pip install piper-tts",
+                fallback_used=True,
+                original_exception=e
+            )
+            self._handle_error(error)
+            return self._create_fallback_audio(text, voice)
+            
         except Exception as e:
-            logger.error(f"Piper synthesis failed: {e}")
-            return self._synthesize_mock(text, voice)
+            error = TTSError(
+                error_type="synthesis",
+                message="Piper synthesis failed.",
+                details=f"Piper synthesis error: {str(e)}",
+                fallback_used=True,
+                original_exception=e
+            )
+            self._handle_error(error)
+            return self._create_fallback_audio(text, voice)
     
     def _synthesize_coqui(
         self,
@@ -592,9 +886,17 @@ class TTSEngine:
             
         Returns:
             Audio as numpy array
+            
+        Requirements: 11.1, 11.5
         """
-        logger.warning("Coqui TTS not implemented, using mock synthesis")
-        return self._synthesize_mock(text, voice)
+        error = TTSError(
+            error_type="backend_init",
+            message="Coqui TTS backend not implemented.",
+            details="Coqui TTS backend is not yet implemented",
+            fallback_used=True
+        )
+        self._handle_error(error)
+        return self._create_fallback_audio(text, voice)
     
     def _synthesize_azure(
         self,
@@ -612,9 +914,17 @@ class TTSEngine:
             
         Returns:
             Audio as numpy array
+            
+        Requirements: 11.1, 11.5
         """
-        logger.warning("Azure TTS not implemented, using mock synthesis")
-        return self._synthesize_mock(text, voice)
+        error = TTSError(
+            error_type="backend_init",
+            message="Azure TTS backend not implemented.",
+            details="Azure TTS backend is not yet implemented",
+            fallback_used=True
+        )
+        self._handle_error(error)
+        return self._create_fallback_audio(text, voice)
     
     def _synthesize_openai(
         self,
@@ -632,9 +942,17 @@ class TTSEngine:
             
         Returns:
             Audio as numpy array
+            
+        Requirements: 11.1, 11.5
         """
-        logger.warning("OpenAI TTS not implemented, using mock synthesis")
-        return self._synthesize_mock(text, voice)
+        error = TTSError(
+            error_type="backend_init",
+            message="OpenAI TTS backend not implemented.",
+            details="OpenAI TTS backend is not yet implemented",
+            fallback_used=True
+        )
+        self._handle_error(error)
+        return self._create_fallback_audio(text, voice)
     
     def _synthesize_mock(
         self,
@@ -644,8 +962,7 @@ class TTSEngine:
         """
         Mock synthesis for testing and fallback.
         
-        Generates silence with appropriate duration based on text length.
-        This is used when the actual TTS backend is not available or fails.
+        Deprecated: Use _create_fallback_audio instead.
         
         Args:
             text: Input text
@@ -654,16 +971,5 @@ class TTSEngine:
         Returns:
             Silence audio as numpy array
         """
-        # Estimate duration: ~150 chars/sec at normal speed
-        base_duration_seconds = len(text) / 150.0
-        
-        # Adjust for speed
-        duration_seconds = base_duration_seconds / voice.speed
-        
-        # Generate samples
-        samples = int(duration_seconds * self.config.sample_rate)
-        audio = np.zeros(samples, dtype=np.float32)
-        
-        logger.debug(f"Mock synthesis: {samples} samples, {duration_seconds:.2f}s")
-        
-        return audio
+        logger.warning("_synthesize_mock is deprecated, use _create_fallback_audio")
+        return self._create_fallback_audio(text, voice)

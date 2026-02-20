@@ -79,7 +79,8 @@ class CognitiveLoop:
         self,
         query: str,
         query_embedding: np.ndarray,
-        max_memories: int = 5
+        max_memories: int = 5,
+        system_prompt: Optional[str] = None
     ) -> CognitiveResult:
         """
         完整认知循环处理
@@ -102,7 +103,7 @@ class CognitiveLoop:
         )
         
         # 2. 生成初始输出 (Expression)
-        output = await self._generate_output(query, retrieval)
+        output = await self._generate_output(query, retrieval, system_prompt)
         
         # 3. 评估质量 (Reflection)
         quality = await self.feedback.evaluate(
@@ -141,13 +142,15 @@ class CognitiveLoop:
     async def _generate_output(
         self,
         query: str,
-        retrieval: ActivationResult
+        retrieval: ActivationResult,
+        system_prompt: Optional[str] = None
     ) -> ExpressionResult:
         """生成输出"""
         # 即使没有记忆，也让LLM生成回复
         return await self.expressor.express_text(
             memories=[m.content for m in retrieval.memories] if retrieval.memories else [],
-            query=query
+            query=query,
+            system_prompt=system_prompt
         )
     
     async def _apply_correction(
