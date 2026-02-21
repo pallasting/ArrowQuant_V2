@@ -317,15 +317,26 @@ class ModelConverter:
                 "embedding_dimension": getattr(cfg, 'hidden_size', None),
                 "hidden_size": getattr(cfg, 'hidden_size', None),
                 "num_attention_heads": getattr(cfg, 'num_attention_heads', None),
-                "num_key_value_heads": getattr(cfg, 'num_key_value_heads', None), # Crucial for GQA in Qwen/Llama
                 "intermediate_size": getattr(cfg, 'intermediate_size', None),
                 "num_hidden_layers": getattr(cfg, 'num_hidden_layers', None),
                 "vocab_size": getattr(cfg, 'vocab_size', None),
                 "max_position_embeddings": getattr(cfg, 'max_position_embeddings', None),
                 "layer_norm_eps": getattr(cfg, 'layer_norm_eps', 1e-12),
-                "rms_norm_eps": getattr(cfg, 'rms_norm_eps', 1e-6), # For RMSNorm models
-                "rope_theta": getattr(cfg, 'rope_theta', 10000.0), # For RoPE encoding
             }
+            
+            # Optional LLM/Decoder specific fields
+            if hasattr(cfg, 'num_key_value_heads'):
+                model_info["num_key_value_heads"] = cfg.num_key_value_heads
+            if hasattr(cfg, 'rms_norm_eps'):
+                model_info["rms_norm_eps"] = cfg.rms_norm_eps
+            if hasattr(cfg, 'rope_theta'):
+                model_info["rope_theta"] = cfg.rope_theta
+            if hasattr(cfg, 'max_seq_len'):
+                model_info["max_seq_length"] = cfg.max_seq_len
+            elif hasattr(cfg, 'max_sequence_length'):
+                model_info["max_seq_length"] = cfg.max_sequence_length
+            else:
+                model_info["max_seq_length"] = model_info["max_position_embeddings"]
 
             return model, tokenizer, model_info
 

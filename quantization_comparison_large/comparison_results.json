@@ -1,0 +1,23 @@
+{
+  "original_info": {
+    "total_params": 2756096,
+    "file_size_bytes": 5516278,
+    "num_layers": 6
+  },
+  "results": [
+    {
+      "method": "PTQ INT8",
+      "quant_type": "int8",
+      "file_size_bytes": 2781120,
+      "quantization_time_sec": 0.6182963848114014,
+      "cosine_similarity": 0.9999856948852539
+    },
+    {
+      "method": "PTQ INT2 (手搓版)",
+      "quant_type": "int2",
+      "file_size_bytes": 679307,
+      "quantization_time_sec": 0.3467385768890381,
+      "cosine_similarity": 0.8357275128364563
+    }
+  ]
+}

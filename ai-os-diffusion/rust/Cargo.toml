@@ -1,0 +1,52 @@
+[workspace]
+members = [
+    "arrow_storage",
+    "arrow_quant",
+    "vector_search",
+    "fast_tokenizer",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+authors = ["AI-OS Team <your.email@example.com>"]
+license = "MIT"
+repository = "https://github.com/your-repo/ai-os-diffusion"
+
+[workspace.dependencies]
+# PyO3 for Python bindings
+pyo3 = { version = "0.20", features = ["extension-module"] }
+
+# Arrow ecosystem
+arrow = "50.0"
+arrow-array = "50.0"
+arrow-schema = "50.0"
+parquet = "50.0"
+
+# Numerical computing
+ndarray = "0.15"
+rayon = "1.8"
+
+# SIMD acceleration
+simsimd = "3.0"
+
+# Tokenization
+tokenizers = "0.15"
+
+# Utilities
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true

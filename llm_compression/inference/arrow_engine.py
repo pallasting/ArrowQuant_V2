@@ -439,7 +439,10 @@ class ArrowEngine:
     
     def _load_metadata(self):
         """Load model metadata from metadata.json."""
-        metadata_path = self.model_path / "metadata.json"
+        if self.model_path.is_file():
+            metadata_path = self.model_path.parent / "metadata.json"
+        else:
+            metadata_path = self.model_path / "metadata.json"
         
         info = get_device_info(self.device)
         logger.info(f"Initialized on {info.get('name', self.device)} ({self.device})")
@@ -456,10 +459,17 @@ class ArrowEngine:
     
     def _load_weights(self):
         """Load model weights using WeightLoader."""
-        parquet_path = self.model_path / "weights.parquet"
+        if self.model_path.is_file():
+            parquet_path = self.model_path
+        else:
+            parquet_path = self.model_path / "weights.parquet"
         
         if not parquet_path.exists():
-            raise FileNotFoundError(f"Weights not found: {parquet_path}")
+            # Fallback for validation where we might have just weights.parquet in a dir
+            if (self.model_path / "weights.parquet").exists():
+                parquet_path = self.model_path / "weights.parquet"
+            else:
+                raise FileNotFoundError(f"Weights not found: {parquet_path}")
         
         self.weight_loader = WeightLoader(
             parquet_path=str(parquet_path),
@@ -477,13 +487,17 @@ class ArrowEngine:
     
     def _load_tokenizer(self):
         """Load tokenizer using FastTokenizer."""
-        tokenizer_path = self.model_path / "tokenizer"
+        base_dir = self.model_path.parent if self.model_path.is_file() else self.model_path
+        tokenizer_path = base_dir / "tokenizer"
         
         if not tokenizer_path.exists():
-            tokenizer_path = self.model_path / "tokenizer.json"
+            tokenizer_path = base_dir / "tokenizer.json"
         
         if not tokenizer_path.exists():
-            raise FileNotFoundError(f"Tokenizer not found in {self.model_path}")
+            # If still not found, try common locations relative to project root or skip
+            logger.warning(f"Tokenizer not found in {base_dir}. Some features (encode/generate) may fail.")
+            self.tokenizer = None
+            return
         
         max_length = self.metadata.get('model_info', {}).get('max_seq_length', 512)
         

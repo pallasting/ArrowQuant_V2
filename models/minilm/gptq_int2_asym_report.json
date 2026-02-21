@@ -1,0 +1,13 @@
+{
+  "passed": false,
+  "cosine_similarity": 0.007677039597183466,
+  "min_cosine_similarity": -0.07005635648965836,
+  "max_cosine_similarity": 0.08354653418064117,
+  "ppl_increase": null,
+  "original_ppl": null,
+  "quantized_ppl": null,
+  "error_message": "Cosine similarity 0.0077 < 0.9500",
+  "num_samples": 10,
+  "validation_time_ms": 51897.608518600464,
+  "timestamp": "2026-02-20T19:20:28.278534"
+}

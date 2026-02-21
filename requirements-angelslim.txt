@@ -1,0 +1,15 @@
+# AngelSlim Integration Requirements
+# Install with: pip install -r requirements-angelslim.txt
+
+# Core AngelSlim
+angelslim>=0.3.0
+
+# Already included in base requirements.txt but listed here for reference
+# transformers>=4.30.0
+# torch>=2.0.0
+# pyarrow>=12.0.0
+
+# Additional dependencies for AngelSlim (if needed)
+# These may be automatically installed by angelslim
+# accelerate>=0.20.0
+# bitsandbytes>=0.41.0

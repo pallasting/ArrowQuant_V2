@@ -120,8 +120,8 @@ class InferenceCore(nn.Module):
         # Check if architecture is Decoder-only (causal LLM)
         self.is_decoder = (
             config.get('architecture', '').endswith('CausalLM') or 
-            'rope_theta' in config or 
-            'num_key_value_heads' in config
+            (config.get('rope_theta') is not None) or 
+            (config.get('num_key_value_heads') is not None)
         )
         
         # Auto-detect num_layers from weights if not explicitly provided or if

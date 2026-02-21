@@ -29,6 +29,12 @@ import pytest
 import torch
 
 from llm_compression.inference.weight_loader import WeightLoader
+from llm_compression.inference.quantization_schema import (
+    WEIGHT_SCHEMA_V1,
+    WEIGHT_SCHEMA_V2,
+    create_v1_row,
+    create_v2_row,
+)
 
 
 # ============================================================================
@@ -133,6 +139,86 @@ def float16_parquet_file():
     }]
     
     table = pa.Table.from_pylist(layers)
+    pq.write_table(table, parquet_path)
+    
+    yield parquet_path
+    
+    os.unlink(parquet_path)
+
+
+@pytest.fixture
+def v2_quantized_parquet_file():
+    """Create a V2 Parquet file with quantized weights (INT8)."""
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.parquet', delete=False) as f:
+        parquet_path = f.name
+    
+    # Create V2 quantized weights
+    rows = []
+    
+    # INT8 quantized layer (per-tensor)
+    shape = [128, 256]
+    weight = np.random.randn(*shape).astype(np.float32)
+    scale = np.abs(weight).max() / 127
+    quantized = np.clip(np.round(weight / scale), -128, 127).astype(np.int8)
+    
+    rows.append(create_v2_row(
+        layer_name='encoder.layer.0.weight',
+        shape=shape,
+        dtype='torch.float32',
+        data=quantized.tobytes(),
+        num_params=np.prod(shape),
+        quant_type='int8',
+        scales=[float(scale)],
+        zero_points=[0],
+        quant_axis=-1
+    ))
+    
+    # INT8 quantized layer (per-channel)
+    shape = [64, 128]
+    weight = np.random.randn(*shape).astype(np.float32)
+    scales = []
+    zero_points = []
+    quantized_channels = []
+    
+    for i in range(shape[0]):
+        channel = weight[i]
+        scale = np.abs(channel).max() / 127
+        scales.append(float(scale))
+        zero_points.append(0)
+        q = np.clip(np.round(channel / scale), -128, 127).astype(np.int8)
+        quantized_channels.append(q)
+    
+    quantized = np.stack(quantized_channels, axis=0)
+    
+    rows.append(create_v2_row(
+        layer_name='encoder.layer.1.weight',
+        shape=shape,
+        dtype='torch.float32',
+        data=quantized.tobytes(),
+        num_params=np.prod(shape),
+        quant_type='int8',
+        scales=scales,
+        zero_points=zero_points,
+        quant_axis=0
+    ))
+    
+    # Mixed precision layer (FP16 in V2 format)
+    shape = [32, 64]
+    fp16_weight = np.random.randn(*shape).astype(np.float16)
+    
+    rows.append(create_v2_row(
+        layer_name='lm_head.weight',
+        shape=shape,
+        dtype='torch.float16',
+        data=fp16_weight.tobytes(),
+        num_params=np.prod(shape),
+        quant_type='fp16',
+        scales=[],
+        zero_points=[],
+        quant_axis=-1
+    ))
+    
+    table = pa.Table.from_pylist(rows, schema=WEIGHT_SCHEMA_V2)
     pq.write_table(table, parquet_path)
     
     yield parquet_path
@@ -617,3 +703,293 @@ class TestIntegration:
         # Should load identical weights
         for name in weights1.keys():
             assert torch.equal(weights1[name], weights2[name])
+
+
+
+# ============================================================================
+# Test: Schema V2 Support (Quantized Weights)
+# ============================================================================
+
+
+class TestSchemaV2Support:
+    """Test Schema V2 (quantized weights) support."""
+    
+    def test_detect_v2_schema(self, v2_quantized_parquet_file):
+        """Should detect Schema V2 format."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        version = loader.get_schema_version()
+        
+        assert version == 2, f"Should detect V2 schema, got V{version}"
+    
+    def test_load_v2_quantized_weights(self, v2_quantized_parquet_file):
+        """Should load and dequantize V2 weights."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        weights = loader.load_weights()
+        
+        assert len(weights) == 3
+        assert 'encoder.layer.0.weight' in weights
+        assert 'encoder.layer.1.weight' in weights
+        assert 'lm_head.weight' in weights
+    
+    def test_v2_weights_are_dequantized(self, v2_quantized_parquet_file):
+        """V2 quantized weights should be dequantized to FP32."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        weights = loader.load_weights()
+        
+        # Quantized layers should be dequantized to FP32
+        assert weights['encoder.layer.0.weight'].dtype == torch.float32
+        assert weights['encoder.layer.1.weight'].dtype == torch.float32
+    
+    def test_v2_mixed_precision_fp16(self, v2_quantized_parquet_file):
+        """V2 mixed precision FP16 layers should remain FP16."""
+        loader = WeightLoader(v2_quantized_parquet_file, force_float32=False)
+        weights = loader.load_weights()
+        
+        # Mixed precision layer should be FP16
+        assert weights['lm_head.weight'].dtype == torch.float16
+    
+    def test_v2_weights_have_correct_shapes(self, v2_quantized_parquet_file):
+        """V2 weights should have correct shapes after dequantization."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        weights = loader.load_weights()
+        
+        assert weights['encoder.layer.0.weight'].shape == (128, 256)
+        assert weights['encoder.layer.1.weight'].shape == (64, 128)
+        assert weights['lm_head.weight'].shape == (32, 64)
+    
+    def test_v2_dequantized_values_are_finite(self, v2_quantized_parquet_file):
+        """Dequantized values should be finite."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        weights = loader.load_weights()
+        
+        for tensor in weights.values():
+            assert torch.isfinite(tensor).all()
+    
+    def test_v2_per_tensor_dequantization(self, v2_quantized_parquet_file):
+        """Should correctly dequantize per-tensor quantized weights."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        
+        # Load per-tensor quantized layer
+        tensor = loader.get_layer('encoder.layer.0.weight')
+        
+        assert tensor.dtype == torch.float32
+        assert tensor.shape == (128, 256)
+        assert torch.isfinite(tensor).all()
+    
+    def test_v2_per_channel_dequantization(self, v2_quantized_parquet_file):
+        """Should correctly dequantize per-channel quantized weights."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        
+        # Load per-channel quantized layer
+        tensor = loader.get_layer('encoder.layer.1.weight')
+        
+        assert tensor.dtype == torch.float32
+        assert tensor.shape == (64, 128)
+        assert torch.isfinite(tensor).all()
+
+
+# ============================================================================
+# Test: V1/V2 Compatibility
+# ============================================================================
+
+
+class TestV1V2Compatibility:
+    """Test backward compatibility between V1 and V2 schemas."""
+    
+    def test_v1_schema_detection(self, temp_parquet_file):
+        """Should detect V1 schema for legacy files."""
+        loader = WeightLoader(temp_parquet_file)
+        version = loader.get_schema_version()
+        
+        assert version == 1, f"Should detect V1 schema, got V{version}"
+    
+    def test_v1_loading_still_works(self, temp_parquet_file):
+        """V1 loading path should still work correctly."""
+        loader = WeightLoader(temp_parquet_file)
+        weights = loader.load_weights()
+        
+        assert len(weights) == 4
+        assert all(isinstance(t, torch.Tensor) for t in weights.values())
+    
+    def test_metadata_includes_schema_version(self, v2_quantized_parquet_file):
+        """Metadata should include schema version."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        metadata = loader.get_metadata()
+        
+        assert 'schema_version' in metadata
+        assert metadata['schema_version'] == 2
+
+
+# ============================================================================
+# Test: Lazy Loading and Caching for V2
+# ============================================================================
+
+
+class TestV2LazyLoadingAndCaching:
+    """Test lazy loading and caching for V2 weights."""
+    
+    def test_v2_lazy_load_single_layer(self, v2_quantized_parquet_file):
+        """Should lazy load single V2 layer."""
+        loader = WeightLoader(v2_quantized_parquet_file)
+        
+        tensor = loader.get_layer('encoder.layer.0.weight')
+        
+        assert isinstance(tensor, torch.Tensor)
+        assert tensor.shape == (128, 256)
+    
+    def test_v2_cache_stores_dequantized_weights(self, v2_quantized_parquet_file):
+        """Cache should store dequantized weights, not quantized."""
+        loader = WeightLoader(v2_quantized_parquet_file, cache_weights=True)
+        
+        # Load and cache
+        tensor1 = loader.get_layer('encoder.layer.0.weight')
+        
+        # Second access should return cached (dequantized) tensor
+        tensor2 = loader.get_layer('encoder.layer.0.weight')
+        
+        assert tensor1 is tensor2  # Same object
+        assert tensor1.dtype == torch.float32  # Dequantized
+    
+    def test_v2_unload_layer(self, v2_quantized_parquet_file):
+        """Should unload V2 layer from cache."""
+        loader = WeightLoader(v2_quantized_parquet_file, cache_weights=True)
+        
+        # Load and cache
+        loader.get_layer('encoder.layer.0.weight')
+        assert 'encoder.layer.0.weight' in loader.get_cached_layers()
+        
+        # Unload
+        result = loader.unload_layer('encoder.layer.0.weight')
+        assert result is True
+        assert 'encoder.layer.0.weight' not in loader.get_cached_layers()
+    
+    def test_v2_unload_multiple_layers(self, v2_quantized_parquet_file):
+        """Should unload multiple V2 layers."""
+        loader = WeightLoader(v2_quantized_parquet_file, cache_weights=True)
+        
+        # Load multiple layers
+        loader.get_layer('encoder.layer.0.weight')
+        loader.get_layer('encoder.layer.1.weight')
+        
+        # Unload multiple
+        count = loader.unload_layers([
+            'encoder.layer.0.weight',
+            'encoder.layer.1.weight'
+        ])
+        
+        assert count == 2
+        assert len(loader.get_cached_layers()) == 0
+    
+    def test_v2_get_cached_layers(self, v2_quantized_parquet_file):
+        """Should return list of cached V2 layers."""
+        loader = WeightLoader(v2_quantized_parquet_file, cache_weights=True)
+        
+        # Initially empty
+        assert len(loader.get_cached_layers()) == 0
+        
+        # Load some layers
+        loader.get_layer('encoder.layer.0.weight')
+        loader.get_layer('lm_head.weight')
+        
+        cached = loader.get_cached_layers()
+        assert len(cached) == 2
+        assert 'encoder.layer.0.weight' in cached
+        assert 'lm_head.weight' in cached
+
+
+# ============================================================================
+# Test: Dequantization Correctness
+# ============================================================================
+
+
+class TestDequantizationCorrectness:
+    """Test dequantization correctness."""
+    
+    def test_per_tensor_dequantization_formula(self):
+        """Test per-tensor dequantization formula: x = (q - zero_point) * scale."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            parquet_path = Path(tmpdir) / "test.parquet"
+            
+            # Create known quantized values
+            shape = [4, 4]
+            scale = 0.1
+            zero_point = 0
+            quantized = np.array([
+                [0, 10, -10, 127],
+                [1, 2, 3, 4],
+                [-1, -2, -3, -4],
+                [-128, 0, 50, -50]
+            ], dtype=np.int8)
+            
+            rows = [create_v2_row(
+                layer_name='test.weight',
+                shape=shape,
+                dtype='torch.float32',
+                data=quantized.tobytes(),
+                num_params=np.prod(shape),
+                quant_type='int8',
+                scales=[scale],
+                zero_points=[zero_point],
+                quant_axis=-1
+            )]
+            
+            table = pa.Table.from_pylist(rows, schema=WEIGHT_SCHEMA_V2)
+            pq.write_table(table, parquet_path)
+            
+            # Load and dequantize
+            loader = WeightLoader(str(parquet_path))
+            tensor = loader.get_layer('test.weight')
+            
+            # Verify dequantization
+            expected = quantized.astype(np.float32) * scale
+            np.testing.assert_allclose(
+                tensor.numpy(),
+                expected,
+                rtol=1e-5,
+                atol=1e-6
+            )
+    
+    def test_per_channel_dequantization_formula(self):
+        """Test per-channel dequantization formula."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            parquet_path = Path(tmpdir) / "test.parquet"
+            
+            # Create known quantized values (2 channels)
+            shape = [2, 4]
+            scales = [0.1, 0.2]
+            zero_points = [0, 0]
+            quantized = np.array([
+                [10, 20, 30, 40],    # Channel 0: scale=0.1
+                [5, 10, 15, 20]      # Channel 1: scale=0.2
+            ], dtype=np.int8)
+            
+            rows = [create_v2_row(
+                layer_name='test.weight',
+                shape=shape,
+                dtype='torch.float32',
+                data=quantized.tobytes(),
+                num_params=np.prod(shape),
+                quant_type='int8',
+                scales=scales,
+                zero_points=zero_points,
+                quant_axis=0
+            )]
+            
+            table = pa.Table.from_pylist(rows, schema=WEIGHT_SCHEMA_V2)
+            pq.write_table(table, parquet_path)
+            
+            # Load and dequantize
+            loader = WeightLoader(str(parquet_path))
+            tensor = loader.get_layer('test.weight')
+            
+            # Verify per-channel dequantization
+            expected = np.zeros_like(quantized, dtype=np.float32)
+            expected[0] = quantized[0].astype(np.float32) * scales[0]
+            expected[1] = quantized[1].astype(np.float32) * scales[1]
+            
+            np.testing.assert_allclose(
+                tensor.numpy(),
+                expected,
+                rtol=1e-5,
+                atol=1e-6
+            )
