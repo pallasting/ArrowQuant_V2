@@ -10,9 +10,6 @@ on:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ai_os_diffusion/arrow_quant_v2
     
     steps:
       - uses: actions/checkout@v3
@@ -31,8 +28,8 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            ai_os_diffusion/arrow_quant_v2/target/
-          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('ai_os_diffusion/arrow_quant_v2/Cargo.toml') }}
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('Cargo.toml') }}
       
       - name: Run benchmarks
         run: cargo bench --no-fail-fast
@@ -42,5 +39,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: benchmark-results
-          path: ai_os_diffusion/arrow_quant_v2/target/criterion/
+          path: target/criterion/
         continue-on-error: true

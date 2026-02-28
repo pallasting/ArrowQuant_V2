@@ -9,9 +9,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ai_os_diffusion/arrow_quant_v2
     strategy:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
@@ -38,8 +35,8 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            ai_os_diffusion/arrow_quant_v2/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('ai_os_diffusion/arrow_quant_v2/Cargo.toml') }}
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.toml') }}
       
       - name: Install Python dependencies
         run: |
