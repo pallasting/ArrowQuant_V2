@@ -1,0 +1,34 @@
+{
+  "jobs": [
+    {
+      "model_path": "models/dream-7b/",
+      "output_path": "dream-7b-edge/",
+      "profile": "edge",
+      "bit_width": 2,
+      "modality": "text"
+    },
+    {
+      "model_path": "models/dream-7b/",
+      "output_path": "dream-7b-local/",
+      "profile": "local",
+      "bit_width": 4,
+      "modality": "text"
+    },
+    {
+      "model_path": "models/dream-7b/",
+      "output_path": "dream-7b-cloud/",
+      "profile": "cloud",
+      "bit_width": 8,
+      "modality": "text"
+    },
+    {
+      "model_path": "models/image-diffusion/",
+      "output_path": "image-diffusion-int4/",
+      "profile": "local",
+      "bit_width": 4,
+      "modality": "image",
+      "enable_spatial": true,
+      "group_size": 64
+    }
+  ]
+}

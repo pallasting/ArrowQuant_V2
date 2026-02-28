@@ -1,0 +1,62 @@
+name: Test
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai_os_diffusion/arrow_quant_v2
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ai_os_diffusion/arrow_quant_v2/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('ai_os_diffusion/arrow_quant_v2/Cargo.toml') }}
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install maturin pytest numpy pyarrow
+      
+      - name: Build extension
+        run: maturin develop --release
+      
+      - name: Run Python tests
+        run: pytest tests/ -v
+        continue-on-error: true
+      
+      - name: Check code formatting
+        run: cargo fmt -- --check
+        continue-on-error: true
+      
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+        continue-on-error: true

@@ -1,0 +1,107 @@
+[package]
+name = "arrow_quant_v2"
+version = "0.2.0"
+edition = "2021"
+authors = ["AI-OS Team"]
+description = "High-performance quantization engine for diffusion models"
+license = "MIT"
+
+[lib]
+name = "arrow_quant_v2"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Core dependencies - UPGRADED
+ndarray = "0.16"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+log = "0.4"
+env_logger = "0.11"
+
+# Arrow and Parquet - UPGRADED
+arrow = { version = "53.0", features = ["prettyprint", "ffi"] }
+parquet = { version = "53.0", features = ["arrow", "async", "zstd", "lz4"] }
+
+# PyO3 for Python bindings - Use workspace version
+pyo3 = { workspace = true }
+pyo3-async-runtimes = { workspace = true }
+
+# Numpy integration for zero-copy optimization
+numpy = "0.22"
+
+# Async runtime - UPGRADED
+tokio = { version = "1.40", features = ["full"] }
+futures = "0.3"
+
+# Parallel processing - UPGRADED
+rayon = "1.10"
+
+# SIMD support
+simsimd = "4.3"
+
+# Half-precision float support
+half = { version = "2.4", features = ["std", "serde"] }
+
+# YAML configuration
+serde_yaml = "0.9"
+
+# Random number generation
+rand = "0.8"
+fastrand = "2.1"
+
+# Regex
+regex = "1.11"
+
+# Approx for tests
+approx = "0.5"
+
+# Temporary directory support
+tempfile = "3.13"
+
+# Concurrency and Pipelining
+crossbeam-channel = "0.5"
+
+# System resource monitoring
+sysinfo = "0.31"
+
+# LRU cache for transition caching - UPGRADED
+lru = "0.13"
+
+[dev-dependencies]
+criterion = "0.6"
+proptest = "1.5"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[[bench]]
+name = "simd_benchmark"
+harness = false
+
+[[bench]]
+name = "parallel_benchmark"
+harness = false
+
+[[bench]]
+name = "speed_benchmark"
+harness = false
+
+[[bench]]
+name = "memory_benchmark"
+harness = false
+
+[[bench]]
+name = "accuracy_benchmark"
+harness = false
+
+[[bench]]
+name = "quick_simd_benchmark"
+harness = false

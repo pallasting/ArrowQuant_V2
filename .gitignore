@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Testing
+.pytest_cache/
+.hypothesis/
+.benchmarks/
+proptest-regressions/
+.tox/
+.coverage
+htmlcov/
+*.cover
+
+# Logs
+*.log
+logs/
+
+# IDE
+.kiro/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+.archive/
+
+# Analysis results
+*_results.json
+*_analysis.json
+
+# Build artifacts
+*.dylib
+*.dll
+*.so

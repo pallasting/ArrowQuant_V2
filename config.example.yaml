@@ -1,0 +1,297 @@
+# ArrowQuant V2 Configuration Example
+# Copy this file to config.yaml and customize for your deployment
+
+# Target bit width (2, 4, or 8)
+bit_width: 4
+
+# Modality (auto-detected if null)
+# Options: text, code, image, audio
+modality: null
+
+# Number of time groups for time-aware quantization
+num_time_groups: 10
+
+# Group size for per-group quantization
+# Options: 32, 64, 128, 256
+group_size: 128
+
+# Enable time-aware quantization
+enable_time_aware: true
+
+# Enable spatial quantization
+enable_spatial: true
+
+# Minimum accuracy threshold (cosine similarity)
+min_accuracy: 0.85
+
+# Number of calibration samples
+calibration_samples: 128
+
+# Deployment profile
+# Options: edge, local, cloud
+deployment_profile: local
+
+# Enable fail-fast mode (disable fallback on quantization failure)
+fail_fast: false
+
+# Number of parallel threads for layer quantization (0 = auto-detect)
+# Set to 0 to use all available CPU cores
+# Set to a specific number (e.g., 4, 8) to limit parallelism
+num_threads: 0
+
+# Enable streaming mode (load one layer at a time to minimize memory)
+# true: Lower memory usage, slower processing (good for large models on limited RAM)
+# false: Higher memory usage, faster processing (batch mode with parallel processing)
+enable_streaming: false
+
+# Skip quantization for sensitive layers (preserve FP16)
+# When enabled, automatically detects and skips quantization for:
+# - Embeddings (embed_tokens, position_embeddings, etc.)
+# - Layer norms (layer_norm, norm, rms_norm, etc.)
+# - Output heads (lm_head, head, output layers)
+skip_sensitive_layers: false
+
+# User-defined list of sensitive layer names (exact match)
+# Example: ["model.embed_tokens.weight", "model.norm.weight", "lm_head.weight"]
+sensitive_layer_names: []
+
+# Regex patterns for sensitive layer detection
+# Example: [".*attention.*", ".*mlp\\.gate.*"]
+sensitive_layer_patterns: []
+
+# ============================================
+# Mixed-Precision Quantization (Optional)
+# ============================================
+
+# Enable per-layer bit-width selection (mixed-precision quantization)
+# When enabled, different layers can use different bit-widths (INT2/INT4/INT8/FP16)
+# This allows optimizing the trade-off between model size and quality
+enable_mixed_precision: false
+
+# Per-layer bit-width assignments (layer_name -> bit_width)
+# Supported values: 2, 4, 8, 16 (16 = FP16, no quantization)
+# If a layer is not in this map, uses the default bit_width
+# Example:
+# layer_bit_widths:
+#   "model.embed_tokens.weight": 16  # Preserve FP16 for embeddings
+#   "model.layers.0.self_attn.q_proj.weight": 4  # INT4 for attention
+#   "model.layers.0.mlp.gate_proj.weight": 2  # INT2 for MLP
+layer_bit_widths: {}
+
+# Target model size in MB for automatic bit-width optimization
+# If set, the system will automatically assign bit-widths to meet this target
+# The optimizer uses a greedy approach:
+# 1. Assigns initial bit-widths based on layer sensitivity
+# 2. Adjusts bit-widths to meet the target size constraint
+# 3. Preserves quality by prioritizing sensitive layers
+# Example: target_model_size_mb: 100.0  # Target 100MB model
+target_model_size_mb: null
+
+# ============================================
+# Mixed-Precision Strategy Examples
+# ============================================
+
+# Example 1: Manual Mixed-Precision (Quality-Focused)
+# enable_mixed_precision: true
+# bit_width: 2  # Default for most layers
+# layer_bit_widths:
+#   "model.embed_tokens.weight": 16  # FP16 for embeddings
+#   "model.norm.weight": 16  # FP16 for norms
+#   "lm_head.weight": 16  # FP16 for output head
+#   "model.layers.0.self_attn.q_proj.weight": 4  # INT4 for early attention
+#   "model.layers.0.self_attn.k_proj.weight": 4
+#   "model.layers.0.self_attn.v_proj.weight": 4
+
+# Example 2: Automatic Mixed-Precision (Size-Constrained)
+# enable_mixed_precision: true
+# bit_width: 4  # Default bit-width
+# target_model_size_mb: 100.0  # Target 100MB
+# The system will automatically assign bit-widths to meet this target
+
+# Example 3: Hybrid Approach (Manual + Automatic)
+# enable_mixed_precision: true
+# bit_width: 2  # Default for most layers
+# target_model_size_mb: 150.0  # Target 150MB
+# layer_bit_widths:
+#   "model.embed_tokens.weight": 16  # Force FP16 for embeddings
+#   "lm_head.weight": 16  # Force FP16 for output
+# Other layers will be automatically assigned to meet target size
+
+# ============================================
+# Deployment Profile Presets
+# ============================================
+
+# Edge Profile (2-4GB RAM, ARM64)
+# bit_width: 2
+# num_time_groups: 5
+# group_size: 256
+# enable_time_aware: true
+# enable_spatial: false
+# min_accuracy: 0.65
+# calibration_samples: 32
+# deployment_profile: edge
+
+# Local Profile (8+GB RAM, x86_64)
+# bit_width: 4
+# num_time_groups: 10
+# group_size: 128
+# enable_time_aware: true
+# enable_spatial: true
+# min_accuracy: 0.85
+# calibration_samples: 128
+# deployment_profile: local
+
+# Cloud Profile (32+GB RAM, GPU)
+# bit_width: 8
+# num_time_groups: 20
+# group_size: 64
+# enable_time_aware: true
+# enable_spatial: true
+# min_accuracy: 0.95
+# calibration_samples: 512
+# deployment_profile: cloud
+
+# ============================================
+# Thermodynamic Constraints (Optional)
+# ============================================
+
+# Thermodynamic constraint configuration for improved INT2 accuracy
+# All features are opt-in and backward compatible
+thermodynamic:
+  # Phase 1: Markov Validation (monitoring only, establishes baseline)
+  validation:
+    # Enable Markov smoothness validation
+    # Default: true in debug builds, false in release builds
+    enabled: true
+    
+    # Smoothness threshold for violation detection (0.0-1.0)
+    # Jumps exceeding this threshold are logged as violations
+    # Default: 0.3 (30% parameter jump)
+    smoothness_threshold: 0.3
+    
+    # Log violations at WARN level
+    # Default: true
+    log_violations: true
+  
+  # Phase 2: Boundary Smoothing (optional, improves INT2 accuracy by +2-3%)
+  boundary_smoothing:
+    # Enable boundary smoothing to reduce parameter jumps at time group boundaries
+    # Default: false (disabled for backward compatibility)
+    # When enabled, smooths scale and zero_point parameters across boundaries
+    enabled: false
+    
+    # Smoothing window size (number of timesteps on each side of boundary)
+    # Range: 1-20, Default: 5
+    # Larger windows provide smoother transitions but may affect more timesteps
+    window_size: 5
+    
+    # Interpolation method for smoothing
+    # Options:
+    #   - linear: Simple linear interpolation (fast, C⁰ continuity)
+    #   - cubic: Cubic spline interpolation (smooth, C² continuity)
+    #   - sigmoid: Sigmoid-based interpolation (gradual transitions)
+    # Default: linear
+    interpolation: linear
+  
+  # Phase 3: Transition Optimization (optional, improves INT2 accuracy by +4-5% cumulative)
+  transition_optimization:
+    # Enable transition probability optimization
+    # Default: false (disabled by default, expensive operation)
+    # When enabled, optimizes quantization parameters to preserve transition probabilities
+    # Expected overhead: <15% of quantization time
+    enabled: false
+    
+    # Weight for Markov constraint loss (0.0-1.0)
+    # Higher values enforce stronger Markov property preservation
+    # Default: 0.1
+    # Typical range: 0.05-0.2
+    markov_weight: 0.1
+    
+    # Weight for entropy regularization (0.0-1.0)
+    # Encourages diverse quantization values
+    # Default: 0.05
+    # Typical range: 0.01-0.1
+    entropy_weight: 0.05
+    
+    # Learning rate for gradient descent
+    # Default: 0.01
+    # Typical range: 0.001-0.1
+    learning_rate: 0.01
+    
+    # Maximum optimization iterations
+    # Default: 50
+    # Typical range: 20-100
+    max_iterations: 50
+    
+    # Convergence threshold for early stopping
+    # Optimization stops if loss change < threshold
+    # Default: 1e-4
+    convergence_threshold: 0.0001
+    
+    # Beta schedule type for diffusion process
+    # Options:
+    #   - linear: Linear schedule (beta_t increases linearly)
+    #   - cosine: Cosine schedule (smoother transitions)
+    # Default: linear
+    beta_schedule: linear
+
+# ============================================
+# Thermodynamic Configuration Examples
+# ============================================
+
+# Example 1: Phase 1 Only (Monitoring, No Overhead)
+# thermodynamic:
+#   validation:
+#     enabled: true
+#     smoothness_threshold: 0.3
+#     log_violations: true
+#   boundary_smoothing:
+#     enabled: false
+#   transition_optimization:
+#     enabled: false
+
+# Example 2: Phase 1 + Phase 2 (Validation + Smoothing, +2-3% accuracy)
+# thermodynamic:
+#   validation:
+#     enabled: true
+#     smoothness_threshold: 0.3
+#     log_violations: true
+#   boundary_smoothing:
+#     enabled: true
+#     window_size: 5
+#     interpolation: linear
+#   transition_optimization:
+#     enabled: false
+
+# Example 3: Full Pipeline (All Phases, +6-8% accuracy)
+# thermodynamic:
+#   validation:
+#     enabled: true
+#     smoothness_threshold: 0.3
+#     log_violations: true
+#   boundary_smoothing:
+#     enabled: true
+#     window_size: 5
+#     interpolation: cubic  # Use cubic for smoother transitions
+#   transition_optimization:
+#     enabled: true
+#     markov_weight: 0.1
+#     entropy_weight: 0.05
+#     learning_rate: 0.01
+#     max_iterations: 50
+#     convergence_threshold: 0.0001
+#     beta_schedule: linear
+
+# ============================================
+# Environment Variable Overrides
+# ============================================
+# You can override any configuration value using environment variables:
+#
+# ARROW_QUANT_BIT_WIDTH=2
+# ARROW_QUANT_NUM_TIME_GROUPS=5
+# ARROW_QUANT_GROUP_SIZE=256
+# ARROW_QUANT_MIN_ACCURACY=0.70
+# ARROW_QUANT_CALIBRATION_SAMPLES=32
+# ARROW_QUANT_FAIL_FAST=true
+# ARROW_QUANT_NUM_THREADS=8
+# ARROW_QUANT_ENABLE_STREAMING=true
