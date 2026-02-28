@@ -713,3 +713,552 @@ Unified Diffusion Architecture forms perfect closed loop with Rust Skeleton:
 - Python brain evolves freely (user-specific adaptations)
 - PyO3 bindings provide seamless integration
 - Users can experiment without touching Rust code
+
+
+## 10. Diffusion Model Quantization Strategy
+
+### 10.1 Quantization Challenges for Diffusion Models
+
+Diffusion models present unique quantization challenges compared to traditional LLMs:
+
+| Challenge | Description | Impact |
+|-----------|-------------|--------|
+| **Temporal Variance** | Activation distributions vary significantly across denoising timesteps | Fixed quantization parameters cause precision loss |
+| **Spatial Variance** | Different channels have vastly different weight/activation ranges | Per-tensor quantization is too coarse |
+| **Error Accumulation** | Iterative denoising amplifies quantization errors | Generation quality degrades significantly |
+| **Discrete Diffusion Specificity** | Dream 7B uses mask-based denoising (discrete) vs Gaussian noise (continuous) | Mask operations are highly sensitive to quantization |
+
+### 10.2 Current ArrowQuant Capabilities
+
+**✅ Existing Features**:
+- INT2/INT4 quantization with bit packing
+- Symmetric/asymmetric quantization
+- Rayon parallel processing
+- Zero-copy Parquet loading via PyO3
+- Per-tensor scaling
+
+**⚠️ Limitations for Diffusion Models**:
+- No per-channel quantization (spatial variance)
+- No dynamic activation quantization (temporal variance)
+- No time-aware quantization strategies
+- Basic quantization algorithm (not SOTA)
+
+### 10.3 State-of-the-Art Diffusion Quantization (2025-2026)
+
+Based on latest research (CVPR 2025, arXiv 2025), we identify three key techniques:
+
+#### 10.3.1 Q-DiT (CVPR 2025) - Diffusion Transformer Quantization
+
+**Source**: https://github.com/Juanerx/Q-DiT
+
+**Core Techniques**:
+1. **Dynamic Activation Quantization**: Adapts quantization parameters per timestep
+   ```python
+   # Different quantization params for different timesteps
+   scale_t = self.timestep_scales[t]
+   quantized_act = quantize(activation, scale_t, zero_point_t)
+   ```
+
+2. **Automatic Granularity Allocation**: Uses evolutionary search to find optimal quantization granularity per layer
+   ```python
+   # Layer-wise group size optimization
+   group_sizes = evolutionary_search(model, calibration_data)
+   # e.g., attention layers: group_size=128, FFN layers: group_size=64
+   ```
+
+3. **Group-wise Quantization**: Divides channels into groups with independent scales
+   ```python
+   # Per-group scaling instead of per-tensor
+   for group in split_channels(weights, group_size):
+       scale, zp = compute_params(group)
+       quantized_group = quantize(group, scale, zp)
+   ```
+
+**Performance**: W4A8 quantization with FID increase <0.1 (nearly lossless)
+
+#### 10.3.2 DiTAS (arXiv 2024) - Activation Smoothing
+
+**Source**: https://github.com/DZY122/DiTAS
+
+**Core Techniques**:
+1. **Activation Smoothing**: Reduces activation variance before quantization
+2. **Channel Equalization**: Balances different channels to reduce spatial variance
+
+**Performance**: W4A8 quantization maintaining FP16-equivalent quality
+
+#### 10.3.3 Time-Aware Quantization (arXiv 2025)
+
+**Core Techniques**:
+1. **Time-Grouping Quantization (TGQ)**: Groups similar timesteps with shared quantization params
+2. **Multi-Region Quantization (MRQ)**: Handles asymmetric activation distributions
+
+**Performance**: 60% computation reduction for DiT models
+
+### 10.4 Quantization Strategy for Dream 7B
+
+Dream 7B is a **discrete diffusion model** with unique characteristics:
+
+| Aspect | Image Diffusion (DiT) | Text Diffusion (Dream 7B) |
+|--------|----------------------|---------------------------|
+| **Noise Type** | Gaussian (continuous) | Mask (discrete) |
+| **Denoising** | Langevin dynamics | CTMC jump process |
+| **Activation Distribution** | Continuous | Discrete + Sparse |
+| **Quantization Difficulty** | Medium | **Higher** (discreteness) |
+
+**Recommended Approach**:
+- ✅ Transformer backbone: Use Q-DiT techniques
+- ⚠️ Discrete sampler: Special handling for mask operations
+- ✅ Projection heads: Standard quantization
+
+### 10.5 ArrowQuant V2 Enhancement Plan
+
+#### Phase 1: Per-Channel Quantization (2 weeks)
+
+```rust
+// Rust implementation
+impl ArrowQuant {
+    pub fn quantize_per_channel(
+        &self,
+        weights: &Array2<f32>,
+        axis: usize,
+    ) -> PyResult<QuantizedTensor> {
+        // Compute scale/zero_point per output channel
+        let mut scales = Vec::new();
+        let mut zero_points = Vec::new();
+        
+        for channel in weights.axis_iter(Axis(axis)) {
+            let (scale, zp) = self.compute_quantization_params(channel)?;
+            scales.push(scale);
+            zero_points.push(zp);
+        }
+        
+        // Quantize with per-channel params
+        // ...
+    }
+}
+```
+
+#### Phase 2: Dynamic Activation Quantization (2 weeks)
+
+```python
+# Python strategy layer
+class DynamicActivationQuant:
+    def __init__(self, num_timesteps=1000):
+        # Pre-compute quantization params for each timestep
+        self.timestep_params = self._calibrate_timesteps()
+    
+    def quantize_activation(self, act, timestep):
+        # Select params based on timestep
+        scale, zp = self.timestep_params[timestep]
+        return self.arrow_quant.quantize(act, scale, zp)
+    
+    def _calibrate_timesteps(self):
+        # Calibrate on sample data across all timesteps
+        # Group similar timesteps together
+        pass
+```
+
+#### Phase 3: Q-DiT Integration (3 weeks)
+
+```python
+# Integrate Q-DiT evolutionary search
+class QDiTQuantizer:
+    def __init__(self, model, calibration_data):
+        self.model = model
+        self.calibration_data = calibration_data
+        self.arrow_quant = ArrowQuant.new(bit_width=4)
+    
+    def find_optimal_granularity(self):
+        # Evolutionary search for layer-wise group sizes
+        population = self._initialize_population()
+        
+        for generation in range(num_generations):
+            # Evaluate FID for each configuration
+            fitness = self._evaluate_population(population)
+            # Select and mutate
+            population = self._evolve(population, fitness)
+        
+        return best_configuration
+    
+    def quantize_model(self, config):
+        # Apply optimal configuration
+        for layer_name, group_size in config.items():
+            layer = self.model.get_layer(layer_name)
+            quantized = self.arrow_quant.quantize_per_channel(
+                layer.weight, group_size=group_size
+            )
+            layer.weight = quantized
+```
+
+### 10.6 Quantization Usage Modes
+
+#### Mode 1: Offline Quantization (Recommended for Production)
+
+```python
+# One-time conversion during deployment preparation
+python scripts/convert_diffusion_weights.py \
+    --model dream-org/Dream-v0-7B \
+    --output models/dream-7b-int2/ \
+    --quantizer q-dit \
+    --bit-width 2
+
+# Deployment: Load pre-quantized model (no quantizer needed)
+engine = ArrowEngine(model_path="models/dream-7b-int2/")
+# Zero-copy loading, ~200ms startup
+```
+
+**Advantages**:
+- ✅ No quantizer in deployment (minimal memory)
+- ✅ Fast startup (~200ms)
+- ✅ Suitable for edge devices
+
+#### Mode 2: Online Quantization (Recommended for Development)
+
+```python
+# Dynamic quantization for LoRA/ControlNet hot-swapping
+engine = ArrowEngine(config)
+engine.arrow_quant = ArrowQuant.new(bit_width=2)  # Load quantizer
+
+# Dynamically quantize LoRA
+lora_weights = load_lora("writing_style.safetensors")
+quantized_lora = engine.arrow_quant.quantize(lora_weights)
+engine.apply_lora(quantized_lora)
+```
+
+**Advantages**:
+- ✅ High flexibility
+- ✅ Supports hot-swapping
+- ⚠️ Slightly higher memory (~50MB for quantizer)
+
+#### Mode 3: Hybrid Mode (Best Practice)
+
+```python
+class ArrowEngine:
+    def __init__(self, config):
+        # Base model: Pre-quantized (offline)
+        self.base_model = self.load_quantized_model(
+            "models/dream-7b-int2/shared_transformer.parquet"
+        )
+        
+        # Quantizer: Load on-demand
+        self.arrow_quant = None
+    
+    def apply_lora(self, lora_path):
+        # Load quantizer only when needed
+        if self.arrow_quant is None:
+            self.arrow_quant = ArrowQuant.new(bit_width=2)
+        
+        # Dynamically quantize LoRA
+        lora_weights = load_weights(lora_path)
+        quantized = self.arrow_quant.quantize(lora_weights)
+        self.lora_router.add(quantized)
+```
+
+**Resource Comparison**:
+
+| Mode | Memory | Startup | Flexibility | Use Case |
+|------|--------|---------|-------------|----------|
+| Offline | 1.75GB | ~200ms | Low | Production, Edge |
+| Online | 1.8GB | ~300ms | High | Development |
+| Hybrid | 1.75GB + on-demand | ~200ms | Medium-High | **Recommended** ✅ |
+
+### 10.7 Performance Expectations
+
+**Current (Basic Quantization)**:
+- Compression: 16x (FP32 → INT2)
+- Speedup: 5-10x (Rust vs Python)
+- Quality: ~5-10% degradation
+
+**After Q-DiT Integration**:
+- Compression: 16x (FP32 → INT2)
+- Speedup: 10-20x (SOTA algorithms + Rust)
+- Quality: <1% degradation (W4A8), <3% (W4A4)
+
+**Deployment Targets**:
+
+| Device Tier | Model Size | Quantization | Modalities | Latency |
+|-------------|-----------|--------------|------------|---------|
+| Edge (2-4GB RAM) | <35MB | INT2 | Text, Audio | <500ms |
+| Local (8+GB RAM) | <200MB | INT4 | Text, Audio, Image | <2s |
+| Cloud (32+GB RAM) | <2GB | INT2/INT4 | All | <1s |
+
+## 11. Multimodal Evolution Strategy
+
+### 11.1 Core Concept: Unified Score Network + Modality Heads
+
+Dream 7B is a text diffusion model, but can evolve to support multimodal generation through our architecture:
+
+```
+Dream 7B (Text Diffusion)
+    ↓ Preserve Transformer backbone (90% params)
+SharedTransformer (Unified Score Network)
+    ↓ Add modality projection heads (10% params)
+    ├─ TextHead (existing, from Dream 7B)
+    ├─ ImageHead (new, <10M params) ← Add via LoRA/Fine-tuning
+    ├─ AudioHead (new, <10M params) ← Add via LoRA/Fine-tuning
+    └─ CodeHead (new, <10M params) ← Add via LoRA/Fine-tuning
+```
+
+**Key Advantages**:
+- ✅ **Parameter Efficiency**: New modality requires <10M params (<1% of total)
+- ✅ **Knowledge Transfer**: Shared backbone enables cross-modal knowledge reuse
+- ✅ **Progressive Evolution**: No need to retrain entire model
+
+### 11.2 Five-Level Evolution Strategy (L0-L4)
+
+| Level | Technique | Params | Training Cost | Use Case |
+|-------|-----------|--------|---------------|----------|
+| **L0** | Score Composition | 0% | None | Real-time model mixing |
+| **L1** | ControlNet | ~10% | Low | Structural constraints (CoT, JSON) |
+| **L2** | LoRA | ~1% | Medium | Domain knowledge injection |
+| **L3** | Selective Fine-tuning | ~20% | High | Partial layer adaptation |
+| **L4** | Full Fine-tuning | 100% | Very High | Long-term consolidation |
+
+### 11.3 Multimodal Evolution Examples
+
+#### Example 1: Text → Image Generation (L1 ControlNet)
+
+```python
+# Step 1: Preserve Dream 7B Transformer backbone
+shared_transformer = dream_7b.transformer  # 7B params
+
+# Step 2: Add ImageProjectionHead (<10M params)
+image_head = ImageProjectionHead(
+    hidden_dim=4096,
+    output_dim=512*512*3,
+    params="~8M"
+)
+
+# Step 3: Train ControlNet (freeze shared_transformer)
+image_controlnet = ControlNet(
+    base=shared_transformer,
+    head=image_head,
+    params="~10M"
+)
+
+train(image_controlnet, laion_400m_subset, epochs=10)
+
+# Result:
+# - Total params: 7B + 8M + 10M = 7.018B (+0.26%)
+# - Training: Only 18M params (<0.3%)
+# - Inference: engine.diffuse(prompt, modality="image")
+```
+
+#### Example 2: Text → Audio Generation (L2 LoRA)
+
+```python
+# Step 1: Preserve Dream 7B Transformer backbone
+shared_transformer = dream_7b.transformer  # 7B params
+
+# Step 2: Add AudioProjectionHead (<10M params)
+audio_head = AudioProjectionHead(
+    hidden_dim=4096,
+    output_dim=16000*10,  # 10s audio, 16kHz
+    params="~6M"
+)
+
+# Step 3: Train LoRA (freeze shared_transformer)
+audio_lora = LoRA(
+    base=shared_transformer,
+    head=audio_head,
+    rank=16,
+    params="~700K"
+)
+
+train(audio_lora, musiccaps_dataset, epochs=5)
+
+# Result:
+# - Total params: 7B + 6M + 0.7M = 7.0067B (+0.01%)
+# - Training: Only 6.7M params (<0.1%)
+# - Inference: engine.diffuse(prompt, modality="audio")
+```
+
+#### Example 3: Multimodal Parallel Generation (L0 Score Composition)
+
+```python
+# No training required - real-time model mixing
+engine = ArrowEngine(config)
+
+# Load multiple modality heads
+engine.load_head("text", dream_7b_text_head)
+engine.load_head("image", stable_diffusion_head)
+engine.load_head("audio", audioldm_head)
+
+# Single forward pass, generate multiple modalities
+result = engine.diffuse(
+    prompt="春天的樱花",
+    modalities=["text", "image", "audio"],
+    num_steps=4
+)
+
+# Output:
+# - result["text"]: "春风拂面，樱花飘落..."
+# - result["image"]: [512x512 cherry blossom image]
+# - result["audio"]: [16kHz spring music]
+
+# Key: Single SharedTransformer forward pass, all modalities share
+```
+
+### 11.4 Evolution Strategy Selection Guide
+
+| Goal | Strategy | Params | Training Time | Quality |
+|------|----------|--------|---------------|---------|
+| **Quick Prototype** | L0 Score Composition | 0% | 0 | Medium |
+| **Add Constraints** | L1 ControlNet | ~10% | 1-2 days | Medium-High |
+| **Domain Adaptation** | L2 LoRA | ~1% | Hours | High |
+| **Deep Customization** | L3 Selective FT | ~20% | 1-2 weeks | Very High |
+| **Complete Retraining** | L4 Full FT | 100% | Weeks | Highest |
+
+**Recommended Progressive Path**:
+```
+1. L0 Validate feasibility (no training)
+   ↓ If insufficient
+2. L1 Add ControlNet (low cost)
+   ↓ If need stronger adaptation
+3. L2 Train LoRA (medium cost)
+   ↓ If need deep customization
+4. L3 Selective Fine-tuning (high cost)
+   ↓ Only if necessary
+5. L4 Full Fine-tuning (very high cost)
+```
+
+### 11.5 Implementation Architecture
+
+```python
+class MultimodalEvolutionEngine:
+    def __init__(self, base_model="dream-7b"):
+        # Load base model (text diffusion)
+        self.shared_transformer = load_model(base_model)
+        
+        # Initialize evolution router
+        self.evolution_router = EvolutionRouter()
+        
+        # Modality heads registry
+        self.heads = {
+            "text": dream_7b.text_head  # Existing
+        }
+    
+    def add_modality(self, modality, strategy="L2", **kwargs):
+        """
+        Add new modality support via evolution strategy.
+        
+        Args:
+            modality: "image", "audio", "video", etc.
+            strategy: "L0", "L1", "L2", "L3", "L4"
+        """
+        if strategy == "L0":
+            # Score composition - no training
+            external_head = kwargs["external_head"]
+            self.heads[modality] = external_head
+            
+        elif strategy == "L1":
+            # ControlNet - train lightweight adapter
+            head = self._create_projection_head(modality)
+            controlnet = ControlNet(self.shared_transformer, head)
+            self._train_controlnet(controlnet, kwargs["dataset"])
+            self.heads[modality] = head
+            
+        elif strategy == "L2":
+            # LoRA - train low-rank adaptation
+            head = self._create_projection_head(modality)
+            lora = LoRA(self.shared_transformer, head, rank=16)
+            self._train_lora(lora, kwargs["dataset"])
+            self.heads[modality] = head
+            
+        elif strategy == "L3":
+            # Selective fine-tuning
+            head = self._create_projection_head(modality)
+            self._selective_finetune(
+                self.shared_transformer, 
+                head, 
+                kwargs["dataset"],
+                unfreeze_layers=kwargs.get("unfreeze_layers", [10,11,12])
+            )
+            self.heads[modality] = head
+            
+        elif strategy == "L4":
+            # Full fine-tuning
+            head = self._create_projection_head(modality)
+            self._full_finetune(
+                self.shared_transformer,
+                head,
+                kwargs["dataset"]
+            )
+            self.heads[modality] = head
+    
+    def generate(self, prompt, modality, **kwargs):
+        """Unified generation interface."""
+        # Route to appropriate head
+        head = self.heads[modality]
+        
+        # Shared transformer forward pass
+        hidden_states = self.shared_transformer(
+            prompt, 
+            modality_embedding=head.modality_id
+        )
+        
+        # Modality-specific decoding
+        output = head.decode(hidden_states)
+        return output
+```
+
+### 11.6 Quantization Integration with Evolution
+
+**Key Insight**: Quantization strategy must adapt to evolution level:
+
+| Evolution Level | Quantization Strategy |
+|----------------|----------------------|
+| **L0** | Use pre-quantized models (offline) |
+| **L1** | Quantize ControlNet weights (online) |
+| **L2** | Quantize LoRA weights (online) |
+| **L3** | Re-quantize fine-tuned layers (offline) |
+| **L4** | Full model re-quantization (offline) |
+
+```python
+class QuantizationAwareEvolution:
+    def add_modality_with_quantization(self, modality, strategy, bit_width=4):
+        # Train new modality head
+        head = self.add_modality(modality, strategy)
+        
+        # Quantize based on strategy
+        if strategy in ["L1", "L2"]:
+            # Online quantization for adapters
+            quantized_head = self.arrow_quant.quantize(
+                head.state_dict(),
+                bit_width=bit_width
+            )
+            self.heads[modality] = quantized_head
+            
+        elif strategy in ["L3", "L4"]:
+            # Offline quantization for fine-tuned models
+            # Use Q-DiT for optimal quantization
+            quantized_model = self.q_dit_quantizer.quantize(
+                self.shared_transformer,
+                calibration_data=self.calibration_data,
+                bit_width=bit_width
+            )
+            self.shared_transformer = quantized_model
+```
+
+### 11.7 Performance Expectations
+
+**Parameter Efficiency**:
+- Base model (Dream 7B): 7B params
+- Add image modality (L1): +18M params (+0.26%)
+- Add audio modality (L2): +6.7M params (+0.01%)
+- Add video modality (L3): +50M params (+0.7%)
+- **Total multimodal**: 7.075B params (+1.07%)
+
+**Memory Footprint** (with INT2 quantization):
+- Base model: 1.75GB
+- Image head: 4.5MB
+- Audio head: 1.7MB
+- Video head: 12.5MB
+- **Total**: 1.77GB (+1.1%)
+
+**Inference Latency** (4-step consistency distillation):
+- Text generation: <500ms (CPU)
+- Image generation: <2s (CPU)
+- Audio generation: <1s (CPU)
+- Multimodal parallel: <2.5s (CPU, all modalities)
+

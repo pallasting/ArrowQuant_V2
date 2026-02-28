@@ -18,12 +18,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Set up Rust workspace for core infrastructure components using Cargo.
 
 **Subtasks**:
-- [ ] 0.1.1 Initialize Rust workspace with `cargo new --lib ai-os-rust`
-- [ ] 0.1.2 Create Cargo workspace members: arrow_storage, arrow_quant, vector_search, fast_tokenizer
-- [ ] 0.1.3 Configure PyO3 dependencies in Cargo.toml for Python bindings
-- [ ] 0.1.4 Configure maturin for building Python wheels
-- [ ] 0.1.5 Set up Rust project structure (src/, tests/, benches/)
-- [ ] 0.1.6 Create .cargo/config.toml with optimization flags
+- [x] 0.1.1 Initialize Rust workspace with `cargo new --lib ai-os-rust`
+- [x] 0.1.2 Create Cargo workspace members: arrow_storage, arrow_quant, vector_search, fast_tokenizer
+- [x] 0.1.3 Configure PyO3 dependencies in Cargo.toml for Python bindings
+- [x] 0.1.4 Configure maturin for building Python wheels
+- [x] 0.1.5 Set up Rust project structure (src/, tests/, benches/)
+- [x] 0.1.6 Create .cargo/config.toml with optimization flags
 
 **Acceptance Criteria**:
 - Rust workspace compiles without errors
@@ -40,10 +40,10 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Subtasks**:
 - [x] 0.2.1 Create root directory `ai-os-diffusion/`
 - [x] 0.2.2 Create core module directories (diffusion_engine/, inference/, storage/, evolution/)
-- [~] 0.2.3 Create support directories (config/, utils/, tests/, scripts/, models/)
-- [~] 0.2.4 Initialize Python package structure with __init__.py files
-- [~] 0.2.5 Create requirements.txt with essential dependencies (torch, numpy, transformers, pyyaml)
-- [~] 0.2.6 Create README.md with dual-layer architecture overview
+- [x] 0.2.3 Create support directories (config/, utils/, tests/, scripts/, models/)
+- [x] 0.2.4 Initialize Python package structure with __init__.py files
+- [x] 0.2.5 Create requirements.txt with essential dependencies (torch, numpy, transformers, pyyaml)
+- [x] 0.2.6 Create README.md with dual-layer architecture overview
 
 **Acceptance Criteria**:
 - Directory structure matches design specification
@@ -58,12 +58,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Build high-performance ArrowStorage with vector retrieval in Rust using arrow-rs.
 
 **Subtasks**:
-- [ ] 0.3.1 Implement ArrowStorage struct with arrow-rs RecordBatch
-- [ ] 0.3.2 Implement vector search using simsimd for SIMD-accelerated similarity
-- [ ] 0.3.3 Implement schema definitions (SCHEMA_REGISTRY)
-- [ ] 0.3.4 Create PyO3 Python bindings for ArrowStorage
-- [ ] 0.3.5 Write Rust unit tests for storage operations
-- [ ] 0.3.6 Write Python integration tests calling Rust bindings
+- [x] 0.3.1 Implement ArrowStorage struct with arrow-rs RecordBatch
+- [x] 0.3.2 Implement vector search using simsimd for SIMD-accelerated similarity
+- [x] 0.3.3 Implement schema definitions (SCHEMA_REGISTRY)
+- [x] 0.3.4 Create PyO3 Python bindings for ArrowStorage
+- [x] 0.3.5 Write Rust unit tests for storage operations
+- [x] 0.3.6 Write Python integration tests calling Rust bindings
 
 **Acceptance Criteria**:
 - ArrowStorage can perform vector search with 10-50x speedup vs Python
@@ -78,12 +78,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Build quantization engine in Rust using ndarray and rayon for parallel processing.
 
 **Subtasks**:
-- [ ] 0.4.1 Implement INT2/INT4 quantization algorithms in Rust
-- [ ] 0.4.2 Implement dequantization with SIMD optimizations
-- [ ] 0.4.3 Implement zero-copy weight loading from Parquet
-- [ ] 0.4.4 Create PyO3 Python bindings for ArrowQuant
-- [ ] 0.4.5 Write Rust benchmarks for quantization performance
-- [ ] 0.4.6 Write Python integration tests
+- [x] 0.4.1 Implement INT2/INT4 quantization algorithms in Rust
+- [x] 0.4.2 Implement dequantization with SIMD optimizations
+- [x] 0.4.3 Implement zero-copy weight loading from Parquet
+- [x] 0.4.4 Create PyO3 Python bindings for ArrowQuant
+- [x] 0.4.5 Write Rust benchmarks for quantization performance
+- [x] 0.4.6 Write Python integration tests
 
 **Acceptance Criteria**:
 - Quantization achieves 5-10x speedup vs Python implementation
@@ -98,12 +98,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Build fast tokenizer using Hugging Face tokenizers crate.
 
 **Subtasks**:
-- [ ] 0.5.1 Wrap tokenizers crate with custom interface
-- [ ] 0.5.2 Implement batch tokenization with parallel processing
-- [ ] 0.5.3 Support BPE, WordPiece, and Unigram tokenizers
-- [ ] 0.5.4 Create PyO3 Python bindings for FastTokenizer
-- [ ] 0.5.5 Write Rust unit tests for tokenization
-- [ ] 0.5.6 Benchmark tokenization speed vs Python
+- [x] 0.5.1 Wrap tokenizers crate with custom interface
+- [x] 0.5.2 Implement batch tokenization with parallel processing
+- [x] 0.5.3 Support BPE, WordPiece, and Unigram tokenizers
+- [x] 0.5.4 Create PyO3 Python bindings for FastTokenizer
+- [x] 0.5.5 Write Rust unit tests for tokenization
+- [x] 0.5.6 Benchmark tokenization speed vs Python
 
 **Acceptance Criteria**:
 - Tokenization achieves 10-100x speedup vs Python
@@ -118,12 +118,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Migrate essential inference components from llm_compression/inference/ to new project.
 
 **Subtasks**:
-- [~] 0.6.1 Copy and adapt ArrowEngine to support diffusion mode routing
-- [~] 0.6.2 Copy WeightLoader V2 with Parquet V2 support (will use Rust ArrowQuant)
-- [~] 0.6.3 Integrate Rust FastTokenizer bindings for text/code tokenization
-- [~] 0.6.4 Copy InferenceCore as base for SharedTransformer
-- [~] 0.6.5 Update imports and dependencies
-- [~] 0.6.6 Write unit tests for migrated components
+- [x] 0.6.1 Copy and adapt ArrowEngine to support diffusion mode routing
+- [x] 0.6.2 Copy WeightLoader V2 with Parquet V2 support (will use Rust ArrowQuant)
+- [x] 0.6.3 Integrate Rust FastTokenizer bindings for text/code tokenization
+- [x] 0.6.4 Copy InferenceCore as base for SharedTransformer
+- [x] 0.6.5 Update imports and dependencies
+- [x] 0.6.6 Write unit tests for migrated components
 
 **Acceptance Criteria**:
 - All inference components compile without errors
@@ -138,11 +138,11 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Migrate LoRA and skill management components for L2 evolution level.
 
 **Subtasks**:
-- [~] 0.7.1 Copy LoRATrainer for L2 fine-tuning
-- [~] 0.7.2 Copy SkillFactory for skill card management
-- [~] 0.7.3 Copy WeightMapProbe for weight inspection
-- [~] 0.7.4 Update imports and dependencies
-- [~] 0.7.5 Write unit tests for LoRA operations
+- [x] 0.7.1 Copy LoRATrainer for L2 fine-tuning
+- [x] 0.7.2 Copy SkillFactory for skill card management
+- [x] 0.7.3 Copy WeightMapProbe for weight inspection
+- [x] 0.7.4 Update imports and dependencies
+- [x] 0.7.5 Write unit tests for LoRA operations
 
 **Acceptance Criteria**:
 - LoRATrainer can create and apply LoRA adaptations
@@ -156,12 +156,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Migrate configuration management and utility modules.
 
 **Subtasks**:
-- [~] 0.8.1 Copy config.py with configuration management
-- [~] 0.8.2 Copy logger.py for logging setup
-- [~] 0.8.3 Copy errors.py with exception hierarchy
-- [~] 0.8.4 Copy embedding_provider.py for embedding generation
-- [~] 0.8.5 Create diffusion_config.py for diffusion-specific settings
-- [~] 0.8.6 Write configuration validation tests
+- [x] 0.8.1 Copy config.py with configuration management
+- [x] 0.8.2 Copy logger.py for logging setup
+- [x] 0.8.3 Copy errors.py with exception hierarchy
+- [x] 0.8.4 Copy embedding_provider.py for embedding generation
+- [x] 0.8.5 Create diffusion_config.py for diffusion-specific settings
+- [x] 0.8.6 Write configuration validation tests
 
 **Acceptance Criteria**:
 - Config can load from YAML files
@@ -178,12 +178,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Implement unified noise scheduler supporting both discrete and continuous modalities in Python.
 
 **Subtasks**:
-- [~] 1.1.1 Implement base NoiseScheduler class
-- [~] 1.1.2 Implement cosine schedule for continuous modalities
-- [~] 1.1.3 Implement mask schedule for discrete modalities
-- [~] 1.1.4 Implement timestep sampling (uniform and non-uniform)
-- [~] 1.1.5 Implement add_noise() for forward process
-- [~] 1.1.6 Write unit tests for all schedule types
+- [x] 1.1.1 Implement base NoiseScheduler class
+- [x] 1.1.2 Implement cosine schedule for continuous modalities
+- [x] 1.1.3 Implement mask schedule for discrete modalities
+- [x] 1.1.4 Implement timestep sampling (uniform and non-uniform)
+- [x] 1.1.5 Implement add_noise() for forward process
+- [x] 1.1.6 Write unit tests for all schedule types
 
 **Acceptance Criteria**:
 - NoiseScheduler supports both discrete and continuous modes
@@ -198,12 +198,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Implement discrete sampler for text/code generation using mask-based denoising in Python.
 
 **Subtasks**:
-- [~] 1.2.1 Implement DiscreteSampler class
-- [~] 1.2.2 Implement step() method for unmask operations
-- [~] 1.2.3 Implement confidence-based token selection
-- [~] 1.2.4 Implement infilling support (preserve prefix/suffix)
-- [~] 1.2.5 Write unit tests for sampling operations
-- [~] 1.2.6 Write property-based tests for sampling invariants
+- [x] 1.2.1 Implement DiscreteSampler class
+- [x] 1.2.2 Implement step() method for unmask operations
+- [x] 1.2.3 Implement confidence-based token selection
+- [x] 1.2.4 Implement infilling support (preserve prefix/suffix)
+- [x] 1.2.5 Write unit tests for sampling operations
+- [x] 1.2.6 Write property-based tests for sampling invariants
 
 **Acceptance Criteria**:
 - DiscreteSampler can perform iterative unmasking
@@ -218,12 +218,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Implement text projection head for discrete text generation in Python.
 
 **Subtasks**:
-- [~] 1.3.1 Implement TextProjectionHead class
-- [~] 1.3.2 Implement encode() method (tokens → hidden space)
-- [~] 1.3.3 Implement decode() method (hidden space → logits)
-- [~] 1.3.4 Implement embedding layer and output projection
-- [~] 1.3.5 Write unit tests for forward/backward pass
-- [~] 1.3.6 Validate parameter count <10M
+- [x] 1.3.1 Implement TextProjectionHead class
+- [x] 1.3.2 Implement encode() method (tokens → hidden space)
+- [x] 1.3.3 Implement decode() method (hidden space → logits)
+- [x] 1.3.4 Implement embedding layer and output projection
+- [x] 1.3.5 Write unit tests for forward/backward pass
+- [x] 1.3.6 Validate parameter count <10M
 
 **Acceptance Criteria**:
 - TextProjectionHead has <10M parameters
@@ -238,12 +238,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Implement core diffusion inference engine for text generation in Python.
 
 **Subtasks**:
-- [~] 1.4.1 Implement DiffusionCore class
-- [~] 1.4.2 Implement generate() method for text modality
-- [~] 1.4.3 Implement noise initialization for masked sequences
-- [~] 1.4.4 Implement denoising loop with DiscreteSampler
-- [~] 1.4.5 Integrate with NoiseScheduler
-- [~] 1.4.6 Write integration tests for end-to-end generation
+- [x] 1.4.1 Implement DiffusionCore class
+- [x] 1.4.2 Implement generate() method for text modality
+- [x] 1.4.3 Implement noise initialization for masked sequences
+- [x] 1.4.4 Implement denoising loop with DiscreteSampler
+- [x] 1.4.5 Integrate with NoiseScheduler
+- [x] 1.4.6 Write integration tests for end-to-end generation
 
 **Acceptance Criteria**:
 - DiffusionCore can generate coherent text
@@ -258,12 +258,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Convert open-source MDLM model weights to Parquet V2 format with ArrowQuant (uses Rust ArrowQuant backend).
 
 **Subtasks**:
-- [~] 1.5.1 Download MDLM checkpoint from HuggingFace
-- [~] 1.5.2 Implement weight conversion script in Python
-- [~] 1.5.3 Apply Rust ArrowQuant INT2 quantization via PyO3 bindings
-- [~] 1.5.4 Save to Parquet V2 format
-- [~] 1.5.5 Create metadata.json with model config
-- [~] 1.5.6 Validate converted weights load correctly
+- [x] 1.5.1 Download MDLM checkpoint from HuggingFace
+- [x] 1.5.2 Implement weight conversion script in Python
+- [x] 1.5.3 Apply Rust ArrowQuant INT2 quantization via PyO3 bindings
+- [x] 1.5.4 Save to Parquet V2 format
+- [x] 1.5.5 Create metadata.json with model config
+- [x] 1.5.6 Validate converted weights load correctly
 
 **Acceptance Criteria**:
 - Converted model size <35MB (INT2)
@@ -279,12 +279,12 @@ The implementation follows a phased approach: Project Setup → Module Migration
 **Description**: Extend ArrowEngine with diffuse() method for text generation in Python.
 
 **Subtasks**:
-- [~] 1.6.1 Add diffuse() method to ArrowEngine
-- [~] 1.6.2 Implement mode routing (ar vs diffusion)
-- [~] 1.6.3 Integrate DiffusionCore for text generation
-- [~] 1.6.4 Add parameter validation and error handling
-- [~] 1.6.5 Write API integration tests
-- [~] 1.6.6 Update API documentation
+- [x] 1.6.1 Add diffuse() method to ArrowEngine
+- [x] 1.6.2 Implement mode routing (ar vs diffusion)
+- [x] 1.6.3 Integrate DiffusionCore for text generation
+- [x] 1.6.4 Add parameter validation and error handling
+- [x] 1.6.5 Write API integration tests
+- [x] 1.6.6 Update API documentation
 
 **Acceptance Criteria**:
 - ArrowEngine.diffuse(modality="text") works correctly
@@ -813,3 +813,457 @@ The implementation follows a phased approach: Project Setup → Module Migration
 - Rust ArrowQuant: 5-10x speedup for quantization
 - Rust FastTokenizer: 10-100x speedup for tokenization
 - Overall system: 50-70% latency reduction with Rust infrastructure
+
+
+---
+
+## Phase 1.5: ArrowQuant V2 - Diffusion Model Quantization Enhancement
+
+### Task 1.9: 🦴 Implement Per-Channel Quantization in Rust
+
+**Description**: Enhance ArrowQuant with per-channel quantization to handle spatial variance in diffusion models.
+
+**Priority**: HIGH (Short-term, 2 weeks)
+
+**Subtasks**:
+- [ ] 1.9.1 Implement per-channel scale/zero-point computation in Rust
+- [ ] 1.9.2 Implement per-channel quantization with axis parameter
+- [ ] 1.9.3 Implement per-channel dequantization
+- [ ] 1.9.4 Update Parquet schema to store per-channel params
+- [ ] 1.9.5 Write Rust unit tests for per-channel quantization
+- [ ] 1.9.6 Write Python integration tests
+- [ ] 1.9.7 Benchmark performance vs per-tensor quantization
+
+**Acceptance Criteria**:
+- Per-channel quantization achieves <2% quality degradation vs FP32
+- Supports both per-output-channel and per-input-channel modes
+- Maintains 5-10x speedup vs Python implementation
+- PyO3 bindings work seamlessly
+- Unit tests achieve >90% coverage
+
+**References**:
+- Q-DiT paper: https://arxiv.org/abs/2406.17343
+- Per-channel quantization is standard in SOTA diffusion quantization
+
+---
+
+### Task 1.10: 🧠 Implement Dynamic Activation Quantization
+
+**Description**: Implement time-aware dynamic activation quantization for diffusion models in Python.
+
+**Priority**: HIGH (Short-term, 2 weeks)
+
+**Subtasks**:
+- [ ] 1.10.1 Implement DynamicActivationQuant class
+- [ ] 1.10.2 Implement timestep-based calibration
+- [ ] 1.10.3 Implement time-grouping strategy (group similar timesteps)
+- [ ] 1.10.4 Integrate with Rust ArrowQuant backend
+- [ ] 1.10.5 Write unit tests for dynamic quantization
+- [ ] 1.10.6 Validate on Dream 7B model
+
+**Acceptance Criteria**:
+- Dynamic quantization reduces activation quantization error by >30%
+- Supports configurable number of timestep groups (default: 10)
+- Calibration completes in <5 minutes on sample dataset
+- Integration with Rust backend maintains performance
+- Unit tests achieve >85% coverage
+
+**References**:
+- Q-DiT dynamic activation quantization
+- Time-aware quantization (arXiv 2025)
+
+---
+
+### Task 1.11: 🧠 Integrate Q-DiT Evolutionary Search
+
+**Description**: Integrate Q-DiT's evolutionary search algorithm for automatic quantization granularity allocation.
+
+**Priority**: HIGH (Short-term, 3 weeks)
+
+**Subtasks**:
+- [ ] 1.11.1 Clone and study Q-DiT repository (https://github.com/Juanerx/Q-DiT)
+- [ ] 1.11.2 Implement EvolutionarySearchQuantizer class
+- [ ] 1.11.3 Implement population initialization and fitness evaluation
+- [ ] 1.11.4 Implement mutation and selection operators
+- [ ] 1.11.5 Integrate with ArrowQuant backend
+- [ ] 1.11.6 Implement FID-based fitness function
+- [ ] 1.11.7 Write integration tests
+- [ ] 1.11.8 Document Q-DiT integration guide
+
+**Acceptance Criteria**:
+- Evolutionary search finds optimal group sizes in <2 hours
+- Achieves W4A8 quantization with <1% FID degradation
+- Supports both image and text diffusion models
+- Integration guide includes usage examples
+- Validation on Dream 7B and MDLM models
+
+**References**:
+- Q-DiT GitHub: https://github.com/Juanerx/Q-DiT
+- Q-DiT paper (CVPR 2025): https://arxiv.org/abs/2406.17343
+
+---
+
+### Task 1.12: 🧠 Implement Hybrid Quantization Mode
+
+**Description**: Implement hybrid quantization mode supporting both offline and online quantization.
+
+**Priority**: MEDIUM (Short-term, 1 week)
+
+**Subtasks**:
+- [ ] 1.12.1 Design hybrid quantization architecture
+- [ ] 1.12.2 Implement on-demand quantizer loading
+- [ ] 1.12.3 Implement quantization mode detection (offline/online/hybrid)
+- [ ] 1.12.4 Update ArrowEngine to support hybrid mode
+- [ ] 1.12.5 Write unit tests for mode switching
+- [ ] 1.12.6 Document usage patterns for each mode
+
+**Acceptance Criteria**:
+- Hybrid mode loads quantizer only when needed
+- Offline mode has <200ms startup time
+- Online mode supports dynamic LoRA/ControlNet quantization
+- Mode switching is transparent to users
+- Documentation includes deployment recommendations
+
+---
+
+### Task 1.13: 🧠 Validate Quantization on Dream 7B
+
+**Description**: Validate enhanced quantization on Dream 7B discrete diffusion model.
+
+**Priority**: HIGH (Short-term, 1 week)
+
+**Subtasks**:
+- [ ] 1.13.1 Download Dream 7B model from HuggingFace
+- [ ] 1.13.2 Apply per-channel quantization to Dream 7B
+- [ ] 1.13.3 Apply dynamic activation quantization
+- [ ] 1.13.4 Run Q-DiT evolutionary search
+- [ ] 1.13.5 Measure perplexity degradation
+- [ ] 1.13.6 Measure generation quality (human evaluation)
+- [ ] 1.13.7 Measure inference latency
+- [ ] 1.13.8 Document validation results
+
+**Acceptance Criteria**:
+- W4A8 quantization: <3% perplexity degradation
+- W4A4 quantization: <5% perplexity degradation
+- Inference latency <500ms for 4-step generation (CPU)
+- Model size: 28GB → <2GB (INT4) or <1GB (INT2)
+- Validation report documents all metrics
+
+**References**:
+- Dream 7B: https://huggingface.co/dream-org/Dream-v0-7B
+
+---
+
+## Phase 2.5: Multimodal Projection Heads
+
+### Task 2.8: 🧠 Implement ImageProjectionHead
+
+**Description**: Implement image projection head for continuous image generation in Python (PyTorch).
+
+**Priority**: MEDIUM (Mid-term, 2 weeks)
+
+**Subtasks**:
+- [ ] 2.8.1 Implement ImageProjectionHead class
+- [ ] 2.8.2 Implement encode() for patch embeddings
+- [ ] 2.8.3 Implement decode() for latent predictions
+- [ ] 2.8.4 Integrate VAE encoder/decoder
+- [ ] 2.8.5 Write unit tests for image head
+- [ ] 2.8.6 Validate parameter count <10M
+- [ ] 2.8.7 Test with SharedTransformer integration
+
+**Acceptance Criteria**:
+- ImageProjectionHead has <10M parameters
+- VAE encoder/decoder work correctly
+- Latent space has correct dimensionality (e.g., 64x64x4 for 512x512 images)
+- Unit tests verify tensor shapes
+- Integration with SharedTransformer works seamlessly
+
+---
+
+### Task 2.9: 🧠 Implement AudioProjectionHead
+
+**Description**: Implement audio projection head for waveform/latent audio generation in Python (PyTorch).
+
+**Priority**: MEDIUM (Mid-term, 2 weeks)
+
+**Subtasks**:
+- [ ] 2.9.1 Implement AudioProjectionHead class
+- [ ] 2.9.2 Implement encode() for audio features
+- [ ] 2.9.3 Implement decode() for waveform generation
+- [ ] 2.9.4 Support 16kHz+ sampling rate
+- [ ] 2.9.5 Write unit tests for audio head
+- [ ] 2.9.6 Validate parameter count <10M
+- [ ] 2.9.7 Test with SharedTransformer integration
+
+**Acceptance Criteria**:
+- AudioProjectionHead has <10M parameters
+- Generated audio has ≥16kHz sampling rate (REQ-3 AC2)
+- Waveform generation works correctly
+- Unit tests verify audio quality
+- Integration with SharedTransformer works seamlessly
+
+---
+
+### Task 2.10: 🧠 Train Image Modality via L1 ControlNet
+
+**Description**: Train image generation capability using L1 ControlNet strategy.
+
+**Priority**: MEDIUM (Mid-term, 1-2 weeks)
+
+**Subtasks**:
+- [ ] 2.10.1 Prepare image-text paired dataset (e.g., LAION subset)
+- [ ] 2.10.2 Implement ControlNet architecture for image modality
+- [ ] 2.10.3 Freeze SharedTransformer, train ControlNet only
+- [ ] 2.10.4 Implement training loop with FID evaluation
+- [ ] 2.10.5 Validate parameter efficiency (~10% of base model)
+- [ ] 2.10.6 Measure generation quality (FID score)
+- [ ] 2.10.7 Document training process and hyperparameters
+
+**Acceptance Criteria**:
+- ControlNet has <10% of base model parameters (REQ-8 AC3)
+- Training completes in 1-2 days on single GPU
+- Generated images have acceptable FID score
+- Total model size: 7B + 18M params (+0.26%)
+- Training script is reproducible
+
+---
+
+### Task 2.11: 🧠 Train Audio Modality via L2 LoRA
+
+**Description**: Train audio generation capability using L2 LoRA strategy.
+
+**Priority**: MEDIUM (Mid-term, 1 week)
+
+**Subtasks**:
+- [ ] 2.11.1 Prepare audio-text paired dataset (e.g., MusicCaps)
+- [ ] 2.11.2 Implement LoRA architecture for audio modality
+- [ ] 2.11.3 Freeze SharedTransformer, train LoRA only
+- [ ] 2.11.4 Implement training loop with audio quality metrics
+- [ ] 2.11.5 Validate parameter efficiency (~1% of base model)
+- [ ] 2.11.6 Measure generation quality (FAD score)
+- [ ] 2.11.7 Document training process and hyperparameters
+
+**Acceptance Criteria**:
+- LoRA has ~1% of base model parameters (REQ-9 AC3)
+- Training completes in hours on single GPU
+- Generated audio has acceptable FAD score
+- Total model size: 7B + 6.7M params (+0.01%)
+- Training script is reproducible
+
+---
+
+### Task 2.12: 🧠 Implement Multimodal Parallel Generation
+
+**Description**: Implement simultaneous generation of multiple modalities from single forward pass.
+
+**Priority**: MEDIUM (Mid-term, 1 week)
+
+**Subtasks**:
+- [ ] 2.12.1 Update UnifiedScoreNetwork for parallel head execution
+- [ ] 2.12.2 Implement temporal synchronization for outputs
+- [ ] 2.12.3 Update ArrowEngine.diffuse() to accept multiple modalities
+- [ ] 2.12.4 Write integration tests for parallel generation
+- [ ] 2.12.5 Validate output synchronization
+- [ ] 2.12.6 Benchmark parallel vs sequential generation
+
+**Acceptance Criteria**:
+- Single forward pass produces all modality outputs (REQ-16 AC1)
+- Outputs are temporally synchronized (REQ-16 AC3)
+- Parallel generation is faster than sequential
+- Integration tests verify correct behavior
+- Benchmark shows expected speedup
+
+---
+
+### Task 2.13: 🧠 Implement L0 Score Composition
+
+**Description**: Implement L0 score composition for zero-training multimodal mixing.
+
+**Priority**: LOW (Mid-term, 1 week)
+
+**Subtasks**:
+- [ ] 2.13.1 Implement ScoreComposer class
+- [ ] 2.13.2 Implement weighted score mixing
+- [ ] 2.13.3 Support external model integration
+- [ ] 2.13.4 Implement real-time composition without training
+- [ ] 2.13.5 Write unit tests for score composition
+- [ ] 2.13.6 Document usage examples
+
+**Acceptance Criteria**:
+- Score composition works without any training
+- Supports mixing 2+ models in real-time
+- Weighted mixing produces coherent outputs
+- Unit tests verify correct score fusion
+- Documentation includes practical examples
+
+---
+
+## Phase 3.5: Quantization-Aware Multimodal Evolution
+
+### Task 3.8: 🧠 Implement Quantization-Aware Evolution
+
+**Description**: Integrate quantization with multimodal evolution strategies.
+
+**Priority**: LOW (Long-term, 2 weeks)
+
+**Subtasks**:
+- [ ] 3.8.1 Design quantization strategy per evolution level
+- [ ] 3.8.2 Implement online quantization for L1/L2 adapters
+- [ ] 3.8.3 Implement offline re-quantization for L3/L4
+- [ ] 3.8.4 Integrate Q-DiT for fine-tuned models
+- [ ] 3.8.5 Write integration tests
+- [ ] 3.8.6 Document quantization-evolution workflow
+
+**Acceptance Criteria**:
+- L1/L2 adapters are quantized online (<100ms overhead)
+- L3/L4 models are re-quantized offline with Q-DiT
+- Quantization maintains quality across evolution levels
+- Integration tests verify correct behavior
+- Documentation includes best practices
+
+---
+
+### Task 3.9: 🧠 Validate Multimodal Quantization
+
+**Description**: Validate quantization effectiveness across all modalities.
+
+**Priority**: LOW (Long-term, 1 week)
+
+**Subtasks**:
+- [ ] 3.9.1 Quantize text modality (Dream 7B)
+- [ ] 3.9.2 Quantize image modality (ControlNet)
+- [ ] 3.9.3 Quantize audio modality (LoRA)
+- [ ] 3.9.4 Measure quality degradation per modality
+- [ ] 3.9.5 Measure inference latency per modality
+- [ ] 3.9.6 Measure memory footprint
+- [ ] 3.9.7 Document validation results
+
+**Acceptance Criteria**:
+- All modalities maintain <5% quality degradation with INT4
+- Inference latency meets targets (text <500ms, image <2s, audio <1s)
+- Total memory footprint <2GB for all modalities
+- Validation report documents all metrics
+- Recommendations for deployment configurations
+
+---
+
+## Updated Timeline and Milestones
+
+### Short-Term (Weeks 1-4): ArrowQuant V2 + Q-DiT Integration
+
+**Focus**: Enhance quantization for diffusion models
+
+| Week | Tasks | Deliverables |
+|------|-------|--------------|
+| 1-2 | Task 1.9, 1.10 | Per-channel + Dynamic activation quantization |
+| 3-4 | Task 1.11, 1.12, 1.13 | Q-DiT integration + Hybrid mode + Dream 7B validation |
+
+**Milestone**: ArrowQuant V2 with SOTA diffusion quantization ready
+
+---
+
+### Mid-Term (Weeks 5-8): Multimodal Projection Heads
+
+**Focus**: Add image and audio generation capabilities
+
+| Week | Tasks | Deliverables |
+|------|-------|--------------|
+| 5-6 | Task 2.8, 2.10 | ImageProjectionHead + L1 ControlNet training |
+| 7-8 | Task 2.9, 2.11, 2.12 | AudioProjectionHead + L2 LoRA training + Parallel generation |
+
+**Milestone**: Multimodal generation (text + image + audio) working
+
+---
+
+### Long-Term (Weeks 9-12): Advanced Features + Production
+
+**Focus**: Quantization-aware evolution + Production deployment
+
+| Week | Tasks | Deliverables |
+|------|-------|--------------|
+| 9-10 | Task 3.8, 3.9 | Quantization-aware evolution + Validation |
+| 11-12 | Task 5.2, 5.3, 5.4 | Performance optimization + Integration testing + Deployment |
+
+**Milestone**: Production-ready multimodal diffusion system
+
+---
+
+## Updated Performance Expectations
+
+### Quantization Performance (After ArrowQuant V2)
+
+| Metric | Current (Basic) | After Q-DiT Integration | Target |
+|--------|----------------|------------------------|--------|
+| **Compression** | 16x (FP32→INT2) | 16x (FP32→INT2) | 16x |
+| **Speedup** | 5-10x | 10-20x | 10-20x |
+| **Quality (W4A8)** | ~5-10% degradation | <1% degradation | <1% |
+| **Quality (W4A4)** | ~10-15% degradation | <3% degradation | <3% |
+
+### Multimodal Performance
+
+| Modality | Model Size | Latency (CPU) | Quality Metric |
+|----------|-----------|---------------|----------------|
+| **Text** | 1.75GB (INT2) | <500ms | Perplexity <1.2x baseline |
+| **Image** | +4.5MB (head) | <2s | FID <10 |
+| **Audio** | +1.7MB (head) | <1s | FAD <5 |
+| **All (Parallel)** | 1.76GB total | <2.5s | All metrics met |
+
+### Deployment Targets (Updated)
+
+| Device Tier | Model Size | Quantization | Modalities | Latency |
+|-------------|-----------|--------------|------------|---------|
+| **Edge** (2-4GB RAM) | <35MB | INT2 + Q-DiT | Text, Audio | <500ms |
+| **Local** (8+GB RAM) | <200MB | INT4 + Q-DiT | Text, Audio, Image | <2s |
+| **Cloud** (32+GB RAM) | <2GB | INT2/INT4 + Q-DiT | All | <1s |
+
+---
+
+## Summary of Changes
+
+### New Tasks Added
+
+**Phase 1.5 (Short-term)**:
+- Task 1.9: Per-Channel Quantization (Rust)
+- Task 1.10: Dynamic Activation Quantization (Python)
+- Task 1.11: Q-DiT Evolutionary Search Integration
+- Task 1.12: Hybrid Quantization Mode
+- Task 1.13: Dream 7B Quantization Validation
+
+**Phase 2.5 (Mid-term)**:
+- Task 2.8: ImageProjectionHead Implementation
+- Task 2.9: AudioProjectionHead Implementation
+- Task 2.10: Image Modality Training (L1 ControlNet)
+- Task 2.11: Audio Modality Training (L2 LoRA)
+- Task 2.12: Multimodal Parallel Generation
+- Task 2.13: L0 Score Composition
+
+**Phase 3.5 (Long-term)**:
+- Task 3.8: Quantization-Aware Evolution
+- Task 3.9: Multimodal Quantization Validation
+
+### Priority Adjustments
+
+**Moved to Short-term** (as requested):
+- Q-DiT integration (Task 1.11)
+- Per-channel quantization (Task 1.9)
+- Dynamic activation quantization (Task 1.10)
+- Hybrid quantization mode (Task 1.12)
+- Dream 7B validation (Task 1.13)
+
+**Moved to Mid-term** (as requested):
+- Multimodal Projection Heads (Tasks 2.8, 2.9)
+- Modality training (Tasks 2.10, 2.11)
+- Parallel generation (Task 2.12)
+
+### Total Task Count
+
+- **Original**: 56 tasks
+- **Added**: 13 new tasks
+- **Total**: 69 tasks across 5 phases + 3 new sub-phases
+
+### Estimated Timeline
+
+- **Original**: 10-12 weeks
+- **Updated**: 12-14 weeks (accounting for new quantization and multimodal tasks)
+- **Critical Path**: Phase 0 → Phase 1 → Phase 1.5 → Phase 2 → Phase 2.5 → Phase 3 → Phase 3.5 → Phase 4 → Phase 5
+
