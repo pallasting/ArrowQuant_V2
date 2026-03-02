@@ -1783,16 +1783,99 @@ impl QuantizedLayer {
             }
             Self::Legacy {
                 data,
-                scales: _,
-                zero_points: _,
+                scales,
+                zero_points,
                 time_group_params,
             } => {
-                // Convert legacy to Arrow format
-                // This is a placeholder implementation - full conversion would require
-                // reconstructing time group assignments from the data layout
-                Err(QuantError::QuantizationFailed(
-                    "Legacy to Arrow conversion not yet implemented. Use quantize_layer_arrow() instead.".to_string()
-                ))
+                use arrow::array::{
+                    DictionaryArray, Float32Array, PrimitiveArray, UInt32Array, UInt8Array,
+                };
+                use arrow::datatypes::UInt32Type;
+                use arrow::record_batch::RecordBatch;
+                use std::sync::Arc;
+
+                let num_elements = data.len();
+                let num_groups = time_group_params.len();
+
+                if num_groups == 0 {
+                    return Err(QuantError::QuantizationFailed(
+                        "Cannot convert legacy layer with zero time groups".to_string(),
+                    ));
+                }
+
+                // 1. Reconstruct time group assignments (uniform distribution for legacy)
+                let group_size = (num_elements + num_groups - 1) / num_groups;
+                let time_group_ids: Vec<u32> = (0..num_elements)
+                    .map(|i| {
+                        let gid = i / group_size;
+                        gid.min(num_groups - 1) as u32
+                    })
+                    .collect();
+
+                // 2. Prepare dictionary values (scales/zero_points)
+                // In legacy, we often use global quantization (scales.len() == 1)
+                let final_scales: Vec<f32> = if scales.len() == 1 {
+                    vec![scales[0]; num_groups]
+                } else if scales.len() == num_groups {
+                    scales.clone()
+                } else {
+                    return Err(QuantError::QuantizationFailed(format!(
+                        "Legacy scales mismatch: expected 1 or {}, found {}",
+                        num_groups,
+                        scales.len()
+                    )));
+                };
+
+                let final_zp: Vec<f32> = if zero_points.len() == 1 {
+                    vec![zero_points[0]; num_groups]
+                } else if zero_points.len() == num_groups {
+                    zero_points.clone()
+                } else {
+                    return Err(QuantError::QuantizationFailed(format!(
+                        "Legacy zero_points mismatch: expected 1 or {}, found {}",
+                        num_groups,
+                        zero_points.len()
+                    )));
+                };
+
+                // 3. Create Arrow components
+                let data_array = UInt8Array::from(data.clone());
+                let group_id_array = Arc::new(UInt32Array::from(time_group_ids.clone()));
+
+                let keys = PrimitiveArray::<UInt32Type>::from(time_group_ids);
+                let scale_values = Arc::new(Float32Array::from(final_scales));
+                let zp_values = Arc::new(Float32Array::from(final_zp));
+
+                let scale_dict = DictionaryArray::try_new(keys.clone(), scale_values).map_err(|e| {
+                    QuantError::QuantizationFailed(format!("Failed to create scale dictionary: {}", e))
+                })?;
+                let zp_dict = DictionaryArray::try_new(keys, zp_values).map_err(|e| {
+                    QuantError::QuantizationFailed(format!("Failed to create zero_point dictionary: {}", e))
+                })?;
+
+                let original_index_array = arrow::array::UInt64Array::new_null(num_elements);
+
+                // 4. Build RecordBatch
+                let schema = create_time_aware_schema();
+                let batch = RecordBatch::try_new(
+                    schema,
+                    vec![
+                        Arc::new(data_array),
+                        group_id_array,
+                        Arc::new(scale_dict),
+                        Arc::new(zp_dict),
+                        Arc::new(original_index_array),
+                    ],
+                )
+                .map_err(|e| {
+                    QuantError::QuantizationFailed(format!("Failed to create RecordBatch: {}", e))
+                })?;
+
+                // 5. Build ArrowQuantizedLayer with index
+                let mut layer = ArrowQuantizedLayer::new(batch, time_group_params.clone())?;
+                layer.build_index();
+
+                Ok(layer)
             }
         }
     }
@@ -4331,24 +4414,17 @@ mod tests {
         let legacy_layer = quantizer.quantize_layer(&weights, &params).unwrap();
         assert!(matches!(legacy_layer, QuantizedLayer::Legacy { .. }));
 
-        // Attempt to convert to Arrow
-        // NOTE: This is expected to fail currently because Legacy -> Arrow is a todo!()
-        let result = legacy_layer.to_arrow();
+        // Attempt to convert to Arrow - should now succeed
+        let arrow_layer = legacy_layer
+            .to_arrow()
+            .expect("Legacy to Arrow conversion should succeed");
 
-        match result {
-            Ok(arrow_layer) => {
-                assert_eq!(arrow_layer.len(), 100);
-                assert_eq!(arrow_layer.time_group_params.len(), 2);
-            }
-            Err(e) => {
-                // If it fails with the expected error, it confirms our TDD starting point
-                assert!(
-                    e.to_string().contains("not yet implemented"),
-                    "Unexpected error: {}",
-                    e
-                );
-            }
-        }
+        assert_eq!(arrow_layer.len(), 100);
+        assert_eq!(arrow_layer.time_group_params.len(), 2);
+
+        // Verify we can dequantize from the converted layer
+        let deq_group0 = arrow_layer.dequantize_group(0).unwrap();
+        assert_eq!(deq_group0.len(), 50); // With 100 elements and 2 groups, size should be 50
     }
 }
 
