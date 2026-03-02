@@ -7,7 +7,6 @@
 /// - INT8: cosine_similarity >= 0.95
 ///
 /// Tests across all modalities: text, code, image, audio
-
 use arrow_quant_v2::{DiffusionOrchestrator, DiffusionQuantConfig, ValidationSystem};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use ndarray::Array2;

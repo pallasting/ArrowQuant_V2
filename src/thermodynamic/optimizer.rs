@@ -3,12 +3,12 @@
 //! This module implements gradient-based optimization of quantization parameters
 //! to preserve transition probabilities and minimize thermodynamic loss.
 
+use super::loss_functions::ThermodynamicLoss;
+use super::transition_matrix::{BetaSchedule, TransitionComputer, TransitionMatrix};
+use crate::errors::Result;
+use crate::time_aware::TimeGroupParams;
 use ndarray::Array2;
 use rayon::prelude::*;
-use super::transition_matrix::{TransitionComputer, TransitionMatrix, BetaSchedule};
-use super::loss_functions::ThermodynamicLoss;
-use crate::time_aware::TimeGroupParams;
-use crate::errors::Result;
 
 /// Configuration for transition optimization
 #[derive(Debug, Clone)]
@@ -44,7 +44,7 @@ impl Default for OptimizerConfig {
 }
 
 /// Optimizer for quantization parameters using thermodynamic constraints
-/// 
+///
 /// This optimizer is stateless and thread-safe. All mutable state is passed
 /// explicitly to methods, enabling parallel processing and avoiding borrow conflicts.
 pub struct TransitionOptimizer {
@@ -70,15 +70,9 @@ pub struct OptimizationResult {
 impl TransitionOptimizer {
     /// Create a new TransitionOptimizer with the specified configuration
     pub fn new(config: OptimizerConfig) -> Self {
-        let loss_fn = ThermodynamicLoss::new(
-            config.markov_weight,
-            config.entropy_weight,
-        );
+        let loss_fn = ThermodynamicLoss::new(config.markov_weight, config.entropy_weight);
 
-        Self { 
-            config, 
-            loss_fn,
-        }
+        Self { config, loss_fn }
     }
 
     /// Create with default configuration
@@ -111,19 +105,12 @@ impl TransitionOptimizer {
 
         // Create transition computer
         let num_timesteps = params.len();
-        let mut transition_computer = TransitionComputer::new(
-            num_timesteps,
-            self.config.beta_schedule,
-            0.0001,
-            0.02,
-        );
+        let mut transition_computer =
+            TransitionComputer::new(num_timesteps, self.config.beta_schedule, 0.0001, 0.02);
 
         // Compute original transitions
-        let original_transitions = self.compute_transitions(
-            &mut transition_computer,
-            weights,
-            num_timesteps,
-        );
+        let original_transitions =
+            self.compute_transitions(&mut transition_computer, weights, num_timesteps);
 
         // Optimization loop
         for iter in 0..self.config.max_iterations {
@@ -190,7 +177,7 @@ impl TransitionOptimizer {
     }
 
     /// Optimize parameters for multiple layers in parallel
-    /// 
+    ///
     /// Uses rayon for parallel processing since the optimizer is now stateless
     pub fn optimize_params_parallel(
         &self,
@@ -218,7 +205,7 @@ impl TransitionOptimizer {
     }
 
     /// Quantize weights using specified parameters into provided buffer
-    /// 
+    ///
     /// This method writes the quantized result into the provided buffer,
     /// avoiding allocation and borrow conflicts.
     fn quantize_with_params_into(
@@ -230,7 +217,7 @@ impl TransitionOptimizer {
         let num_groups = params.len();
         let total_elements = weights.len();
         let group_size = total_elements / num_groups;
-        
+
         // Iterate over all elements using multi-dimensional indexing
         let shape = weights.shape();
         for row in 0..shape[0] {
@@ -238,18 +225,18 @@ impl TransitionOptimizer {
                 let linear_idx = row * shape[1] + col;
                 let group_idx = (linear_idx / group_size).min(num_groups - 1);
                 let param = &params[group_idx];
-                
+
                 let w = weights[[row, col]];
-                
+
                 // Quantize to INT2 range [-2, 1]
                 let normalized = (w - param.zero_point) / param.scale;
                 let quantized_val = normalized.round().clamp(-2.0, 1.0);
                 let dequantized = quantized_val * param.scale + param.zero_point;
-                
+
                 output[[row, col]] = dequantized;
             }
         }
-        
+
         Ok(())
     }
 
@@ -262,9 +249,9 @@ impl TransitionOptimizer {
         let num_groups = params.len();
         let total_elements = weights.len();
         let group_size = total_elements / num_groups;
-        
+
         let mut quantized = weights.clone();
-        
+
         // Iterate over all elements using multi-dimensional indexing
         let shape = weights.shape();
         for row in 0..shape[0] {
@@ -272,18 +259,18 @@ impl TransitionOptimizer {
                 let linear_idx = row * shape[1] + col;
                 let group_idx = (linear_idx / group_size).min(num_groups - 1);
                 let param = &params[group_idx];
-                
+
                 let w = weights[[row, col]];
-                
+
                 // Quantize to INT2 range [-2, 1]
                 let normalized = (w - param.zero_point) / param.scale;
                 let quantized_val = normalized.round().clamp(-2.0, 1.0);
                 let dequantized = quantized_val * param.scale + param.zero_point;
-                
+
                 quantized[[row, col]] = dequantized;
             }
         }
-        
+
         Ok(quantized)
     }
 
@@ -297,7 +284,7 @@ impl TransitionOptimizer {
     ) -> Result<Vec<ParamGradient>> {
         let epsilon = 1e-4;
         let mut gradients = Vec::with_capacity(params.len());
-        
+
         // Create a local buffer for parameter variations
         let mut params_buffer: Vec<TimeGroupParams> = params.to_vec();
 
@@ -320,7 +307,7 @@ impl TransitionOptimizer {
             )?;
 
             let grad_scale = (loss_plus - loss_minus) / (2.0 * epsilon);
-            
+
             // Reset scale
             params_buffer[i].scale = params[i].scale;
 
@@ -342,7 +329,7 @@ impl TransitionOptimizer {
             )?;
 
             let grad_zero_point = (loss_plus - loss_minus) / (2.0 * epsilon);
-            
+
             // Reset zero_point
             params_buffer[i].zero_point = params[i].zero_point;
 
@@ -366,12 +353,9 @@ impl TransitionOptimizer {
         // Create local buffer for quantization
         let mut quantized = Array2::zeros(weights.dim());
         self.quantize_with_params_into(weights, params, &mut quantized)?;
-        
-        let quantized_transitions = self.compute_transitions(
-            transition_computer,
-            &quantized,
-            params.len(),
-        );
+
+        let quantized_transitions =
+            self.compute_transitions(transition_computer, &quantized, params.len());
 
         Ok(self.loss_fn.compute_total_loss(
             weights,
@@ -385,8 +369,12 @@ impl TransitionOptimizer {
     fn update_params(&self, params: &mut [TimeGroupParams], gradients: &[ParamGradient]) {
         for (param, grad) in params.iter_mut().zip(gradients.iter()) {
             // Clip gradients
-            let grad_scale = grad.scale.clamp(-self.config.gradient_clip, self.config.gradient_clip);
-            let grad_zero_point = grad.zero_point.clamp(-self.config.gradient_clip, self.config.gradient_clip);
+            let grad_scale = grad
+                .scale
+                .clamp(-self.config.gradient_clip, self.config.gradient_clip);
+            let grad_zero_point = grad
+                .zero_point
+                .clamp(-self.config.gradient_clip, self.config.gradient_clip);
 
             // Gradient descent update
             param.scale -= self.config.learning_rate * grad_scale;
@@ -420,33 +408,41 @@ mod tests {
     #[test]
     fn test_quantize_with_params() {
         let optimizer = TransitionOptimizer::default();
-        
+
         let weights = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
         // Use appropriate scale for INT2 range [-2, 1] (3 levels)
         // For values [1.0, 4.0], scale should be ~1.0 to utilize the full range
         let params = vec![
-            TimeGroupParams { 
-                scale: 1.0, 
-                zero_point: 2.5,  // Center of [1.0, 4.0]
+            TimeGroupParams {
+                scale: 1.0,
+                zero_point: 2.5, // Center of [1.0, 4.0]
                 group_size: 2,
                 time_range: (0, 2),
             },
-            TimeGroupParams { 
-                scale: 1.0, 
+            TimeGroupParams {
+                scale: 1.0,
                 zero_point: 2.5,
                 group_size: 2,
                 time_range: (2, 4),
             },
         ];
-        
+
         let mut quantized = Array2::zeros(weights.dim());
-        optimizer.quantize_with_params_into(&weights, &params, &mut quantized).unwrap();
-        
+        optimizer
+            .quantize_with_params_into(&weights, &params, &mut quantized)
+            .unwrap();
+
         assert_eq!(quantized.shape(), weights.shape());
         // INT2 quantization has limited precision (only 4 levels: -2, -1, 0, 1)
         // So we expect larger quantization error
         for (i, (&orig, &quant)) in weights.iter().zip(quantized.iter()).enumerate() {
-            assert!((orig - quant).abs() < 2.0, "Index {}: {} vs {}", i, orig, quant);
+            assert!(
+                (orig - quant).abs() < 2.0,
+                "Index {}: {} vs {}",
+                i,
+                orig,
+                quant
+            );
         }
     }
 
@@ -461,39 +457,41 @@ mod tests {
             entropy_weight: 0.0,
             beta_schedule: BetaSchedule::Linear,
         });
-        
-        let weights = Array2::from_shape_vec((4, 4), 
-            (0..16).map(|i| i as f32 * 0.1).collect()).unwrap();
-        
+
+        let weights =
+            Array2::from_shape_vec((4, 4), (0..16).map(|i| i as f32 * 0.1).collect()).unwrap();
+
         let initial_params = vec![
-            TimeGroupParams { 
-                scale: 0.1, 
+            TimeGroupParams {
+                scale: 0.1,
                 zero_point: 0.0,
                 group_size: 4,
                 time_range: (0, 4),
             },
-            TimeGroupParams { 
-                scale: 0.1, 
+            TimeGroupParams {
+                scale: 0.1,
                 zero_point: 0.0,
                 group_size: 4,
                 time_range: (4, 8),
             },
-            TimeGroupParams { 
-                scale: 0.1, 
+            TimeGroupParams {
+                scale: 0.1,
                 zero_point: 0.0,
                 group_size: 4,
                 time_range: (8, 12),
             },
-            TimeGroupParams { 
-                scale: 0.1, 
+            TimeGroupParams {
+                scale: 0.1,
                 zero_point: 0.0,
                 group_size: 4,
                 time_range: (12, 16),
             },
         ];
-        
-        let result = optimizer.optimize_params(&weights, &initial_params).unwrap();
-        
+
+        let result = optimizer
+            .optimize_params(&weights, &initial_params)
+            .unwrap();
+
         assert_eq!(result.params.len(), 4);
         assert!(result.iterations <= 5);
         assert!(result.final_loss.is_finite());
@@ -511,36 +509,41 @@ mod tests {
             entropy_weight: 0.0,
             beta_schedule: BetaSchedule::Linear,
         });
-        
-        let weights = Array2::from_shape_vec((4, 4), 
-            (0..16).map(|i| i as f32 * 0.1).collect()).unwrap();
-        
+
+        let weights =
+            Array2::from_shape_vec((4, 4), (0..16).map(|i| i as f32 * 0.1).collect()).unwrap();
+
         let initial_params = vec![
-            TimeGroupParams { 
-                scale: 0.1, 
+            TimeGroupParams {
+                scale: 0.1,
                 zero_point: 0.0,
                 group_size: 4,
                 time_range: (0, 4),
             },
-            TimeGroupParams { 
-                scale: 0.1, 
+            TimeGroupParams {
+                scale: 0.1,
                 zero_point: 0.0,
                 group_size: 4,
                 time_range: (4, 8),
             },
         ];
-        
-        let result = optimizer.optimize_params(&weights, &initial_params).unwrap();
-        
+
+        let result = optimizer
+            .optimize_params(&weights, &initial_params)
+            .unwrap();
+
         // Loss should decrease over iterations
         if result.loss_history.len() > 1 {
             let first_loss = result.loss_history[0];
             let last_loss = *result.loss_history.last().unwrap();
-            
+
             // Allow for some numerical noise, but generally should decrease
-            assert!(last_loss <= first_loss * 1.1, 
-                    "Loss should not increase significantly: {} -> {}", 
-                    first_loss, last_loss);
+            assert!(
+                last_loss <= first_loss * 1.1,
+                "Loss should not increase significantly: {} -> {}",
+                first_loss,
+                last_loss
+            );
         }
     }
 
@@ -555,19 +558,19 @@ mod tests {
             entropy_weight: 0.0,
             beta_schedule: BetaSchedule::Linear,
         });
-        
+
         let weights = Array2::from_shape_vec((2, 2), vec![1.0, 2.0, 3.0, 4.0]).unwrap();
-        let initial_params = vec![
-            TimeGroupParams { 
-                scale: 0.1, 
-                zero_point: 0.0,
-                group_size: 4,
-                time_range: (0, 4),
-            },
-        ];
-        
-        let result = optimizer.optimize_params(&weights, &initial_params).unwrap();
-        
+        let initial_params = vec![TimeGroupParams {
+            scale: 0.1,
+            zero_point: 0.0,
+            group_size: 4,
+            time_range: (0, 4),
+        }];
+
+        let result = optimizer
+            .optimize_params(&weights, &initial_params)
+            .unwrap();
+
         // Should converge before max iterations with large threshold
         assert!(result.iterations < 100 || result.converged);
     }

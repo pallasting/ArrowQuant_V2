@@ -43,12 +43,14 @@ fn arb_time_group_params() -> impl Strategy<Value = TimeGroupParams> {
         0.0f32..128.0f32,
         arb_group_size(),
     )
-        .prop_map(|(start, end, scale, zero_point, group_size)| TimeGroupParams {
-            time_range: (start, start + end),
-            scale,
-            zero_point,
-            group_size,
-        })
+        .prop_map(
+            |(start, end, scale, zero_point, group_size)| TimeGroupParams {
+                time_range: (start, start + end),
+                scale,
+                zero_point,
+                group_size,
+            },
+        )
 }
 
 /// Generate random TimeAwareQuantMetadata
@@ -58,11 +60,13 @@ fn arb_time_aware_metadata() -> impl Strategy<Value = TimeAwareQuantMetadata> {
         1usize..20,
         prop::collection::vec(arb_time_group_params(), 1..10),
     )
-        .prop_map(|(enabled, num_time_groups, time_group_params)| TimeAwareQuantMetadata {
-            enabled,
-            num_time_groups,
-            time_group_params,
-        })
+        .prop_map(
+            |(enabled, num_time_groups, time_group_params)| TimeAwareQuantMetadata {
+                enabled,
+                num_time_groups,
+                time_group_params,
+            },
+        )
 }
 
 /// Generate random SpatialQuantMetadata
@@ -93,7 +97,12 @@ fn arb_activation_stats() -> impl Strategy<Value = ActivationStatsMetadata> {
         prop::collection::vec(-10.0f32..10.0f32, 1..100),
         prop::collection::vec(-10.0f32..10.0f32, 1..100),
     )
-        .prop_map(|(mean, std, min, max)| ActivationStatsMetadata { mean, std, min, max })
+        .prop_map(|(mean, std, min, max)| ActivationStatsMetadata {
+            mean,
+            std,
+            min,
+            max,
+        })
 }
 
 /// Generate random ParquetV2Extended with base fields only
@@ -146,26 +155,32 @@ fn arb_parquet_v2_base() -> impl Strategy<Value = ParquetV2Extended> {
 
 /// Generate random ParquetV2Extended with time-aware metadata
 fn arb_parquet_v2_time_aware() -> impl Strategy<Value = ParquetV2Extended> {
-    (arb_parquet_v2_base(), arb_modality(), arb_time_aware_metadata()).prop_map(
-        |(mut base, modality, time_aware)| {
+    (
+        arb_parquet_v2_base(),
+        arb_modality(),
+        arb_time_aware_metadata(),
+    )
+        .prop_map(|(mut base, modality, time_aware)| {
             base.is_diffusion_model = true;
             base.modality = Some(modality.to_string());
             base.time_aware_quant = Some(time_aware);
             base
-        },
-    )
+        })
 }
 
 /// Generate random ParquetV2Extended with spatial metadata
 fn arb_parquet_v2_spatial() -> impl Strategy<Value = ParquetV2Extended> {
-    (arb_parquet_v2_base(), arb_modality(), arb_spatial_metadata()).prop_map(
-        |(mut base, modality, spatial)| {
+    (
+        arb_parquet_v2_base(),
+        arb_modality(),
+        arb_spatial_metadata(),
+    )
+        .prop_map(|(mut base, modality, spatial)| {
             base.is_diffusion_model = true;
             base.modality = Some(modality.to_string());
             base.spatial_quant = Some(spatial);
             base
-        },
-    )
+        })
 }
 
 /// Generate random ParquetV2Extended with all metadata

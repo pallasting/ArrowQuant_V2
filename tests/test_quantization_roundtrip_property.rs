@@ -143,12 +143,12 @@ mod error_bound_properties {
             // INT2: 2-bit quantization (0-3 range)
             let min = weights.iter().cloned().fold(f32::INFINITY, f32::min);
             let max = weights.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            
+
             // Handle edge case where all values are the same
             if (max - min).abs() < 1e-6 {
                 return Ok(());
             }
-            
+
             let scale = (max - min) / 3.0; // 2-bit: 4 levels (0-3)
             let zero_point = -min / scale;
 
@@ -178,12 +178,12 @@ mod error_bound_properties {
             // INT4: 4-bit quantization (0-15 range)
             let min = weights.iter().cloned().fold(f32::INFINITY, f32::min);
             let max = weights.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            
+
             // Handle edge case where all values are the same
             if (max - min).abs() < 1e-6 {
                 return Ok(());
             }
-            
+
             let scale = (max - min) / 15.0; // 4-bit: 16 levels (0-15)
             let zero_point = -min / scale;
 
@@ -212,12 +212,12 @@ mod error_bound_properties {
             // INT8: 8-bit quantization (0-255 range)
             let min = weights.iter().cloned().fold(f32::INFINITY, f32::min);
             let max = weights.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-            
+
             // Handle edge case where all values are the same
             if (max - min).abs() < 1e-6 {
                 return Ok(());
             }
-            
+
             let scale = (max - min) / 255.0; // 8-bit: 256 levels (0-255)
             let zero_point = -min / scale;
 

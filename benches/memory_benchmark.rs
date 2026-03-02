@@ -18,9 +18,7 @@ use ndarray::Array2;
 
 /// Generate synthetic layer data for testing
 fn generate_synthetic_layer(rows: usize, cols: usize) -> Array2<f32> {
-    Array2::from_shape_fn((rows, cols), |(i, j)| {
-        ((i * cols + j) as f32 * 0.01).sin()
-    })
+    Array2::from_shape_fn((rows, cols), |(i, j)| ((i * cols + j) as f32 * 0.01).sin())
 }
 
 /// Benchmark streaming vs batch mode memory usage
@@ -56,8 +54,7 @@ fn bench_streaming_vs_batch(c: &mut Criterion) {
                 // Process layers
                 for layer in &layers {
                     let _ = black_box(orchestrator.quantize_layer_internal(
-                        layer,
-                        4, // bit_width
+                        layer, 4,   // bit_width
                         128, // group_size
                     ));
                 }
@@ -97,8 +94,7 @@ fn bench_model_sizes(c: &mut Criterion) {
                     for _ in 0..n_layers {
                         let layer = generate_synthetic_layer(rows, cols);
                         let _ = black_box(orchestrator.quantize_layer_internal(
-                            &layer,
-                            2, // bit_width
+                            &layer, 2,   // bit_width
                             128, // group_size
                         ));
                     }
@@ -127,8 +123,7 @@ fn bench_model_sizes(c: &mut Criterion) {
                     // Process all layers
                     for layer in &layers {
                         let _ = black_box(orchestrator.quantize_layer_internal(
-                            layer,
-                            2, // bit_width
+                            layer, 2,   // bit_width
                             128, // group_size
                         ));
                     }
@@ -165,9 +160,7 @@ fn bench_bit_widths(c: &mut Criterion) {
                     for _ in 0..num_layers {
                         let layer = generate_synthetic_layer(layer_size.0, layer_size.1);
                         let _ = black_box(orchestrator.quantize_layer_internal(
-                            &layer,
-                            bw,
-                            128, // group_size
+                            &layer, bw, 128, // group_size
                         ));
                     }
                 });
@@ -185,4 +178,3 @@ criterion_group!(
     bench_bit_widths
 );
 criterion_main!(benches);
-

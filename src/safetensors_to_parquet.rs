@@ -78,29 +78,28 @@ fn convert_single_safetensors_to_parquet(
     // Convert each tensor to Parquet
     for (idx, tensor_name) in tensor_names.iter().enumerate() {
         if idx % 10 == 0 || idx == tensor_names.len() - 1 {
-            eprintln!("Progress: {}/{} tensors converted", idx + 1, tensor_names.len());
+            eprintln!(
+                "Progress: {}/{} tensors converted",
+                idx + 1,
+                tensor_names.len()
+            );
         }
 
         // Extract tensor as f32 array
         let tensor_data = adapter.get_tensor_f32(tensor_name)?;
-        
+
         // Write raw bytes to a companion .bin file to bypass Parquet's 2GB limitation
         let flat_data = tensor_data.clone().into_raw_vec();
         let data_bytes = unsafe {
-            std::slice::from_raw_parts(
-                flat_data.as_ptr() as *const u8,
-                flat_data.len() * 4,
-            ).to_vec()
+            std::slice::from_raw_parts(flat_data.as_ptr() as *const u8, flat_data.len() * 4)
+                .to_vec()
         };
         let bin_file = output_path.join(format!("{}.bin", sanitize_filename(&tensor_name)));
         std::fs::write(&bin_file, data_bytes)?;
 
         // Convert to Parquet V2 Extended (schema only)
-        let parquet_schema = convert_tensor_to_parquet_v2(
-            tensor_name,
-            tensor_data,
-            detected_modality,
-        )?;
+        let parquet_schema =
+            convert_tensor_to_parquet_v2(tensor_name, tensor_data, detected_modality)?;
 
         // Write to Parquet file
         let output_file = output_path.join(format!("{}.parquet", sanitize_filename(tensor_name)));
@@ -116,8 +115,8 @@ fn convert_single_safetensors_to_parquet(
 }
 
 use rayon::prelude::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Convert sharded SafeTensors to Parquet
 fn convert_sharded_safetensors_to_parquet(
@@ -147,63 +146,79 @@ fn convert_sharded_safetensors_to_parquet(
     // Get all tensor names and group by shard
     let tensor_names = adapter.tensor_names();
     let num_shards = adapter.num_shards();
-    eprintln!("Found {} tensors across {} shards", tensor_names.len(), num_shards);
+    eprintln!(
+        "Found {} tensors across {} shards",
+        tensor_names.len(),
+        num_shards
+    );
 
     let mut shard_to_tensors: HashMap<String, Vec<String>> = HashMap::new();
     for name in &tensor_names {
         if let Some(shard) = adapter.get_shard_for_tensor(name) {
-            shard_to_tensors.entry(shard.to_string()).or_default().push(name.clone());
+            shard_to_tensors
+                .entry(shard.to_string())
+                .or_default()
+                .push(name.clone());
         }
     }
 
     let progress_counter = AtomicUsize::new(0);
     let total_tensors = tensor_names.len();
-    let base_dir = index_path.parent().ok_or_else(|| QuantError::Storage("Invalid index path".to_string()))?.to_path_buf();
+    let base_dir = index_path
+        .parent()
+        .ok_or_else(|| QuantError::Storage("Invalid index path".to_string()))?
+        .to_path_buf();
 
     // Convert each shard in parallel
-    shard_to_tensors.par_iter().try_for_each(|(shard_name, tensors)| -> Result<()> {
-        // Load shard adapter for this worker thread
-        let shard_path = base_dir.join(shard_name);
-        let shard_adapter = SafeTensorsAdapter::load(&shard_path)?;
-        
-        for tensor_name in tensors {
-            let count = progress_counter.fetch_add(1, Ordering::SeqCst);
-            if count % 20 == 0 || count == total_tensors - 1 {
-                eprintln!("Progress: {}/{} tensors converted (Shard: {})", count + 1, total_tensors, shard_name);
+    shard_to_tensors
+        .par_iter()
+        .try_for_each(|(shard_name, tensors)| -> Result<()> {
+            // Load shard adapter for this worker thread
+            let shard_path = base_dir.join(shard_name);
+            let shard_adapter = SafeTensorsAdapter::load(&shard_path)?;
+
+            for tensor_name in tensors {
+                let count = progress_counter.fetch_add(1, Ordering::SeqCst);
+                if count % 20 == 0 || count == total_tensors - 1 {
+                    eprintln!(
+                        "Progress: {}/{} tensors converted (Shard: {})",
+                        count + 1,
+                        total_tensors,
+                        shard_name
+                    );
+                }
+
+                // Extract tensor as f32 array
+                let tensor_data = shard_adapter.get_tensor_f32(&tensor_name)?;
+
+                // Write raw bytes to a companion .bin file to bypass Parquet's 2GB limitation
+                let flat_data = tensor_data.clone().into_raw_vec();
+                let data_bytes = unsafe {
+                    std::slice::from_raw_parts(flat_data.as_ptr() as *const u8, flat_data.len() * 4)
+                        .to_vec()
+                };
+                let bin_file = output_path.join(format!("{}.bin", sanitize_filename(&tensor_name)));
+                std::fs::write(&bin_file, data_bytes)?;
+
+                // Convert to Parquet V2 Extended (schema only)
+                let parquet_schema =
+                    convert_tensor_to_parquet_v2(&tensor_name, tensor_data, detected_modality)?;
+
+                // Write to Parquet file
+                let output_file =
+                    output_path.join(format!("{}.parquet", sanitize_filename(&tensor_name)));
+                parquet_schema.write_to_parquet(&output_file)?;
             }
-
-            // Extract tensor as f32 array
-            let tensor_data = shard_adapter.get_tensor_f32(&tensor_name)?;
-            
-            // Write raw bytes to a companion .bin file to bypass Parquet's 2GB limitation
-            let flat_data = tensor_data.clone().into_raw_vec();
-            let data_bytes = unsafe {
-                std::slice::from_raw_parts(
-                    flat_data.as_ptr() as *const u8,
-                    flat_data.len() * 4,
-                ).to_vec()
-            };
-            let bin_file = output_path.join(format!("{}.bin", sanitize_filename(&tensor_name)));
-            std::fs::write(&bin_file, data_bytes)?;
-
-            // Convert to Parquet V2 Extended (schema only)
-            let parquet_schema = convert_tensor_to_parquet_v2(
-                &tensor_name,
-                tensor_data,
-                detected_modality,
-            )?;
-
-            // Write to Parquet file
-            let output_file = output_path.join(format!("{}.parquet", sanitize_filename(&tensor_name)));
-            parquet_schema.write_to_parquet(&output_file)?;
-        }
-        Ok(())
-    })?;
+            Ok(())
+        })?;
 
     // Write metadata.json
     write_sharded_metadata_file(output_path, detected_modality, &adapter)?;
 
-    eprintln!("Conversion complete: {} tensors from {} shards", total_tensors, num_shards);
+    eprintln!(
+        "Conversion complete: {} tensors from {} shards",
+        total_tensors, num_shards
+    );
 
     Ok(detected_modality)
 }
@@ -220,12 +235,8 @@ fn convert_tensor_to_parquet_v2(
     // For now, create a minimal ParquetV2Extended schema
     // The actual quantization will be applied later by the orchestrator
     // We leave data empty because writing FP32 blobs >2GB crashes Parquet.
-    let schema = ParquetV2Extended::new_unquantized(
-        tensor_name.to_string(),
-        shape,
-        modality,
-        Vec::new(),
-    );
+    let schema =
+        ParquetV2Extended::new_unquantized(tensor_name.to_string(), shape, modality, Vec::new());
 
     Ok(schema)
 }
@@ -328,9 +339,18 @@ mod tests {
 
     #[test]
     fn test_sanitize_filename() {
-        assert_eq!(sanitize_filename("model.layers.0.weight"), "model_layers_0_weight");
-        assert_eq!(sanitize_filename("model/layers/0/weight"), "model_layers_0_weight");
-        assert_eq!(sanitize_filename("model:layers:0:weight"), "model_layers_0_weight");
+        assert_eq!(
+            sanitize_filename("model.layers.0.weight"),
+            "model_layers_0_weight"
+        );
+        assert_eq!(
+            sanitize_filename("model/layers/0/weight"),
+            "model_layers_0_weight"
+        );
+        assert_eq!(
+            sanitize_filename("model:layers:0:weight"),
+            "model_layers_0_weight"
+        );
     }
 
     #[test]

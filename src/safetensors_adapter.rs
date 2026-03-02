@@ -21,7 +21,7 @@ pub struct SafeTensorsHeader {
     /// Metadata about each tensor (name -> TensorInfo)
     #[serde(flatten)]
     pub tensors: HashMap<String, TensorInfo>,
-    
+
     /// Optional metadata (model type, architecture, etc.)
     #[serde(rename = "__metadata__", skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, String>>,
@@ -32,10 +32,10 @@ pub struct SafeTensorsHeader {
 pub struct TensorInfo {
     /// Data type (e.g., "F32", "F16", "BF16", "I32", "I64")
     pub dtype: String,
-    
+
     /// Shape of the tensor
     pub shape: Vec<usize>,
-    
+
     /// Byte offset in the data section
     pub data_offsets: (usize, usize),
 }
@@ -67,7 +67,7 @@ impl SafeTensorsDType {
             ))),
         }
     }
-    
+
     /// Get size in bytes for this dtype
     pub fn size_bytes(&self) -> usize {
         match self {
@@ -83,13 +83,13 @@ impl SafeTensorsDType {
 pub struct SafeTensorsAdapter {
     /// Path to SafeTensors file
     path: std::path::PathBuf,
-    
+
     /// Parsed header
     header: SafeTensorsHeader,
-    
+
     /// Memory-mapped file for zero-copy
     mmap: memmap2::Mmap,
-    
+
     /// Offset to the start of the data section
     data_offset: usize,
 }
@@ -115,36 +115,33 @@ impl SafeTensorsAdapter {
     /// ```
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
-        
+
         // Open file
-        let mut file = File::open(path).map_err(|e| {
-            QuantError::Storage(format!("Failed to open SafeTensors file: {}", e))
-        })?;
-        
+        let mut file = File::open(path)
+            .map_err(|e| QuantError::Storage(format!("Failed to open SafeTensors file: {}", e)))?;
+
         // Read header size (first 8 bytes, little-endian u64)
         let mut header_size_bytes = [0u8; 8];
-        file.read_exact(&mut header_size_bytes).map_err(|e| {
-            QuantError::Storage(format!("Failed to read header size: {}", e))
-        })?;
+        file.read_exact(&mut header_size_bytes)
+            .map_err(|e| QuantError::Storage(format!("Failed to read header size: {}", e)))?;
         let header_size = u64::from_le_bytes(header_size_bytes) as usize;
-        
+
         // Read header JSON
         let mut header_bytes = vec![0u8; header_size];
-        file.read_exact(&mut header_bytes).map_err(|e| {
-            QuantError::Storage(format!("Failed to read header: {}", e))
-        })?;
-        
+        file.read_exact(&mut header_bytes)
+            .map_err(|e| QuantError::Storage(format!("Failed to read header: {}", e)))?;
+
         let header: SafeTensorsHeader = serde_json::from_slice(&header_bytes).map_err(|e| {
             QuantError::Storage(format!("Failed to parse SafeTensors header: {}", e))
         })?;
-        
+
         // Use memmap2 for true zero-copy memory mapping
         let mmap = unsafe {
-            memmap2::MmapOptions::new().map(&file).map_err(|e| {
-                QuantError::Storage(format!("Failed to memory map file: {}", e))
-            })?
+            memmap2::MmapOptions::new()
+                .map(&file)
+                .map_err(|e| QuantError::Storage(format!("Failed to memory map file: {}", e)))?
         };
-        
+
         Ok(Self {
             path: path.to_path_buf(),
             header,
@@ -152,45 +149,49 @@ impl SafeTensorsAdapter {
             data_offset: 8 + header_size,
         })
     }
-    
+
     /// Get model metadata (architecture, modality, etc.)
     pub fn get_metadata(&self) -> Option<&HashMap<String, String>> {
         self.header.metadata.as_ref()
     }
-    
+
     /// Get list of all tensor names
     pub fn tensor_names(&self) -> Vec<String> {
         self.header.tensors.keys().cloned().collect()
     }
-    
+
     /// Get tensor info by name
     pub fn get_tensor_info(&self, name: &str) -> Option<&TensorInfo> {
         self.header.tensors.get(name)
     }
-    
+
     /// Extract a single tensor as f32 array
     ///
     /// Automatically converts from F16/BF16/I32/I64 to F32 if needed.
     pub fn get_tensor_f32(&self, name: &str) -> Result<ArrayD<f32>> {
-        let info = self.header.tensors.get(name).ok_or_else(|| {
-            QuantError::Internal(format!("Tensor not found: {}", name))
-        })?;
-        
+        let info = self
+            .header
+            .tensors
+            .get(name)
+            .ok_or_else(|| QuantError::Internal(format!("Tensor not found: {}", name)))?;
+
         let dtype = SafeTensorsDType::from_str(&info.dtype)?;
         // SafeTensors offsets are relative to the start of the data section
         let start = self.data_offset + info.data_offsets.0;
         let end = self.data_offset + info.data_offsets.1;
-        
+
         // Validate offsets
         if end > self.mmap.len() {
             return Err(QuantError::Internal(format!(
                 "Invalid data offset for tensor {}: end={} > mmap_len={}",
-                name, end, self.mmap.len()
+                name,
+                end,
+                self.mmap.len()
             )));
         }
-        
+
         let tensor_data = &self.mmap[start..end];
-        
+
         // Convert to f32 based on dtype
         let values = match dtype {
             SafeTensorsDType::F32 => {
@@ -218,65 +219,64 @@ impl SafeTensorsAdapter {
                 self.read_u8_to_f32(tensor_data)
             }
         };
-        
+
         // Create ndarray with correct shape
         let array = ArrayD::from_shape_vec(info.shape.clone(), values).map_err(|e| {
             QuantError::Internal(format!("Failed to create array for {}: {}", name, e))
         })?;
-        
+
         Ok(array)
     }
-    
+
     /// Extract all tensors as f32 HashMap
     ///
     /// Returns a map of tensor_name -> flattened f32 vector.
     /// This is the format expected by ArrowQuant V2 quantization pipeline.
     pub fn get_all_tensors_f32(&self) -> Result<HashMap<String, Vec<f32>>> {
         let mut tensors = HashMap::new();
-        
+
         for name in self.tensor_names() {
             let array = self.get_tensor_f32(&name)?;
             let flattened = array.into_raw_vec();
             tensors.insert(name, flattened);
         }
-        
+
         Ok(tensors)
     }
-    
+
     /// Extract all tensors as 2D arrays (for layer-wise quantization)
     ///
     /// Reshapes tensors to 2D format: [out_features, in_features]
     /// This is required for per-channel and per-group quantization.
     pub fn get_all_tensors_2d(&self) -> Result<HashMap<String, Array2<f32>>> {
         let mut tensors = HashMap::new();
-        
+
         for name in self.tensor_names() {
             let array = self.get_tensor_f32(&name)?;
-            
+
             // Reshape to 2D
             let shape = array.shape();
             let array_2d = if shape.len() == 2 {
                 // Already 2D
-                array.into_dimensionality::<ndarray::Ix2>().map_err(|e| {
-                    QuantError::Internal(format!("Failed to convert to 2D: {}", e))
-                })?
+                array
+                    .into_dimensionality::<ndarray::Ix2>()
+                    .map_err(|e| QuantError::Internal(format!("Failed to convert to 2D: {}", e)))?
             } else {
                 // Flatten to 2D: [first_dim, product_of_rest]
                 let first_dim = shape[0];
                 let rest: usize = shape[1..].iter().product();
-                
+
                 let flattened = array.into_raw_vec();
-                Array2::from_shape_vec((first_dim, rest), flattened).map_err(|e| {
-                    QuantError::Internal(format!("Failed to reshape to 2D: {}", e))
-                })?
+                Array2::from_shape_vec((first_dim, rest), flattened)
+                    .map_err(|e| QuantError::Internal(format!("Failed to reshape to 2D: {}", e)))?
             };
-            
+
             tensors.insert(name, array_2d);
         }
-        
+
         Ok(tensors)
     }
-    
+
     /// Detect modality from metadata
     ///
     /// Looks for "modality" field in __metadata__ section.
@@ -288,11 +288,11 @@ impl SafeTensorsAdapter {
             if let Some(modality) = metadata.get("modality") {
                 return Some(modality.clone());
             }
-            
+
             // Heuristics based on architecture
             if let Some(arch) = metadata.get("architecture") {
                 let arch_lower = arch.to_lowercase();
-                
+
                 if arch_lower.contains("dit") || arch_lower.contains("diffusion") {
                     if arch_lower.contains("text") || arch_lower.contains("mdlm") {
                         return Some("text".to_string());
@@ -306,7 +306,7 @@ impl SafeTensorsAdapter {
                 }
             }
         }
-        
+
         // Fallback: Infer modality from tensor name patterns
         self.detect_modality_from_tensor_names()
     }
@@ -327,26 +327,43 @@ impl SafeTensorsAdapter {
             let n = name.to_lowercase();
 
             // Text / LLM patterns
-            if n.contains("embed_tokens") || n.contains("lm_head") || n.contains("self_attn")
-                || n.contains("mlp.gate") || n.contains("mlp.up") || n.contains("mlp.down")
-                || n.contains("input_layernorm") || n.contains("post_attention_layernorm")
-                || n.contains("rotary_emb") || n.contains("wte") || n.contains("wpe")
-                || n.contains("transformer.h.") || n.contains("model.layers.")
+            if n.contains("embed_tokens")
+                || n.contains("lm_head")
+                || n.contains("self_attn")
+                || n.contains("mlp.gate")
+                || n.contains("mlp.up")
+                || n.contains("mlp.down")
+                || n.contains("input_layernorm")
+                || n.contains("post_attention_layernorm")
+                || n.contains("rotary_emb")
+                || n.contains("wte")
+                || n.contains("wpe")
+                || n.contains("transformer.h.")
+                || n.contains("model.layers.")
             {
                 text_score += 1;
             }
 
             // Image / Vision patterns
-            if n.contains("conv_in") || n.contains("conv_out") || n.contains("down_blocks")
-                || n.contains("up_blocks") || n.contains("mid_block") || n.contains("unet")
-                || n.contains("vae.") || n.contains("patch_embed") || n.contains("to_rgb")
+            if n.contains("conv_in")
+                || n.contains("conv_out")
+                || n.contains("down_blocks")
+                || n.contains("up_blocks")
+                || n.contains("mid_block")
+                || n.contains("unet")
+                || n.contains("vae.")
+                || n.contains("patch_embed")
+                || n.contains("to_rgb")
             {
                 image_score += 1;
             }
 
             // Audio patterns
-            if n.contains("mel") || n.contains("spectrogram") || n.contains("waveform")
-                || n.contains("audio_encoder") || n.contains("vocoder")
+            if n.contains("mel")
+                || n.contains("spectrogram")
+                || n.contains("waveform")
+                || n.contains("audio_encoder")
+                || n.contains("vocoder")
             {
                 audio_score += 1;
             }
@@ -365,13 +382,13 @@ impl SafeTensorsAdapter {
             Some("text".to_string())
         }
     }
-    
+
     // Helper methods for dtype conversion
-    
+
     fn read_f32_slice(&self, data: &[u8]) -> Vec<f32> {
         let count = data.len() / 4;
         let mut values = Vec::with_capacity(count);
-        
+
         for i in 0..count {
             let bytes = [
                 data[i * 4],
@@ -381,46 +398,46 @@ impl SafeTensorsAdapter {
             ];
             values.push(f32::from_le_bytes(bytes));
         }
-        
+
         values
     }
-    
+
     fn read_f16_to_f32(&self, data: &[u8]) -> Vec<f32> {
         let count = data.len() / 2;
         let mut values = Vec::with_capacity(count);
-        
+
         for i in 0..count {
             let bytes = [data[i * 2], data[i * 2 + 1]];
             let f16_bits = u16::from_le_bytes(bytes);
-            
+
             // Convert f16 to f32 using half crate
             let f16_val = half::f16::from_bits(f16_bits);
             values.push(f16_val.to_f32());
         }
-        
+
         values
     }
-    
+
     fn read_bf16_to_f32(&self, data: &[u8]) -> Vec<f32> {
         let count = data.len() / 2;
         let mut values = Vec::with_capacity(count);
-        
+
         for i in 0..count {
             let bytes = [data[i * 2], data[i * 2 + 1]];
             let bf16_bits = u16::from_le_bytes(bytes);
-            
+
             // Convert bf16 to f32: bf16 is just f32 with lower 16 bits truncated
             let f32_bits = (bf16_bits as u32) << 16;
             values.push(f32::from_bits(f32_bits));
         }
-        
+
         values
     }
-    
+
     fn read_i32_to_f32(&self, data: &[u8]) -> Vec<f32> {
         let count = data.len() / 4;
         let mut values = Vec::with_capacity(count);
-        
+
         for i in 0..count {
             let bytes = [
                 data[i * 4],
@@ -431,14 +448,14 @@ impl SafeTensorsAdapter {
             let i32_val = i32::from_le_bytes(bytes);
             values.push(i32_val as f32);
         }
-        
+
         values
     }
-    
+
     fn read_i64_to_f32(&self, data: &[u8]) -> Vec<f32> {
         let count = data.len() / 8;
         let mut values = Vec::with_capacity(count);
-        
+
         for i in 0..count {
             let bytes = [
                 data[i * 8],
@@ -453,10 +470,10 @@ impl SafeTensorsAdapter {
             let i64_val = i64::from_le_bytes(bytes);
             values.push(i64_val as f32);
         }
-        
+
         values
     }
-    
+
     fn read_u8_to_f32(&self, data: &[u8]) -> Vec<f32> {
         data.iter().map(|&x| x as f32).collect()
     }
@@ -467,10 +484,10 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
-    
+
     fn create_test_safetensors() -> NamedTempFile {
         let mut file = NamedTempFile::new().unwrap();
-        
+
         // Create header
         let header = SafeTensorsHeader {
             tensors: {
@@ -491,62 +508,62 @@ mod tests {
                 map
             }),
         };
-        
+
         let header_json = serde_json::to_vec(&header).unwrap();
         let header_size = header_json.len() as u64;
-        
+
         // Write header size
         file.write_all(&header_size.to_le_bytes()).unwrap();
-        
+
         // Write header
         file.write_all(&header_json).unwrap();
-        
+
         // Write tensor data (6 f32 values)
         let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
         for &val in &data {
             file.write_all(&val.to_le_bytes()).unwrap();
         }
-        
+
         file.flush().unwrap();
         file
     }
-    
+
     #[test]
     fn test_load_safetensors() {
         let file = create_test_safetensors();
         let adapter = SafeTensorsAdapter::load(file.path()).unwrap();
-        
+
         assert_eq!(adapter.tensor_names().len(), 1);
         assert!(adapter.tensor_names().contains(&"layer.weight".to_string()));
     }
-    
+
     #[test]
     fn test_get_tensor_f32() {
         let file = create_test_safetensors();
         let adapter = SafeTensorsAdapter::load(file.path()).unwrap();
-        
+
         let tensor = adapter.get_tensor_f32("layer.weight").unwrap();
         assert_eq!(tensor.shape(), &[2, 3]);
-        
+
         let values = tensor.into_raw_vec();
         assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
-    
+
     #[test]
     fn test_get_all_tensors_f32() {
         let file = create_test_safetensors();
         let adapter = SafeTensorsAdapter::load(file.path()).unwrap();
-        
+
         let tensors = adapter.get_all_tensors_f32().unwrap();
         assert_eq!(tensors.len(), 1);
         assert_eq!(tensors["layer.weight"], vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
-    
+
     #[test]
     fn test_detect_modality() {
         let file = create_test_safetensors();
         let adapter = SafeTensorsAdapter::load(file.path()).unwrap();
-        
+
         let modality = adapter.detect_modality();
         assert_eq!(modality, Some("text".to_string()));
     }

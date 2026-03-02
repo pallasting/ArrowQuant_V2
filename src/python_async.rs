@@ -137,7 +137,9 @@ impl AsyncArrowQuantV2 {
             let progress_reporter = AsyncProgressReporter::new(progress_callback);
 
             // Report start
-            progress_reporter.report("Starting async quantization...", 0.0).await;
+            progress_reporter
+                .report("Starting async quantization...", 0.0)
+                .await;
 
             // Execute quantization in background thread to avoid blocking
             let result = tokio::task::spawn_blocking(move || {
@@ -150,7 +152,9 @@ impl AsyncArrowQuantV2 {
             .map_err(convert_error)?;
 
             // Report completion
-            progress_reporter.report("Async quantization complete", 1.0).await;
+            progress_reporter
+                .report("Async quantization complete", 1.0)
+                .await;
 
             // Convert result to Python dict
             Python::with_gil(|py| {
@@ -234,14 +238,15 @@ impl AsyncArrowQuantV2 {
         let callbacks: Vec<Option<PyObject>> = (0..models.len())
             .map(|_| progress_callback.as_ref().map(|cb| cb.clone_ref(py)))
             .collect();
-        
+
         future_into_py(py, async move {
             let num_models = models.len();
             let mut tasks = Vec::new();
 
             // Create async task for each model
-            for (idx, ((model_path, output_path, config), callback)) in 
-                models.into_iter().zip(callbacks.into_iter()).enumerate() {
+            for (idx, ((model_path, output_path, config), callback)) in
+                models.into_iter().zip(callbacks.into_iter()).enumerate()
+            {
                 let config = match config {
                     Some(c) => c.inner,
                     None => DiffusionQuantConfig::default(),
@@ -274,7 +279,11 @@ impl AsyncArrowQuantV2 {
                     // Report completion for this model
                     progress_reporter
                         .report(
-                            &format!("Completed quantization for model {}/{}", idx + 1, num_models),
+                            &format!(
+                                "Completed quantization for model {}/{}",
+                                idx + 1,
+                                num_models
+                            ),
                             1.0,
                         )
                         .await;

@@ -1,9 +1,10 @@
 //! Integration test for boundary smoothing in TimeAwareQuantizer
 
 use arrow_quant_v2::config::{
-    BoundarySmoothingConfig, InterpolationMethod, ThermodynamicConfig, ValidationConfig, TransitionOptimizationConfig,
+    BoundarySmoothingConfig, InterpolationMethod, ThermodynamicConfig,
+    TransitionOptimizationConfig, ValidationConfig,
 };
-use arrow_quant_v2::time_aware::{ActivationStats, TimeAwareQuantizer, QuantizedLayer};
+use arrow_quant_v2::time_aware::{ActivationStats, QuantizedLayer, TimeAwareQuantizer};
 
 #[test]
 fn test_boundary_smoothing_integration() {
@@ -54,7 +55,12 @@ fn test_boundary_smoothing_integration() {
     // Verify that we got a result
     assert_eq!(result.num_groups(), 4);
     match &result {
-        QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+        QuantizedLayer::Legacy {
+            data,
+            scales,
+            zero_points,
+            time_group_params,
+        } => {
             assert_eq!(scales.len(), 1); // Global quantization
             assert_eq!(zero_points.len(), 1); // Global quantization
             assert_eq!(time_group_params.len(), 4);
@@ -90,7 +96,11 @@ fn test_boundary_smoothing_disabled_by_default() {
     // Should still work, just without smoothing
     assert_eq!(result.num_groups(), 4);
     match &result {
-        QuantizedLayer::Legacy { scales, zero_points, .. } => {
+        QuantizedLayer::Legacy {
+            scales,
+            zero_points,
+            ..
+        } => {
             assert_eq!(scales.len(), 1); // Global quantization
             assert_eq!(zero_points.len(), 1); // Global quantization
         }
@@ -137,7 +147,12 @@ fn test_all_interpolation_methods() {
 
         assert_eq!(result.num_groups(), 3);
         match &result {
-            QuantizedLayer::Legacy { data, scales, zero_points, .. } => {
+            QuantizedLayer::Legacy {
+                data,
+                scales,
+                zero_points,
+                ..
+            } => {
                 assert_eq!(scales.len(), 1); // Global quantization
                 assert_eq!(zero_points.len(), 1); // Global quantization
                 assert!(!data.is_empty());
@@ -196,7 +211,11 @@ fn test_validation_and_smoothing_together() {
     // Verify structure
     assert_eq!(result.num_groups(), 5);
     match &result {
-        QuantizedLayer::Legacy { scales, zero_points, .. } => {
+        QuantizedLayer::Legacy {
+            scales,
+            zero_points,
+            ..
+        } => {
             assert_eq!(scales.len(), 1); // Global quantization
             assert_eq!(zero_points.len(), 1); // Global quantization
         }
@@ -277,7 +296,9 @@ fn test_smoothing_preserves_accuracy() {
 
     // The smoothed result should have modified parameters stored in time_group_params
     let params_smoothed = match &result_smoothed {
-        QuantizedLayer::Legacy { time_group_params, .. } => time_group_params,
+        QuantizedLayer::Legacy {
+            time_group_params, ..
+        } => time_group_params,
         _ => panic!("Expected Legacy variant"),
     };
 
@@ -285,7 +306,9 @@ fn test_smoothing_preserves_accuracy() {
     let any_different = params_baseline
         .iter()
         .zip(params_smoothed.iter())
-        .any(|(b, s)| (b.scale - s.scale).abs() > 1e-6 || (b.zero_point - s.zero_point).abs() > 1e-6);
+        .any(|(b, s)| {
+            (b.scale - s.scale).abs() > 1e-6 || (b.zero_point - s.zero_point).abs() > 1e-6
+        });
 
     assert!(
         any_different,
@@ -427,8 +450,8 @@ fn test_smoothing_reduces_parameter_jumps() {
     // Compute max parameter jump in baseline
     let mut max_jump_baseline: f32 = 0.0;
     for i in 0..params_baseline.len() - 1 {
-        let scale_jump =
-            (params_baseline[i + 1].scale - params_baseline[i].scale).abs() / params_baseline[i].scale;
+        let scale_jump = (params_baseline[i + 1].scale - params_baseline[i].scale).abs()
+            / params_baseline[i].scale;
         max_jump_baseline = max_jump_baseline.max(scale_jump);
     }
 
@@ -457,15 +480,17 @@ fn test_smoothing_reduces_parameter_jumps() {
 
     // Get the smoothed parameters from the result
     let params_smoothed = match &result_smoothed {
-        QuantizedLayer::Legacy { time_group_params, .. } => time_group_params,
+        QuantizedLayer::Legacy {
+            time_group_params, ..
+        } => time_group_params,
         _ => panic!("Expected Legacy variant"),
     };
 
     // Compute max parameter jump with smoothing
     let mut max_jump_smoothed: f32 = 0.0;
     for i in 0..params_smoothed.len() - 1 {
-        let scale_jump =
-            (params_smoothed[i + 1].scale - params_smoothed[i].scale).abs() / params_smoothed[i].scale;
+        let scale_jump = (params_smoothed[i + 1].scale - params_smoothed[i].scale).abs()
+            / params_smoothed[i].scale;
         max_jump_smoothed = max_jump_smoothed.max(scale_jump);
     }
 

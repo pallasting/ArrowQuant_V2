@@ -91,11 +91,14 @@ impl ValidationSystem {
         let original_layers = self.load_model_layers(original_path)?;
         let quantized_layers = self.load_model_layers(quantized_path)?;
 
-        eprintln!("[Debug] Validation: Loaded {} original layers, {} quantized layers", 
-                 original_layers.len(), quantized_layers.len());
+        eprintln!(
+            "[Debug] Validation: Loaded {} original layers, {} quantized layers",
+            original_layers.len(),
+            quantized_layers.len()
+        );
 
         if original_layers.is_empty() || quantized_layers.is_empty() {
-             eprintln!("[Error] Validation aborted: One or both models have 0 layers loaded.");
+            eprintln!("[Error] Validation aborted: One or both models have 0 layers loaded.");
         }
 
         // Compute per-layer cosine similarity
@@ -122,7 +125,11 @@ impl ValidationSystem {
 
                 // Optional: Progress indicator during validation
                 if similarities.len() % 50 == 0 || similarities.len() == original_layers.len() {
-                    eprintln!("[Validation] Processed {}/{} layers...", similarities.len(), original_layers.len());
+                    eprintln!(
+                        "[Validation] Processed {}/{} layers...",
+                        similarities.len(),
+                        original_layers.len()
+                    );
                 }
 
                 // Log warning for layers below threshold
@@ -167,7 +174,10 @@ impl ValidationSystem {
         // Check if validation passed
         let passed = avg_similarity >= self.min_accuracy;
 
-        let bit_width_label = self.bit_width.map(|bw| format!("INT{}", bw)).unwrap_or_else(|| "Unknown".to_string());
+        let bit_width_label = self
+            .bit_width
+            .map(|bw| format!("INT{}", bw))
+            .unwrap_or_else(|| "Unknown".to_string());
         eprintln!("[Validation Result] {} Mode - Cosine Similarity: {:.4} (Required: {:.4}), Compression: {:.2}x", 
                  bit_width_label, avg_similarity, self.min_accuracy, compression_ratio);
 
@@ -330,7 +340,11 @@ impl ValidationSystem {
                         layers.insert(layer_name, weights);
                     }
                     Err(e) => {
-                        eprintln!("[Warning] Failed to extract weights from {}: {}", path.display(), e);
+                        eprintln!(
+                            "[Warning] Failed to extract weights from {}: {}",
+                            path.display(),
+                            e
+                        );
                     }
                 }
             }
@@ -352,14 +366,15 @@ impl ValidationSystem {
     /// Extract weights from a Parquet file (with dequantization support)
     fn extract_weights_from_parquet(&self, path: &Path) -> Result<Vec<f32>> {
         use crate::schema::ParquetV2Extended;
-        
+
         // Use our existing robust reader
         let layer_data = ParquetV2Extended::read_from_parquet(path)?;
-        
+
         if layer_data.data.is_empty() {
-            return Err(crate::errors::QuantError::Internal(
-                format!("No weights found in data column for: {}", path.display()),
-            ));
+            return Err(crate::errors::QuantError::Internal(format!(
+                "No weights found in data column for: {}",
+                path.display()
+            )));
         }
 
         let bit_width = if layer_data.quant_type.contains("int8") {
@@ -378,10 +393,10 @@ impl ValidationSystem {
             let mut weights = Vec::with_capacity(floats_len);
             for i in 0..floats_len {
                 let b = [
-                    layer_data.data[i*4], 
-                    layer_data.data[i*4+1], 
-                    layer_data.data[i*4+2], 
-                    layer_data.data[i*4+3]
+                    layer_data.data[i * 4],
+                    layer_data.data[i * 4 + 1],
+                    layer_data.data[i * 4 + 2],
+                    layer_data.data[i * 4 + 3],
                 ];
                 weights.push(f32::from_le_bytes(b));
             }
@@ -395,29 +410,30 @@ impl ValidationSystem {
         let mut weights = Vec::new();
         match bit_width {
             8 => {
-            weights.reserve(layer_data.data.len());
-            for &q in &layer_data.data {
-                weights.push((q as f32 - zero_point) * scale);
+                weights.reserve(layer_data.data.len());
+                for &q in &layer_data.data {
+                    weights.push((q as f32 - zero_point) * scale);
+                }
             }
-        }
-        4 => {
-            // Unpack 4-bit values (currently 1 byte per weight for engineering stability)
-            weights.reserve(layer_data.data.len());
-            for &q in &layer_data.data {
-                weights.push((q as f32 - zero_point) * scale);
+            4 => {
+                // Unpack 4-bit values (currently 1 byte per weight for engineering stability)
+                weights.reserve(layer_data.data.len());
+                for &q in &layer_data.data {
+                    weights.push((q as f32 - zero_point) * scale);
+                }
             }
-        }
-        2 => {
-            // Unpack 2-bit values (currently 1 byte per weight for engineering stability)
-            weights.reserve(layer_data.data.len());
-            for &q in &layer_data.data {
-                weights.push((q as f32 - zero_point) * scale);
+            2 => {
+                // Unpack 2-bit values (currently 1 byte per weight for engineering stability)
+                weights.reserve(layer_data.data.len());
+                for &q in &layer_data.data {
+                    weights.push((q as f32 - zero_point) * scale);
+                }
             }
-        }          
             _ => {
-                return Err(crate::errors::QuantError::Internal(
-                    format!("Validation dequantization not implemented for INT{}", bit_width),
-                ));
+                return Err(crate::errors::QuantError::Internal(format!(
+                    "Validation dequantization not implemented for INT{}",
+                    bit_width
+                )));
             }
         }
         Ok(weights)

@@ -63,7 +63,7 @@ impl EntropyAnalyzer {
         // 2. Build Histogram
         let mut histogram = vec![0usize; self.num_bins];
         let range = max_val - min_val;
-        
+
         for w in weights {
             // Find bin index, clamped to [0, num_bins - 1]
             let mut bin_idx = (((w - min_val) / range) * self.num_bins as f32) as usize;

@@ -59,11 +59,11 @@ mod cosine_similarity_range_properties {
             vec_len in 10usize..100,
         ) {
             let validator = ValidationSystem::new(0.7);
-            
+
             // Generate random vectors using proptest's strategy
             let mut batch_a = Vec::new();
             let mut batch_b = Vec::new();
-            
+
             // Use a simple deterministic generation based on indices
             for i in 0..batch_size {
                 let a: Vec<f32> = (0..vec_len).map(|j| ((i * vec_len + j) as f32 % 20.0) - 10.0).collect();
@@ -71,10 +71,10 @@ mod cosine_similarity_range_properties {
                 batch_a.push(a);
                 batch_b.push(b);
             }
-            
+
             let refs_a: Vec<&[f32]> = batch_a.iter().map(|v: &Vec<f32>| v.as_slice()).collect();
             let refs_b: Vec<&[f32]> = batch_b.iter().map(|v: &Vec<f32>| v.as_slice()).collect();
-            
+
             let similarities = validator.cosine_similarity_batch(&refs_a, &refs_b);
 
             // Property: All similarities must be in [0, 1]
@@ -126,12 +126,12 @@ mod cosine_similarity_range_properties {
             // Normalize vectors
             let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
             let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-            
+
             // Skip if either vector is zero
             if norm_a < 1e-6 || norm_b < 1e-6 {
                 return Ok(());
             }
-            
+
             let a_norm: Vec<f32> = a.iter().map(|x| x / norm_a).collect();
             let b_norm: Vec<f32> = b.iter().map(|x| x / norm_b).collect();
 
@@ -170,7 +170,7 @@ mod compression_ratio_properties {
         ) {
             // Ensure compressed size is less than original
             let compressed_size = compressed_size.min(original_size - 1);
-            
+
             let compression_ratio = original_size as f32 / compressed_size as f32;
 
             // Property: Compression ratio must be positive
@@ -207,7 +207,7 @@ mod compression_ratio_properties {
             // FP16 (16 bits) -> INT2/4/8 (2/4/8 bits)
             let expected_ratio = 16.0 / bit_width as f32;
             let compressed_size = (original_size as f32 / expected_ratio) as u64;
-            
+
             let compression_ratio = original_size as f32 / compressed_size as f32;
 
             // Property: Compression ratio should be close to expected
@@ -235,7 +235,7 @@ mod compression_ratio_properties {
             // Test that smaller compressed size = higher compression ratio
             let compressed_size_1 = original_size / 2;
             let compressed_size_2 = original_size / 4;
-            
+
             let ratio_1 = original_size as f32 / compressed_size_1 as f32;
             let ratio_2 = original_size as f32 / compressed_size_2 as f32;
 
@@ -270,18 +270,18 @@ mod accuracy_aggregation_properties {
         ) {
             let mut per_layer_accuracy = HashMap::new();
             let mut sum = 0.0f32;
-            
+
             // Use deterministic generation based on layer index
             for i in 0..num_layers {
                 let accuracy = ((i as f32 * 0.123) % 1.0).abs(); // Deterministic pseudo-random
                 per_layer_accuracy.insert(format!("layer_{}", i), accuracy);
                 sum += accuracy;
             }
-            
+
             let expected_mean = sum / num_layers as f32;
 
             // Compute actual mean
-            let actual_mean: f32 = per_layer_accuracy.values().sum::<f32>() 
+            let actual_mean: f32 = per_layer_accuracy.values().sum::<f32>()
                 / per_layer_accuracy.len() as f32;
 
             // Property: Overall accuracy should equal mean of per-layer accuracies
@@ -302,7 +302,7 @@ mod accuracy_aggregation_properties {
             let mut per_layer_accuracy = HashMap::new();
             let mut min_acc = f32::INFINITY;
             let mut max_acc = f32::NEG_INFINITY;
-            
+
             // Use deterministic generation
             for i in 0..num_layers {
                 let accuracy = ((i as f32 * 0.456) % 1.0).abs();
@@ -310,8 +310,8 @@ mod accuracy_aggregation_properties {
                 min_acc = min_acc.min(accuracy);
                 max_acc = max_acc.max(accuracy);
             }
-            
-            let overall_accuracy: f32 = per_layer_accuracy.values().sum::<f32>() 
+
+            let overall_accuracy: f32 = per_layer_accuracy.values().sum::<f32>()
                 / per_layer_accuracy.len() as f32;
 
             // Property: Overall accuracy should be between min and max
@@ -337,17 +337,17 @@ mod accuracy_aggregation_properties {
             num_layers in 1usize..50,
         ) {
             let mut per_layer_accuracy = HashMap::new();
-            
+
             // Use deterministic generation
             for i in 0..num_layers {
                 let accuracy = ((i as f32 * 0.789) % 1.0).abs();
                 per_layer_accuracy.insert(format!("layer_{}", i), accuracy);
             }
-            
+
             // Compute mean twice
-            let mean_1: f32 = per_layer_accuracy.values().sum::<f32>() 
+            let mean_1: f32 = per_layer_accuracy.values().sum::<f32>()
                 / per_layer_accuracy.len() as f32;
-            let mean_2: f32 = per_layer_accuracy.values().sum::<f32>() 
+            let mean_2: f32 = per_layer_accuracy.values().sum::<f32>()
                 / per_layer_accuracy.len() as f32;
 
             // Property: Aggregation should be deterministic
@@ -367,8 +367,8 @@ mod accuracy_aggregation_properties {
         ) {
             let mut per_layer_accuracy = HashMap::new();
             per_layer_accuracy.insert("layer_0".to_string(), accuracy);
-            
-            let overall_accuracy: f32 = per_layer_accuracy.values().sum::<f32>() 
+
+            let overall_accuracy: f32 = per_layer_accuracy.values().sum::<f32>()
                 / per_layer_accuracy.len() as f32;
 
             // Property: For single layer, overall = per-layer
@@ -388,12 +388,12 @@ mod accuracy_aggregation_properties {
             accuracy in 0.0f32..1.0f32,
         ) {
             let mut per_layer_accuracy = HashMap::new();
-            
+
             for i in 0..num_layers {
                 per_layer_accuracy.insert(format!("layer_{}", i), accuracy);
             }
-            
-            let overall_accuracy: f32 = per_layer_accuracy.values().sum::<f32>() 
+
+            let overall_accuracy: f32 = per_layer_accuracy.values().sum::<f32>()
                 / per_layer_accuracy.len() as f32;
 
             // Property: For uniform layers, overall = per-layer
@@ -481,7 +481,7 @@ mod edge_case_properties {
         let c = vec![0.0, 0.0, 1.0];
 
         let validator = ValidationSystem::new(0.7);
-        
+
         let sim_ab = validator.cosine_similarity(&a, &b);
         let sim_ac = validator.cosine_similarity(&a, &c);
         let sim_bc = validator.cosine_similarity(&b, &c);

@@ -7,7 +7,7 @@
 //! - Per-group quantization with different group sizes
 //! - Equalization scale computation
 
-use arrow_quant_v2::spatial::{SpatialQuantizer, QuantizedSpatialLayer};
+use arrow_quant_v2::spatial::{QuantizedSpatialLayer, SpatialQuantizer};
 use ndarray::Array2;
 
 // ============================================================================
@@ -37,8 +37,8 @@ fn test_channel_equalization_formula() {
     let weights = Array2::from_shape_vec(
         (2, 3),
         vec![
-            1.0, 2.0, 3.0,    // Channel 0
-            4.0, 8.0, 16.0,   // Channel 1
+            1.0, 2.0, 3.0, // Channel 0
+            4.0, 8.0, 16.0, // Channel 1
         ],
     )
     .unwrap();
@@ -46,8 +46,8 @@ fn test_channel_equalization_formula() {
     let activations = Array2::from_shape_vec(
         (2, 3),
         vec![
-            4.0, 5.0, 6.0,    // Channel 0
-            2.0, 4.0, 8.0,    // Channel 1
+            4.0, 5.0, 6.0, // Channel 0
+            2.0, 4.0, 8.0, // Channel 1
         ],
     )
     .unwrap();
@@ -165,8 +165,8 @@ fn test_channel_equalization_large_scale_difference() {
     let weights = Array2::from_shape_vec(
         (2, 3),
         vec![
-            0.1, 0.2, 0.3,    // Channel 0: small values
-            100.0, 200.0, 300.0,  // Channel 1: large values
+            0.1, 0.2, 0.3, // Channel 0: small values
+            100.0, 200.0, 300.0, // Channel 1: large values
         ],
     )
     .unwrap();
@@ -174,8 +174,8 @@ fn test_channel_equalization_large_scale_difference() {
     let activations = Array2::from_shape_vec(
         (2, 3),
         vec![
-            10.0, 20.0, 30.0,  // Channel 0
-            1.0, 2.0, 3.0,     // Channel 1
+            10.0, 20.0, 30.0, // Channel 0
+            1.0, 2.0, 3.0, // Channel 1
         ],
     )
     .unwrap();
@@ -351,7 +351,7 @@ fn test_activation_smoothing_alpha_quarter() {
     let smoothed = quantizer.activation_smoothing(&activations, alpha);
 
     // x_smooth = x * (1 - 0.25) + 15.0 * 0.25 = x * 0.75 + 3.75
-    assert!((smoothed[[0, 0]] - 3.75).abs() < 0.01);  // 0 * 0.75 + 3.75
+    assert!((smoothed[[0, 0]] - 3.75).abs() < 0.01); // 0 * 0.75 + 3.75
     assert!((smoothed[[0, 1]] - 11.25).abs() < 0.01); // 10 * 0.75 + 3.75
     assert!((smoothed[[0, 2]] - 18.75).abs() < 0.01); // 20 * 0.75 + 3.75
     assert!((smoothed[[0, 3]] - 26.25).abs() < 0.01); // 30 * 0.75 + 3.75
@@ -368,10 +368,10 @@ fn test_activation_smoothing_alpha_three_quarters() {
     let smoothed = quantizer.activation_smoothing(&activations, alpha);
 
     // x_smooth = x * 0.25 + 15.0 * 0.75 = x * 0.25 + 11.25
-    assert!((smoothed[[0, 0]] - 11.25).abs() < 0.01);  // 0 * 0.25 + 11.25
-    assert!((smoothed[[0, 1]] - 13.75).abs() < 0.01);  // 10 * 0.25 + 11.25
-    assert!((smoothed[[0, 2]] - 16.25).abs() < 0.01);  // 20 * 0.25 + 11.25
-    assert!((smoothed[[0, 3]] - 18.75).abs() < 0.01);  // 30 * 0.25 + 11.25
+    assert!((smoothed[[0, 0]] - 11.25).abs() < 0.01); // 0 * 0.25 + 11.25
+    assert!((smoothed[[0, 1]] - 13.75).abs() < 0.01); // 10 * 0.25 + 11.25
+    assert!((smoothed[[0, 2]] - 16.25).abs() < 0.01); // 20 * 0.25 + 11.25
+    assert!((smoothed[[0, 3]] - 18.75).abs() < 0.01); // 30 * 0.25 + 11.25
 }
 
 #[test]
@@ -481,10 +481,10 @@ fn test_per_group_quantize_independent_scales() {
     let weights = Array2::from_shape_vec(
         (4, 3),
         vec![
-            0.0, 5.0, 10.0,       // Channel 0 (Group 0)
-            1.0, 6.0, 9.0,        // Channel 1 (Group 0)
-            100.0, 105.0, 110.0,  // Channel 2 (Group 1)
-            101.0, 106.0, 109.0,  // Channel 3 (Group 1)
+            0.0, 5.0, 10.0, // Channel 0 (Group 0)
+            1.0, 6.0, 9.0, // Channel 1 (Group 0)
+            100.0, 105.0, 110.0, // Channel 2 (Group 1)
+            101.0, 106.0, 109.0, // Channel 3 (Group 1)
         ],
     )
     .unwrap();
@@ -511,10 +511,10 @@ fn test_per_group_quantize_different_ranges() {
     let weights = Array2::from_shape_vec(
         (4, 2),
         vec![
-            0.0, 1.0,      // Channel 0 (Group 0)
-            0.5, 0.8,      // Channel 1 (Group 0)
-            0.0, 100.0,    // Channel 2 (Group 1)
-            50.0, 75.0,    // Channel 3 (Group 1)
+            0.0, 1.0, // Channel 0 (Group 0)
+            0.5, 0.8, // Channel 1 (Group 0)
+            0.0, 100.0, // Channel 2 (Group 1)
+            50.0, 75.0, // Channel 3 (Group 1)
         ],
     )
     .unwrap();
@@ -632,9 +632,9 @@ fn test_equalization_scale_computation_multiple_channels() {
     let weights = Array2::from_shape_vec(
         (3, 2),
         vec![
-            1.0, 2.0,    // Channel 0: max = 2.0
-            3.0, 6.0,    // Channel 1: max = 6.0
-            5.0, 10.0,   // Channel 2: max = 10.0
+            1.0, 2.0, // Channel 0: max = 2.0
+            3.0, 6.0, // Channel 1: max = 6.0
+            5.0, 10.0, // Channel 2: max = 10.0
         ],
     )
     .unwrap();
@@ -642,9 +642,9 @@ fn test_equalization_scale_computation_multiple_channels() {
     let activations = Array2::from_shape_vec(
         (3, 2),
         vec![
-            8.0, 4.0,    // Channel 0: max = 8.0
-            9.0, 3.0,    // Channel 1: max = 9.0
-            20.0, 10.0,  // Channel 2: max = 20.0
+            8.0, 4.0, // Channel 0: max = 8.0
+            9.0, 3.0, // Channel 1: max = 9.0
+            20.0, 10.0, // Channel 2: max = 20.0
         ],
     )
     .unwrap();
@@ -724,18 +724,14 @@ fn test_equalization_scale_all_positive() {
 
     // Test that all scales are positive regardless of input
     // Use non-zero values to avoid edge case where both w_max and x_max are 0
-    let weights = Array2::from_shape_fn((10, 10), |(i, j)| (i as f32 - 5.0) * (j as f32 - 5.0) + 1.0);
+    let weights =
+        Array2::from_shape_fn((10, 10), |(i, j)| (i as f32 - 5.0) * (j as f32 - 5.0) + 1.0);
     let activations = Array2::from_shape_fn((10, 10), |(i, j)| (i * j) as f32 + 1.0);
 
     let (_equalized, scales) = quantizer.channel_equalization(&weights, &activations);
 
     for (i, &scale) in scales.iter().enumerate() {
-        assert!(
-            scale > 0.0,
-            "Scale {} should be positive, got {}",
-            i,
-            scale
-        );
+        assert!(scale > 0.0, "Scale {} should be positive, got {}", i, scale);
     }
 }
 
@@ -801,9 +797,8 @@ fn test_spatial_quantization_with_different_modalities() {
 
     // Image modality (continuous diffusion) - typically uses spatial quantization
     let image_quantizer = SpatialQuantizer::new(128);
-    let image_weights = Array2::from_shape_fn((512, 1024), |(i, j)| {
-        ((i + j) as f32 / 100.0).sin() * 5.0
-    });
+    let image_weights =
+        Array2::from_shape_fn((512, 1024), |(i, j)| ((i + j) as f32 / 100.0).sin() * 5.0);
 
     let result = image_quantizer.per_group_quantize(&image_weights);
     assert!(result.is_ok());
@@ -812,9 +807,8 @@ fn test_spatial_quantization_with_different_modalities() {
 
     // Audio modality (continuous diffusion) - also uses spatial quantization
     let audio_quantizer = SpatialQuantizer::new(64);
-    let audio_weights = Array2::from_shape_fn((256, 512), |(i, j)| {
-        ((i * j) as f32 / 1000.0).cos() * 3.0
-    });
+    let audio_weights =
+        Array2::from_shape_fn((256, 512), |(i, j)| ((i * j) as f32 / 1000.0).cos() * 3.0);
 
     let result = audio_quantizer.per_group_quantize(&audio_weights);
     assert!(result.is_ok());
@@ -853,9 +847,9 @@ fn test_quantization_with_extreme_values() {
 
     // Create weights with extreme values
     let mut weights_vec = vec![0.0; 128 * 256];
-    weights_vec[0] = -1000.0;  // Very negative
-    weights_vec[1] = 1000.0;   // Very positive
-    weights_vec[2] = 0.0001;   // Very small
+    weights_vec[0] = -1000.0; // Very negative
+    weights_vec[1] = 1000.0; // Very positive
+    weights_vec[2] = 0.0001; // Very small
     let weights = Array2::from_shape_vec((128, 256), weights_vec).unwrap();
 
     let result = quantizer.per_group_quantize(&weights);
@@ -877,10 +871,10 @@ fn test_quantization_preserves_relative_ordering() {
     let weights = Array2::from_shape_vec(
         (4, 1),
         vec![
-            1.0,   // Group 0
-            2.0,   // Group 0
-            3.0,   // Group 0
-            4.0,   // Group 0
+            1.0, // Group 0
+            2.0, // Group 0
+            3.0, // Group 0
+            4.0, // Group 0
         ],
     )
     .unwrap();
@@ -914,7 +908,11 @@ fn test_empty_weights_handling() {
 fn test_single_channel_quantization() {
     // Test quantization with a single channel
     let quantizer = SpatialQuantizer::new(64);
-    let weights = Array2::from_shape_vec((1, 10), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]).unwrap();
+    let weights = Array2::from_shape_vec(
+        (1, 10),
+        vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+    )
+    .unwrap();
 
     let result = quantizer.per_group_quantize(&weights);
     assert!(result.is_ok());

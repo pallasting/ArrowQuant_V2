@@ -48,7 +48,9 @@ fn test_get_layer_bit_width_with_mixed_precision_disabled() {
     config.enable_mixed_precision = false;
 
     // Even if we set layer-specific bit-widths, they should be ignored
-    config.layer_bit_widths.insert("model.embed_tokens.weight".to_string(), 16);
+    config
+        .layer_bit_widths
+        .insert("model.embed_tokens.weight".to_string(), 16);
 
     // Should return default bit_width
     assert_eq!(config.get_layer_bit_width("model.embed_tokens.weight"), 4);

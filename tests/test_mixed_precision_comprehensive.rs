@@ -1,5 +1,5 @@
 //! Comprehensive tests for mixed-precision quantization
-//! 
+//!
 //! This test suite validates:
 //! - Sensitive layer detection accuracy across different model architectures
 //! - Per-layer bit-width assignment correctness
@@ -21,21 +21,21 @@ fn test_sensitive_layer_detection_llama_architecture() {
 
     // LLaMA-style embeddings
     assert!(orchestrator.is_sensitive_layer("model.embed_tokens.weight"));
-    
+
     // LLaMA-style norms
     assert!(orchestrator.is_sensitive_layer("model.norm.weight"));
     assert!(orchestrator.is_sensitive_layer("model.layers.0.input_layernorm.weight"));
     assert!(orchestrator.is_sensitive_layer("model.layers.0.post_attention_layernorm.weight"));
-    
+
     // LLaMA-style output head
     assert!(orchestrator.is_sensitive_layer("lm_head.weight"));
-    
+
     // LLaMA-style attention (should NOT be sensitive)
     assert!(!orchestrator.is_sensitive_layer("model.layers.0.self_attn.q_proj.weight"));
     assert!(!orchestrator.is_sensitive_layer("model.layers.0.self_attn.k_proj.weight"));
     assert!(!orchestrator.is_sensitive_layer("model.layers.0.self_attn.v_proj.weight"));
     assert!(!orchestrator.is_sensitive_layer("model.layers.0.self_attn.o_proj.weight"));
-    
+
     // LLaMA-style MLP (should NOT be sensitive)
     assert!(!orchestrator.is_sensitive_layer("model.layers.0.mlp.gate_proj.weight"));
     assert!(!orchestrator.is_sensitive_layer("model.layers.0.mlp.up_proj.weight"));
@@ -55,18 +55,18 @@ fn test_sensitive_layer_detection_gpt_architecture() {
     // GPT-style embeddings
     assert!(orchestrator.is_sensitive_layer("transformer.wte.weight")); // token embedding
     assert!(orchestrator.is_sensitive_layer("transformer.wpe.weight")); // position embedding
-    
+
     // GPT-style final norm
     assert!(orchestrator.is_sensitive_layer("transformer.ln_f.weight"));
-    
+
     // GPT-style layer norms
     assert!(orchestrator.is_sensitive_layer("transformer.h.0.ln_1.weight"));
     assert!(orchestrator.is_sensitive_layer("transformer.h.0.ln_2.weight"));
-    
+
     // GPT-style attention (should NOT be sensitive)
     assert!(!orchestrator.is_sensitive_layer("transformer.h.0.attn.c_attn.weight"));
     assert!(!orchestrator.is_sensitive_layer("transformer.h.0.attn.c_proj.weight"));
-    
+
     // GPT-style MLP (should NOT be sensitive)
     assert!(!orchestrator.is_sensitive_layer("transformer.h.0.mlp.c_fc.weight"));
     assert!(!orchestrator.is_sensitive_layer("transformer.h.0.mlp.c_proj.weight"));
@@ -86,22 +86,24 @@ fn test_sensitive_layer_detection_bert_architecture() {
     assert!(orchestrator.is_sensitive_layer("bert.embeddings.word_embeddings.weight"));
     assert!(orchestrator.is_sensitive_layer("bert.embeddings.position_embeddings.weight"));
     assert!(orchestrator.is_sensitive_layer("bert.embeddings.token_type_embeddings.weight"));
-    
+
     // BERT-style embedding norm
     assert!(orchestrator.is_sensitive_layer("bert.embeddings.LayerNorm.weight"));
-    
+
     // BERT-style layer norms
-    assert!(orchestrator.is_sensitive_layer("bert.encoder.layer.0.attention.output.LayerNorm.weight"));
+    assert!(
+        orchestrator.is_sensitive_layer("bert.encoder.layer.0.attention.output.LayerNorm.weight")
+    );
     assert!(orchestrator.is_sensitive_layer("bert.encoder.layer.0.output.LayerNorm.weight"));
-    
+
     // BERT-style pooler (output)
     assert!(orchestrator.is_sensitive_layer("bert.pooler.dense.weight"));
-    
+
     // BERT-style attention (should NOT be sensitive)
     assert!(!orchestrator.is_sensitive_layer("bert.encoder.layer.0.attention.self.query.weight"));
     assert!(!orchestrator.is_sensitive_layer("bert.encoder.layer.0.attention.self.key.weight"));
     assert!(!orchestrator.is_sensitive_layer("bert.encoder.layer.0.attention.self.value.weight"));
-    
+
     // BERT-style intermediate (should NOT be sensitive)
     assert!(!orchestrator.is_sensitive_layer("bert.encoder.layer.0.intermediate.dense.weight"));
 }
@@ -120,21 +122,21 @@ fn test_sensitive_layer_detection_dit_architecture() {
     assert!(orchestrator.is_sensitive_layer("x_embedder.proj.weight"));
     assert!(orchestrator.is_sensitive_layer("t_embedder.mlp.0.weight")); // time embedding
     assert!(orchestrator.is_sensitive_layer("y_embedder.embedding_table.weight")); // class embedding
-    
+
     // DiT-style norms
     assert!(orchestrator.is_sensitive_layer("blocks.0.norm1.weight"));
     assert!(orchestrator.is_sensitive_layer("blocks.0.norm2.weight"));
     assert!(orchestrator.is_sensitive_layer("final_layer.norm_final.weight"));
-    
+
     // DiT-style output (note: "linear" alone doesn't match, needs to be in output context)
     // The pattern matches ".head." or "output", so we test with those
     assert!(orchestrator.is_sensitive_layer("final_layer.output.weight"));
     assert!(orchestrator.is_sensitive_layer("output_projection.weight"));
-    
+
     // DiT-style attention (should NOT be sensitive)
     assert!(!orchestrator.is_sensitive_layer("blocks.0.attn.qkv.weight"));
     assert!(!orchestrator.is_sensitive_layer("blocks.0.attn.proj.weight"));
-    
+
     // DiT-style MLP (should NOT be sensitive)
     assert!(!orchestrator.is_sensitive_layer("blocks.0.mlp.fc1.weight"));
     assert!(!orchestrator.is_sensitive_layer("blocks.0.mlp.fc2.weight"));
@@ -173,22 +175,40 @@ fn test_per_layer_bit_width_assignment_by_type() {
 
     // Embeddings should be FP16
     assert_eq!(config.get_layer_bit_width("model.embed_tokens.weight"), 16);
-    assert_eq!(config.get_layer_bit_width("model.position_embeddings.weight"), 16);
-    
+    assert_eq!(
+        config.get_layer_bit_width("model.position_embeddings.weight"),
+        16
+    );
+
     // Norms should be FP16
     assert_eq!(config.get_layer_bit_width("model.norm.weight"), 16);
-    assert_eq!(config.get_layer_bit_width("model.layers.0.input_layernorm.weight"), 16);
-    
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.0.input_layernorm.weight"),
+        16
+    );
+
     // Output head should be FP16
     assert_eq!(config.get_layer_bit_width("lm_head.weight"), 16);
-    
+
     // Attention should be INT4
-    assert_eq!(config.get_layer_bit_width("model.layers.0.self_attn.q_proj.weight"), 4);
-    assert_eq!(config.get_layer_bit_width("model.layers.0.self_attn.k_proj.weight"), 4);
-    
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.0.self_attn.q_proj.weight"),
+        4
+    );
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.0.self_attn.k_proj.weight"),
+        4
+    );
+
     // MLP in early layers should be INT4
-    assert_eq!(config.get_layer_bit_width("model.layers.0.mlp.gate_proj.weight"), 4);
-    assert_eq!(config.get_layer_bit_width("model.layers.0.mlp.up_proj.weight"), 4);
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.0.mlp.gate_proj.weight"),
+        4
+    );
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.0.mlp.up_proj.weight"),
+        4
+    );
 }
 
 /// Test per-layer bit-width assignment based on layer depth
@@ -279,20 +299,33 @@ fn test_accuracy_improvement_with_mixed_precision() {
     }
 
     // Mixed-precision: sensitive layers use FP16, others use INT4/INT2
-    assert_eq!(mixed_config.get_layer_bit_width("model.embed_tokens.weight"), 16);
+    assert_eq!(
+        mixed_config.get_layer_bit_width("model.embed_tokens.weight"),
+        16
+    );
     assert_eq!(mixed_config.get_layer_bit_width("model.norm.weight"), 16);
     assert_eq!(mixed_config.get_layer_bit_width("lm_head.weight"), 16);
-    assert_eq!(mixed_config.get_layer_bit_width("model.layers.0.self_attn.q_proj.weight"), 4);
-    assert_eq!(mixed_config.get_layer_bit_width("model.layers.0.mlp.gate_proj.weight"), 4);
+    assert_eq!(
+        mixed_config.get_layer_bit_width("model.layers.0.self_attn.q_proj.weight"),
+        4
+    );
+    assert_eq!(
+        mixed_config.get_layer_bit_width("model.layers.0.mlp.gate_proj.weight"),
+        4
+    );
 
     // Mixed-precision should use more bits on average for better accuracy
-    let uniform_avg_bits: f32 = layer_names.iter()
+    let uniform_avg_bits: f32 = layer_names
+        .iter()
         .map(|name| uniform_config.get_layer_bit_width(name) as f32)
-        .sum::<f32>() / layer_names.len() as f32;
+        .sum::<f32>()
+        / layer_names.len() as f32;
 
-    let mixed_avg_bits: f32 = layer_names.iter()
+    let mixed_avg_bits: f32 = layer_names
+        .iter()
         .map(|name| mixed_config.get_layer_bit_width(name) as f32)
-        .sum::<f32>() / layer_names.len() as f32;
+        .sum::<f32>()
+        / layer_names.len() as f32;
 
     assert!(
         mixed_avg_bits > uniform_avg_bits,
@@ -341,44 +374,60 @@ fn test_mixed_precision_with_target_size_constraint() {
         estimated_size_mb,
         target
     );
-    
+
     // Should have reduced some layers to INT2
-    let int2_count = layer_names.iter()
+    let int2_count = layer_names
+        .iter()
         .filter(|name| config.get_layer_bit_width(name) == 2)
         .count();
-    assert!(int2_count > 0, "Should have some INT2 layers to meet target size");
+    assert!(
+        int2_count > 0,
+        "Should have some INT2 layers to meet target size"
+    );
 }
 
 /// Test mixed-precision with different model architectures (integration test)
 #[test]
 fn test_mixed_precision_different_architectures() {
     let architectures = vec![
-        ("LLaMA", vec![
-            "model.embed_tokens.weight",
-            "model.norm.weight",
-            "lm_head.weight",
-            "model.layers.0.self_attn.q_proj.weight",
-            "model.layers.0.mlp.gate_proj.weight",
-        ]),
-        ("GPT", vec![
-            "transformer.wte.weight",
-            "transformer.ln_f.weight",
-            "transformer.h.0.attn.c_attn.weight",
-            "transformer.h.0.mlp.c_fc.weight",
-        ]),
-        ("BERT", vec![
-            "bert.embeddings.word_embeddings.weight",
-            "bert.embeddings.LayerNorm.weight",
-            "bert.encoder.layer.0.attention.self.query.weight",
-            "bert.encoder.layer.0.intermediate.dense.weight",
-        ]),
-        ("DiT", vec![
-            "x_embedder.proj.weight",
-            "blocks.0.norm1.weight",
-            "final_layer.linear.weight",
-            "blocks.0.attn.qkv.weight",
-            "blocks.0.mlp.fc1.weight",
-        ]),
+        (
+            "LLaMA",
+            vec![
+                "model.embed_tokens.weight",
+                "model.norm.weight",
+                "lm_head.weight",
+                "model.layers.0.self_attn.q_proj.weight",
+                "model.layers.0.mlp.gate_proj.weight",
+            ],
+        ),
+        (
+            "GPT",
+            vec![
+                "transformer.wte.weight",
+                "transformer.ln_f.weight",
+                "transformer.h.0.attn.c_attn.weight",
+                "transformer.h.0.mlp.c_fc.weight",
+            ],
+        ),
+        (
+            "BERT",
+            vec![
+                "bert.embeddings.word_embeddings.weight",
+                "bert.embeddings.LayerNorm.weight",
+                "bert.encoder.layer.0.attention.self.query.weight",
+                "bert.encoder.layer.0.intermediate.dense.weight",
+            ],
+        ),
+        (
+            "DiT",
+            vec![
+                "x_embedder.proj.weight",
+                "blocks.0.norm1.weight",
+                "final_layer.linear.weight",
+                "blocks.0.attn.qkv.weight",
+                "blocks.0.mlp.fc1.weight",
+            ],
+        ),
     ];
 
     for (arch_name, layer_names) in architectures {
@@ -410,7 +459,10 @@ fn test_mixed_precision_different_architectures() {
         }
 
         // Should have at least 2 different bit-widths
-        let num_bit_widths = [has_fp16, has_int4, has_int2].iter().filter(|&&x| x).count();
+        let num_bit_widths = [has_fp16, has_int4, has_int2]
+            .iter()
+            .filter(|&&x| x)
+            .count();
         assert!(
             num_bit_widths >= 2,
             "{} architecture should use mixed-precision (found {} bit-widths)",
@@ -433,12 +485,21 @@ fn test_mixed_precision_manual_configuration() {
     config.set_layer_bit_width("model.embed_tokens.weight", 16);
 
     // Verify manual assignments work
-    assert_eq!(config.get_layer_bit_width("model.layers.0.self_attn.q_proj.weight"), 8);
-    assert_eq!(config.get_layer_bit_width("model.layers.0.mlp.gate_proj.weight"), 16);
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.0.self_attn.q_proj.weight"),
+        8
+    );
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.0.mlp.gate_proj.weight"),
+        16
+    );
     assert_eq!(config.get_layer_bit_width("model.embed_tokens.weight"), 16);
 
     // Unspecified layers should use default
-    assert_eq!(config.get_layer_bit_width("model.layers.1.self_attn.q_proj.weight"), 2);
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.1.self_attn.q_proj.weight"),
+        2
+    );
 }
 
 /// Test mixed-precision with very small models (edge case)
@@ -465,7 +526,10 @@ fn test_mixed_precision_small_model() {
     // Should still apply mixed-precision correctly
     assert_eq!(config.get_layer_bit_width("model.embed_tokens.weight"), 16);
     assert_eq!(config.get_layer_bit_width("lm_head.weight"), 16);
-    assert_eq!(config.get_layer_bit_width("model.layers.0.self_attn.q_proj.weight"), 4);
+    assert_eq!(
+        config.get_layer_bit_width("model.layers.0.self_attn.q_proj.weight"),
+        4
+    );
 }
 
 /// Test mixed-precision with very large models (edge case)
@@ -498,7 +562,7 @@ fn test_mixed_precision_large_model() {
     // Note: The actual layer indices depend on position in the full layer_names list
     // Since we have 3 special layers + 160 regular layers = 163 total
     // MLP layers start at index 3 (embed), 4 (norm), 5 (lm_head), then 6 (layer 0 attn), 7 (layer 0 mlp)
-    
+
     // Just verify that we have a mix of bit-widths
     let mut bit_width_counts = HashMap::new();
     for layer_name in &layer_names {
@@ -507,16 +571,28 @@ fn test_mixed_precision_large_model() {
     }
 
     // Should have FP16 (sensitive layers)
-    assert!(bit_width_counts.get(&16).unwrap_or(&0) > &0, "Should have FP16 layers");
-    
+    assert!(
+        bit_width_counts.get(&16).unwrap_or(&0) > &0,
+        "Should have FP16 layers"
+    );
+
     // Should have INT4 (attention + early/late layers)
-    assert!(bit_width_counts.get(&4).unwrap_or(&0) > &0, "Should have INT4 layers");
-    
+    assert!(
+        bit_width_counts.get(&4).unwrap_or(&0) > &0,
+        "Should have INT4 layers"
+    );
+
     // Should have INT2 (middle layers)
-    assert!(bit_width_counts.get(&2).unwrap_or(&0) > &0, "Should have INT2 layers");
-    
+    assert!(
+        bit_width_counts.get(&2).unwrap_or(&0) > &0,
+        "Should have INT2 layers"
+    );
+
     // Should have at least 3 different bit-widths
-    assert!(bit_width_counts.len() >= 3, "Should use mixed-precision with at least 3 bit-widths");
+    assert!(
+        bit_width_counts.len() >= 3,
+        "Should use mixed-precision with at least 3 bit-widths"
+    );
 }
 
 /// Test that sensitive layer detection works across all architectures
@@ -538,7 +614,6 @@ fn test_sensitive_layer_detection_accuracy_all_architectures() {
         ("model.layers.0.input_layernorm.weight", true),
         ("model.layers.0.self_attn.q_proj.weight", false),
         ("model.layers.0.mlp.gate_proj.weight", false),
-        
         // GPT
         ("transformer.wte.weight", true),
         ("transformer.wpe.weight", true),
@@ -546,14 +621,12 @@ fn test_sensitive_layer_detection_accuracy_all_architectures() {
         ("transformer.h.0.ln_1.weight", true),
         ("transformer.h.0.attn.c_attn.weight", false),
         ("transformer.h.0.mlp.c_fc.weight", false),
-        
         // BERT
         ("bert.embeddings.word_embeddings.weight", true),
         ("bert.embeddings.LayerNorm.weight", true),
         ("bert.pooler.dense.weight", true),
         ("bert.encoder.layer.0.attention.self.query.weight", false),
         ("bert.encoder.layer.0.intermediate.dense.weight", false),
-        
         // DiT
         ("x_embedder.proj.weight", true),
         ("t_embedder.mlp.0.weight", true),
@@ -648,7 +721,7 @@ fn test_per_layer_bit_width_assignment_correctness() {
     // Position 6 (layer 0 mlp): 6/9 = 0.67 (middle, should be INT2)
     // Position 7 (layer 5 mlp): 7/9 = 0.78 (late, should be INT4)
     // Position 8 (layer 10 mlp): 8/9 = 0.89 (late, should be INT4)
-    
+
     // Just verify they got assigned (actual values depend on position in full list)
     assert!(config.get_layer_bit_width("model.layers.0.mlp.gate_proj.weight") > 0);
     assert!(config.get_layer_bit_width("model.layers.5.mlp.gate_proj.weight") > 0);

@@ -27,7 +27,10 @@ fn test_granularity_allocator_creation() {
     let config = GranularityConfig::default();
     let allocator = GranularityAllocator::new(config.clone());
 
-    assert_eq!(allocator.config.sensitivity_method, config.sensitivity_method);
+    assert_eq!(
+        allocator.config.sensitivity_method,
+        config.sensitivity_method
+    );
     assert_eq!(allocator.config.num_samples, config.num_samples);
 }
 
@@ -38,7 +41,10 @@ fn test_recommend_group_size_high_sensitivity() {
 
     // High sensitivity (0.9) should recommend small group size
     let group_size = allocator.recommend_group_size(0.9);
-    assert_eq!(group_size, 32, "High sensitivity should recommend smallest group size");
+    assert_eq!(
+        group_size, 32,
+        "High sensitivity should recommend smallest group size"
+    );
 }
 
 #[test]
@@ -146,7 +152,11 @@ fn test_synthetic_gradients_generation() {
 
     let gradients = allocator.generate_synthetic_gradients(1000);
 
-    assert_eq!(gradients.len(), 1000, "Should generate correct number of gradients");
+    assert_eq!(
+        gradients.len(),
+        1000,
+        "Should generate correct number of gradients"
+    );
 
     // Check that gradients have reasonable distribution (mean close to 0)
     let mean: f32 = gradients.iter().sum::<f32>() / gradients.len() as f32;
@@ -157,11 +167,8 @@ fn test_synthetic_gradients_generation() {
     );
 
     // Check that gradients have reasonable variance
-    let variance: f32 = gradients
-        .iter()
-        .map(|g| (g - mean).powi(2))
-        .sum::<f32>()
-        / gradients.len() as f32;
+    let variance: f32 =
+        gradients.iter().map(|g| (g - mean).powi(2)).sum::<f32>() / gradients.len() as f32;
     let std_dev = variance.sqrt();
     assert!(
         std_dev > 0.005 && std_dev < 0.02,
@@ -177,7 +184,11 @@ fn test_synthetic_hessian_generation() {
 
     let hessian = allocator.generate_synthetic_hessian(1000);
 
-    assert_eq!(hessian.len(), 1000, "Should generate correct number of Hessian values");
+    assert_eq!(
+        hessian.len(),
+        1000,
+        "Should generate correct number of Hessian values"
+    );
 
     // All Hessian diagonal values should be positive
     assert!(
@@ -201,7 +212,11 @@ fn test_synthetic_weights_generation() {
 
     let weights = allocator.generate_synthetic_weights(1000);
 
-    assert_eq!(weights.len(), 1000, "Should generate correct number of weights");
+    assert_eq!(
+        weights.len(),
+        1000,
+        "Should generate correct number of weights"
+    );
 
     // Check that weights have reasonable distribution
     let mean: f32 = weights.iter().sum::<f32>() / weights.len() as f32;
@@ -212,11 +227,8 @@ fn test_synthetic_weights_generation() {
     );
 
     // Check variance
-    let variance: f32 = weights
-        .iter()
-        .map(|w| (w - mean).powi(2))
-        .sum::<f32>()
-        / weights.len() as f32;
+    let variance: f32 =
+        weights.iter().map(|w| (w - mean).powi(2)).sum::<f32>() / weights.len() as f32;
     let std_dev = variance.sqrt();
     assert!(
         std_dev > 0.05 && std_dev < 0.15,
@@ -235,7 +247,10 @@ fn test_layer_sensitivity_struct() {
         compression_ratio: 11.5,
     };
 
-    assert_eq!(sensitivity.layer_name, "transformer.layer.0.attention.q_proj");
+    assert_eq!(
+        sensitivity.layer_name,
+        "transformer.layer.0.attention.q_proj"
+    );
     assert_eq!(sensitivity.sensitivity_score, 0.85);
     assert_eq!(sensitivity.recommended_group_size, 64);
     assert_eq!(sensitivity.accuracy_impact, 0.92);
@@ -266,7 +281,10 @@ fn test_allocate_with_synthetic_layers() {
 
     let result = allocator.allocate(&model_path, &base_config, &layer_names);
 
-    assert!(result.is_ok(), "Allocation should succeed with synthetic layers");
+    assert!(
+        result.is_ok(),
+        "Allocation should succeed with synthetic layers"
+    );
 
     let allocation = result.unwrap();
     assert_eq!(
@@ -299,7 +317,10 @@ fn test_sensitivity_methods() {
 
     // Test gradient sensitivity
     let grad_sensitivity = allocator.compute_gradient_sensitivity(&layer);
-    assert!(grad_sensitivity.is_ok(), "Gradient sensitivity should compute successfully");
+    assert!(
+        grad_sensitivity.is_ok(),
+        "Gradient sensitivity should compute successfully"
+    );
     assert!(
         grad_sensitivity.unwrap() > 0.0,
         "Gradient sensitivity should be positive"
@@ -307,7 +328,10 @@ fn test_sensitivity_methods() {
 
     // Test Hessian sensitivity
     let hessian_sensitivity = allocator.compute_hessian_sensitivity(&layer);
-    assert!(hessian_sensitivity.is_ok(), "Hessian sensitivity should compute successfully");
+    assert!(
+        hessian_sensitivity.is_ok(),
+        "Hessian sensitivity should compute successfully"
+    );
     assert!(
         hessian_sensitivity.unwrap() > 0.0,
         "Hessian sensitivity should be positive"
@@ -315,7 +339,10 @@ fn test_sensitivity_methods() {
 
     // Test variance sensitivity
     let variance_sensitivity = allocator.compute_variance_sensitivity(&layer);
-    assert!(variance_sensitivity.is_ok(), "Variance sensitivity should compute successfully");
+    assert!(
+        variance_sensitivity.is_ok(),
+        "Variance sensitivity should compute successfully"
+    );
     assert!(
         variance_sensitivity.unwrap() > 0.0,
         "Variance sensitivity should be positive"
@@ -342,7 +369,7 @@ fn test_multi_objective_optimization() {
     assert!(result.is_ok());
 
     let allocation = result.unwrap();
-    
+
     // With high accuracy weight, allocation should meet minimum accuracy
     assert!(
         allocation.estimated_accuracy >= 0.70,
@@ -371,9 +398,12 @@ fn test_compression_focused_optimization() {
     assert!(result.is_ok());
 
     let allocation = result.unwrap();
-    
+
     // With low accuracy weight, should prefer larger group sizes for better compression
-    let group_size = allocation.layer_group_sizes.get("compressible_layer").unwrap();
+    let group_size = allocation
+        .layer_group_sizes
+        .get("compressible_layer")
+        .unwrap();
     assert!(
         *group_size >= 64,
         "Low accuracy weight should allow larger group sizes, got {}",

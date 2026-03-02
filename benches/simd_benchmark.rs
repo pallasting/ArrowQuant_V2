@@ -5,9 +5,7 @@
 //!
 //! Expected speedup: 2-4x with SIMD (AVX2 on x86_64, NEON on ARM64)
 
-use arrow_quant_v2::simd::{
-    cosine_similarity_simd, dequantize_simd, quantize_simd,
-};
+use arrow_quant_v2::simd::{cosine_similarity_simd, dequantize_simd, quantize_simd};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 // ============================================================================
@@ -36,9 +34,7 @@ fn bench_quantize_simd_vs_scalar(c: &mut Criterion) {
             b.iter(|| {
                 let result: Vec<u8> = data
                     .iter()
-                    .map(|&value| {
-                        ((value / scale) + zero_point).round().clamp(0.0, 255.0) as u8
-                    })
+                    .map(|&value| ((value / scale) + zero_point).round().clamp(0.0, 255.0) as u8)
                     .collect();
                 black_box(result);
             });
@@ -64,8 +60,7 @@ fn bench_dequantize_simd_vs_scalar(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("simd", size), size, |b, _| {
             b.iter(|| {
-                let _ =
-                    dequantize_simd(black_box(&data), black_box(scale), black_box(zero_point));
+                let _ = dequantize_simd(black_box(&data), black_box(scale), black_box(zero_point));
             });
         });
 
@@ -140,8 +135,11 @@ fn bench_roundtrip_simd_vs_scalar(c: &mut Criterion) {
             b.iter(|| {
                 let quantized =
                     quantize_simd(black_box(&data), black_box(scale), black_box(zero_point));
-                let dequantized =
-                    dequantize_simd(black_box(&quantized), black_box(scale), black_box(zero_point));
+                let dequantized = dequantize_simd(
+                    black_box(&quantized),
+                    black_box(scale),
+                    black_box(zero_point),
+                );
                 black_box(dequantized);
             });
         });
@@ -151,9 +149,7 @@ fn bench_roundtrip_simd_vs_scalar(c: &mut Criterion) {
             b.iter(|| {
                 let quantized: Vec<u8> = data
                     .iter()
-                    .map(|&value| {
-                        ((value / scale) + zero_point).round().clamp(0.0, 255.0) as u8
-                    })
+                    .map(|&value| ((value / scale) + zero_point).round().clamp(0.0, 255.0) as u8)
                     .collect();
                 let dequantized: Vec<f32> = quantized
                     .iter()
@@ -202,9 +198,7 @@ fn bench_layer_quantization_realistic(c: &mut Criterion) {
             b.iter(|| {
                 let result: Vec<u8> = data
                     .iter()
-                    .map(|&value| {
-                        ((value / scale) + zero_point).round().clamp(0.0, 255.0) as u8
-                    })
+                    .map(|&value| ((value / scale) + zero_point).round().clamp(0.0, 255.0) as u8)
                     .collect();
                 black_box(result);
             });

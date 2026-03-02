@@ -1,16 +1,16 @@
 /**
  * Unit tests for Task 2.4: Result Building Phase (Rust-only)
- * 
+ *
  * Tests the Arrow RecordBatch building logic without requiring Python runtime.
- * 
+ *
  * **Validates: Requirements 4.1, 4.2, 4.5**
  */
 
 #[cfg(test)]
 mod test_result_building {
     use arrow::array::{
-        Array, BinaryBuilder, Float32Builder, Int64Builder, ListBuilder, 
-        StringBuilder, UInt8Builder, RecordBatch
+        Array, BinaryBuilder, Float32Builder, Int64Builder, ListBuilder, RecordBatch,
+        StringBuilder, UInt8Builder,
     };
     use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;
@@ -62,21 +62,21 @@ mod test_result_building {
         // Append test data
         result_layer_names.append_value("test.layer");
         result_quantized_data.append_value(&[1u8, 2, 3, 4]);
-        
+
         // Append scales
         result_scales.values().append_value(0.5);
         result_scales.values().append_value(0.6);
         result_scales.append(true);
-        
+
         // Append zero_points
         result_zero_points.values().append_value(0.0);
         result_zero_points.values().append_value(0.1);
         result_zero_points.append(true);
-        
+
         // Append shape
         result_shapes.values().append_value(128);
         result_shapes.append(true);
-        
+
         result_bit_widths.append_value(4);
 
         // Finish builders
@@ -111,16 +111,16 @@ mod test_result_building {
         for i in 0..2 {
             result_layer_names.append_value(&format!("layer.{}", i));
             result_quantized_data.append_value(&[1u8, 2, 3, 4]);
-            
+
             result_scales.values().append_value(0.5);
             result_scales.append(true);
-            
+
             result_zero_points.values().append_value(0.0);
             result_zero_points.append(true);
-            
+
             result_shapes.values().append_value(128);
             result_shapes.append(true);
-            
+
             result_bit_widths.append_value(4);
         }
 
@@ -131,11 +131,15 @@ mod test_result_building {
         let zero_points_array = Arc::new(result_zero_points.finish());
         let shapes_array = Arc::new(result_shapes.finish());
         let bit_widths_array = Arc::new(result_bit_widths.finish());
-        
+
         // Create schema from actual array types
         let result_schema = Schema::new(vec![
             Field::new("layer_name", layer_names_array.data_type().clone(), false),
-            Field::new("quantized_data", quantized_data_array.data_type().clone(), false),
+            Field::new(
+                "quantized_data",
+                quantized_data_array.data_type().clone(),
+                false,
+            ),
             Field::new("scales", scales_array.data_type().clone(), false),
             Field::new("zero_points", zero_points_array.data_type().clone(), false),
             Field::new("shape", shapes_array.data_type().clone(), false),
@@ -181,11 +185,15 @@ mod test_result_building {
         let zero_points_array = Arc::new(result_zero_points.finish());
         let shapes_array = Arc::new(result_shapes.finish());
         let bit_widths_array = Arc::new(result_bit_widths.finish());
-        
+
         // Create schema from actual array types
         let result_schema = Schema::new(vec![
             Field::new("layer_name", layer_names_array.data_type().clone(), false),
-            Field::new("quantized_data", quantized_data_array.data_type().clone(), false),
+            Field::new(
+                "quantized_data",
+                quantized_data_array.data_type().clone(),
+                false,
+            ),
             Field::new("scales", scales_array.data_type().clone(), false),
             Field::new("zero_points", zero_points_array.data_type().clone(), false),
             Field::new("shape", shapes_array.data_type().clone(), false),
@@ -224,7 +232,7 @@ mod test_result_building {
         result_scales.values().append_value(0.6);
         result_scales.values().append_value(0.7);
         result_scales.append(true);
-        
+
         result_zero_points.values().append_value(0.0);
         result_zero_points.values().append_value(0.1);
         result_zero_points.values().append_value(0.2);
@@ -236,7 +244,7 @@ mod test_result_building {
         // Verify arrays
         assert_eq!(scales_array.len(), 1);
         assert_eq!(zero_points_array.len(), 1);
-        
+
         // Verify inner values count
         assert_eq!(scales_array.value(0).len(), 3);
         assert_eq!(zero_points_array.value(0).len(), 3);

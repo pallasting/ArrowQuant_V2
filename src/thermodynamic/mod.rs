@@ -74,28 +74,23 @@ pub mod markov_validator;
 pub mod boundary_smoothing;
 
 // Phase 3: Transition Optimization
-pub mod transition_matrix;
 pub mod loss_functions;
 pub mod optimizer;
+pub mod transition_matrix;
 
 // Information Flow
 pub mod entropy;
 
 // Re-exports for convenience
-pub use markov_validator::{
-    MarkovValidator,
-    ValidationResult,
-    MarkovViolation,
-    ViolationSeverity,
-};
+pub use markov_validator::{MarkovValidator, MarkovViolation, ValidationResult, ViolationSeverity};
 
 // Phase 2 re-exports
 pub use boundary_smoothing::{BoundarySmoother, InterpolationMethod};
 
 // Phase 3 re-exports
-pub use transition_matrix::{TransitionComputer, TransitionMatrix, BetaSchedule};
 pub use loss_functions::ThermodynamicLoss;
-pub use optimizer::{TransitionOptimizer, OptimizerConfig, OptimizationResult};
+pub use optimizer::{OptimizationResult, OptimizerConfig, TransitionOptimizer};
+pub use transition_matrix::{BetaSchedule, TransitionComputer, TransitionMatrix};
 
 // Entropy Analysis
 pub use entropy::EntropyAnalyzer;
@@ -138,4 +133,3 @@ impl ThermodynamicMetrics {
         self.violation_count == 0
     }
 }
-

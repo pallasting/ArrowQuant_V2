@@ -28,8 +28,8 @@ fn create_params_with_jump() -> Vec<TimeGroupParams> {
         },
         TimeGroupParams {
             time_range: (50, 75),
-            scale: 0.8,  // Large jump: 700% increase
-            zero_point: 250.0,  // Large jump
+            scale: 0.8,        // Large jump: 700% increase
+            zero_point: 250.0, // Large jump
             group_size: 128,
         },
         TimeGroupParams {
@@ -45,14 +45,14 @@ fn create_params_with_jump() -> Vec<TimeGroupParams> {
 fn compute_max_jump(params: &[TimeGroupParams]) -> (f32, f32) {
     let mut max_scale_jump = 0.0_f32;
     let mut max_zp_jump = 0.0_f32;
-    
+
     for i in 0..params.len() - 1 {
         let scale_jump = (params[i + 1].scale - params[i].scale).abs() / params[i].scale;
         let zp_jump = (params[i + 1].zero_point - params[i].zero_point).abs() / 255.0;
         max_scale_jump = max_scale_jump.max(scale_jump);
         max_zp_jump = max_zp_jump.max(zp_jump);
     }
-    
+
     (max_scale_jump, max_zp_jump)
 }
 
@@ -64,11 +64,11 @@ fn compute_max_jump(params: &[TimeGroupParams]) -> (f32, f32) {
 fn test_linear_interpolation_basic() {
     let smoother = BoundarySmoother::new(2, InterpolationMethod::Linear);
     let params = create_params_with_jump();
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
-    
+
     assert_eq!(smoothed.len(), params.len());
-    
+
     // Verify all values are in valid range
     for p in &smoothed {
         assert!(p.scale >= 0.1 && p.scale <= 0.8);
@@ -80,15 +80,15 @@ fn test_linear_interpolation_basic() {
 fn test_linear_reduces_jumps_by_50_percent() {
     let smoother = BoundarySmoother::new(3, InterpolationMethod::Linear);
     let params = create_params_with_jump();
-    
+
     let (max_scale_before, max_zp_before) = compute_max_jump(&params);
     let smoothed = smoother.smooth_boundaries(&params);
     let (max_scale_after, max_zp_after) = compute_max_jump(&smoothed);
-    
+
     // REQ-1.2.3: Smoothing SHALL reduce parameter jumps by at least 50%
     let scale_reduction = (max_scale_before - max_scale_after) / max_scale_before;
     let zp_reduction = (max_zp_before - max_zp_after) / max_zp_before;
-    
+
     assert!(
         scale_reduction >= 0.50,
         "Scale jump reduction {:.1}% is less than 50%",
@@ -119,14 +119,14 @@ fn test_linear_interpolation_formula_verification() {
             group_size: 128,
         },
     ];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
-    
+
     // With window_size=1, total_window=2
     // α values: 1/3 and 2/3
     let alpha_left = 1.0 / 3.0;
     let expected_scale_left = 0.0 * (1.0 - alpha_left) + 1.0 * alpha_left;
-    
+
     assert!((smoothed[0].scale - expected_scale_left).abs() < 1e-6);
 }
 
@@ -138,11 +138,11 @@ fn test_linear_interpolation_formula_verification() {
 fn test_cubic_interpolation_basic() {
     let smoother = BoundarySmoother::new(2, InterpolationMethod::Cubic);
     let params = create_params_with_jump();
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
-    
+
     assert_eq!(smoothed.len(), params.len());
-    
+
     // Verify all values are in valid range
     for p in &smoothed {
         assert!(p.scale >= 0.1 && p.scale <= 0.8);
@@ -154,15 +154,15 @@ fn test_cubic_interpolation_basic() {
 fn test_cubic_reduces_jumps_by_50_percent() {
     let smoother = BoundarySmoother::new(3, InterpolationMethod::Cubic);
     let params = create_params_with_jump();
-    
+
     let (max_scale_before, max_zp_before) = compute_max_jump(&params);
     let smoothed = smoother.smooth_boundaries(&params);
     let (max_scale_after, max_zp_after) = compute_max_jump(&smoothed);
-    
+
     // REQ-1.2.3: Smoothing SHALL reduce parameter jumps by at least 50%
     let scale_reduction = (max_scale_before - max_scale_after) / max_scale_before;
     let zp_reduction = (max_zp_before - max_zp_after) / max_zp_before;
-    
+
     assert!(
         scale_reduction >= 0.50,
         "Cubic: Scale jump reduction {:.1}% is less than 50%",
@@ -193,15 +193,15 @@ fn test_cubic_hermite_formula_verification() {
             group_size: 128,
         },
     ];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
-    
+
     // Verify using cubic Hermite basis functions
     let alpha: f32 = 1.0 / 3.0;
     let h00 = 2.0 * alpha.powi(3) - 3.0 * alpha.powi(2) + 1.0;
     let h01 = -2.0 * alpha.powi(3) + 3.0 * alpha.powi(2);
     let expected_scale = h00 * 0.0 + h01 * 1.0;
-    
+
     assert!((smoothed[0].scale - expected_scale).abs() < 1e-6);
 }
 
@@ -234,17 +234,17 @@ fn test_cubic_smoother_than_linear() {
             group_size: 128,
         },
     ];
-    
+
     let linear_smoother = BoundarySmoother::new(2, InterpolationMethod::Linear);
     let cubic_smoother = BoundarySmoother::new(2, InterpolationMethod::Cubic);
-    
+
     let linear_smoothed = linear_smoother.smooth_boundaries(&params);
     let cubic_smoothed = cubic_smoother.smooth_boundaries(&params);
-    
+
     // Both should produce valid results
     assert_eq!(linear_smoothed.len(), params.len());
     assert_eq!(cubic_smoothed.len(), params.len());
-    
+
     // Cubic should have continuous second derivatives (C² continuity)
     // This is a qualitative property verified by the implementation
 }
@@ -257,11 +257,11 @@ fn test_cubic_smoother_than_linear() {
 fn test_sigmoid_interpolation_basic() {
     let smoother = BoundarySmoother::new(2, InterpolationMethod::Sigmoid);
     let params = create_params_with_jump();
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
-    
+
     assert_eq!(smoothed.len(), params.len());
-    
+
     // Verify all values are in valid range
     for p in &smoothed {
         assert!(p.scale >= 0.1 && p.scale <= 0.8);
@@ -273,15 +273,15 @@ fn test_sigmoid_interpolation_basic() {
 fn test_sigmoid_reduces_jumps_by_50_percent() {
     let smoother = BoundarySmoother::new(3, InterpolationMethod::Sigmoid);
     let params = create_params_with_jump();
-    
+
     let (max_scale_before, max_zp_before) = compute_max_jump(&params);
     let smoothed = smoother.smooth_boundaries(&params);
     let (max_scale_after, max_zp_after) = compute_max_jump(&smoothed);
-    
+
     // REQ-1.2.3: Smoothing SHALL reduce parameter jumps by at least 50%
     let scale_reduction = (max_scale_before - max_scale_after) / max_scale_before;
     let zp_reduction = (max_zp_before - max_zp_after) / max_zp_before;
-    
+
     assert!(
         scale_reduction >= 0.50,
         "Sigmoid: Scale jump reduction {:.1}% is less than 50%",
@@ -312,15 +312,15 @@ fn test_sigmoid_formula_verification() {
             group_size: 128,
         },
     ];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
-    
+
     // Verify using sigmoid formula
     let k = 10.0_f32;
     let alpha = 1.0 / 3.0;
     let alpha_sigmoid = 1.0 / (1.0 + (-k * (alpha - 0.5)).exp());
     let expected_scale = 0.0 * (1.0 - alpha_sigmoid) + 1.0 * alpha_sigmoid;
-    
+
     assert!((smoothed[0].scale - expected_scale).abs() < 1e-6);
 }
 
@@ -342,9 +342,9 @@ fn test_sigmoid_gradual_transition() {
             group_size: 128,
         },
     ];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
-    
+
     // Values should be between endpoints
     assert!(smoothed[0].scale >= 0.2 && smoothed[0].scale <= 0.6);
     assert!(smoothed[1].scale >= 0.2 && smoothed[1].scale <= 0.6);
@@ -358,10 +358,10 @@ fn test_sigmoid_gradual_transition() {
 fn test_window_size_1() {
     let smoother = BoundarySmoother::new(1, InterpolationMethod::Linear);
     let params = create_params_with_jump();
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
     assert_eq!(smoothed.len(), params.len());
-    
+
     let (max_scale_after, _) = compute_max_jump(&smoothed);
     assert!(max_scale_after < 7.0); // Should reduce the 700% jump
 }
@@ -370,10 +370,10 @@ fn test_window_size_1() {
 fn test_window_size_5() {
     let smoother = BoundarySmoother::new(5, InterpolationMethod::Linear);
     let params = create_params_with_jump();
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
     assert_eq!(smoothed.len(), params.len());
-    
+
     let (max_scale_after, _) = compute_max_jump(&smoothed);
     assert!(max_scale_after < 7.0);
 }
@@ -381,19 +381,59 @@ fn test_window_size_5() {
 #[test]
 fn test_window_size_10() {
     let smoother = BoundarySmoother::new(10, InterpolationMethod::Linear);
-    
+
     // Create more groups to test larger window
     let params = vec![
-        TimeGroupParams { time_range: (0, 10), scale: 0.1, zero_point: 100.0, group_size: 128 },
-        TimeGroupParams { time_range: (10, 20), scale: 0.1, zero_point: 100.0, group_size: 128 },
-        TimeGroupParams { time_range: (20, 30), scale: 0.1, zero_point: 100.0, group_size: 128 },
-        TimeGroupParams { time_range: (30, 40), scale: 0.1, zero_point: 100.0, group_size: 128 },
-        TimeGroupParams { time_range: (40, 50), scale: 0.1, zero_point: 100.0, group_size: 128 },
-        TimeGroupParams { time_range: (50, 60), scale: 0.8, zero_point: 250.0, group_size: 128 },
-        TimeGroupParams { time_range: (60, 70), scale: 0.8, zero_point: 250.0, group_size: 128 },
-        TimeGroupParams { time_range: (70, 80), scale: 0.8, zero_point: 250.0, group_size: 128 },
+        TimeGroupParams {
+            time_range: (0, 10),
+            scale: 0.1,
+            zero_point: 100.0,
+            group_size: 128,
+        },
+        TimeGroupParams {
+            time_range: (10, 20),
+            scale: 0.1,
+            zero_point: 100.0,
+            group_size: 128,
+        },
+        TimeGroupParams {
+            time_range: (20, 30),
+            scale: 0.1,
+            zero_point: 100.0,
+            group_size: 128,
+        },
+        TimeGroupParams {
+            time_range: (30, 40),
+            scale: 0.1,
+            zero_point: 100.0,
+            group_size: 128,
+        },
+        TimeGroupParams {
+            time_range: (40, 50),
+            scale: 0.1,
+            zero_point: 100.0,
+            group_size: 128,
+        },
+        TimeGroupParams {
+            time_range: (50, 60),
+            scale: 0.8,
+            zero_point: 250.0,
+            group_size: 128,
+        },
+        TimeGroupParams {
+            time_range: (60, 70),
+            scale: 0.8,
+            zero_point: 250.0,
+            group_size: 128,
+        },
+        TimeGroupParams {
+            time_range: (70, 80),
+            scale: 0.8,
+            zero_point: 250.0,
+            group_size: 128,
+        },
     ];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
     assert_eq!(smoothed.len(), params.len());
 }
@@ -401,7 +441,7 @@ fn test_window_size_10() {
 #[test]
 fn test_window_size_20_maximum() {
     let smoother = BoundarySmoother::new(20, InterpolationMethod::Linear);
-    
+
     // Create many groups
     let mut params = Vec::new();
     for i in 0..25 {
@@ -414,7 +454,7 @@ fn test_window_size_20_maximum() {
             group_size: 128,
         });
     }
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
     assert_eq!(smoothed.len(), params.len());
 }
@@ -422,16 +462,16 @@ fn test_window_size_20_maximum() {
 #[test]
 fn test_larger_window_reduces_jumps_more() {
     let params = create_params_with_jump();
-    
+
     let smoother_small = BoundarySmoother::new(1, InterpolationMethod::Linear);
     let smoother_large = BoundarySmoother::new(3, InterpolationMethod::Linear);
-    
+
     let smoothed_small = smoother_small.smooth_boundaries(&params);
     let smoothed_large = smoother_large.smooth_boundaries(&params);
-    
+
     let (max_scale_small, _) = compute_max_jump(&smoothed_small);
     let (max_scale_large, _) = compute_max_jump(&smoothed_large);
-    
+
     // Larger window should generally reduce jumps more
     // (though not always guaranteed due to boundary effects)
     assert!(max_scale_large <= max_scale_small * 1.5);
@@ -445,7 +485,7 @@ fn test_larger_window_reduces_jumps_more() {
 fn test_empty_params() {
     let smoother = BoundarySmoother::new(5, InterpolationMethod::Linear);
     let params: Vec<TimeGroupParams> = vec![];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
     assert_eq!(smoothed.len(), 0);
 }
@@ -459,7 +499,7 @@ fn test_single_group() {
         zero_point: 128.0,
         group_size: 128,
     }];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
     assert_eq!(smoothed.len(), 1);
     assert_eq!(smoothed[0].scale, 0.5);
@@ -483,10 +523,10 @@ fn test_two_groups_boundary() {
             group_size: 128,
         },
     ];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
     assert_eq!(smoothed.len(), 2);
-    
+
     // Both groups should be smoothed
     assert!(smoothed[0].scale > 0.1 && smoothed[0].scale < 0.9);
     assert!(smoothed[1].scale > 0.1 && smoothed[1].scale < 0.9);
@@ -515,9 +555,9 @@ fn test_identical_params_no_change() {
             group_size: 128,
         },
     ];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
-    
+
     // When params are identical, smoothing should not change them
     for (original, smoothed) in params.iter().zip(smoothed.iter()) {
         assert!((original.scale - smoothed.scale).abs() < 1e-6);
@@ -543,10 +583,10 @@ fn test_window_larger_than_groups() {
             group_size: 128,
         },
     ];
-    
+
     let smoothed = smoother.smooth_boundaries(&params);
     assert_eq!(smoothed.len(), 2);
-    
+
     // Should still work, window is clamped to available groups
     assert!(smoothed[0].scale > 0.1 && smoothed[0].scale < 0.9);
 }
@@ -559,7 +599,7 @@ fn test_window_larger_than_groups() {
 fn test_all_methods_reduce_jumps() {
     let params = create_params_with_jump();
     let (max_scale_before, _) = compute_max_jump(&params);
-    
+
     for method in &[
         InterpolationMethod::Linear,
         InterpolationMethod::Cubic,
@@ -568,7 +608,7 @@ fn test_all_methods_reduce_jumps() {
         let smoother = BoundarySmoother::new(3, *method);
         let smoothed = smoother.smooth_boundaries(&params);
         let (max_scale_after, _) = compute_max_jump(&smoothed);
-        
+
         assert!(
             max_scale_after < max_scale_before,
             "{:?} failed to reduce jumps",
@@ -581,7 +621,7 @@ fn test_all_methods_reduce_jumps() {
 fn test_all_methods_meet_50_percent_reduction() {
     let params = create_params_with_jump();
     let (max_scale_before, max_zp_before) = compute_max_jump(&params);
-    
+
     for method in &[
         InterpolationMethod::Linear,
         InterpolationMethod::Cubic,
@@ -590,10 +630,10 @@ fn test_all_methods_meet_50_percent_reduction() {
         let smoother = BoundarySmoother::new(3, *method);
         let smoothed = smoother.smooth_boundaries(&params);
         let (max_scale_after, max_zp_after) = compute_max_jump(&smoothed);
-        
+
         let scale_reduction = (max_scale_before - max_scale_after) / max_scale_before;
         let zp_reduction = (max_zp_before - max_zp_after) / max_zp_before;
-        
+
         assert!(
             scale_reduction >= 0.50,
             "{:?}: Scale reduction {:.1}% < 50%",

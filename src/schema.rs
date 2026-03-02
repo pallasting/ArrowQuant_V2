@@ -95,7 +95,7 @@ impl ParquetV2Extended {
         data: Vec<u8>,
     ) -> Self {
         let num_params: usize = shape.iter().product();
-        
+
         Self {
             layer_name,
             shape,
@@ -151,9 +151,14 @@ impl ParquetV2Extended {
     pub fn with_time_aware(mut self, modality: Modality, quantized_layer: QuantizedLayer) -> Self {
         self.is_diffusion_model = true;
         self.modality = Some(modality.to_string());
-        
+
         match quantized_layer {
-            QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+            QuantizedLayer::Legacy {
+                data,
+                scales,
+                zero_points,
+                time_group_params,
+            } => {
                 self.data = data;
                 self.scales = scales;
                 self.zero_points = zero_points;
@@ -169,7 +174,7 @@ impl ParquetV2Extended {
                 panic!("Arrow variant not yet supported in with_time_aware. Use Legacy variant or implement Arrow extraction.");
             }
         }
-        
+
         self
     }
 
@@ -183,9 +188,14 @@ impl ParquetV2Extended {
         self.is_diffusion_model = true;
         self.modality = Some(modality.to_string());
         self.quant_type = format!("int{}", bit_width);
-        
+
         match quantized_layer {
-            QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+            QuantizedLayer::Legacy {
+                data,
+                scales,
+                zero_points,
+                time_group_params,
+            } => {
                 self.data = data;
                 self.scales = scales;
                 self.zero_points = zero_points;
@@ -201,7 +211,7 @@ impl ParquetV2Extended {
                 panic!("Arrow variant not yet supported in with_time_aware_and_bit_width. Use Legacy variant or implement Arrow extraction.");
             }
         }
-        
+
         self
     }
 

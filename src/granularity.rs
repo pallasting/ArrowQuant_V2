@@ -101,11 +101,8 @@ impl GranularityAllocator {
         // Step 1: Analyze sensitivity for each layer
         let mut layer_sensitivities = Vec::new();
         for layer_name in layer_names {
-            let sensitivity = self.analyze_layer_sensitivity(
-                model_path,
-                layer_name,
-                base_config,
-            )?;
+            let sensitivity =
+                self.analyze_layer_sensitivity(model_path, layer_name, base_config)?;
             layer_sensitivities.push(sensitivity);
         }
 
@@ -117,17 +114,11 @@ impl GranularityAllocator {
         });
 
         // Step 3: Allocate group sizes based on sensitivity and constraints
-        let allocation = self.allocate_group_sizes(
-            &layer_sensitivities,
-            base_config,
-        )?;
+        let allocation = self.allocate_group_sizes(&layer_sensitivities, base_config)?;
 
         let analysis_time_s = start_time.elapsed().as_secs_f32();
 
-        log::info!(
-            "Granularity allocation complete in {:.2}s",
-            analysis_time_s
-        );
+        log::info!("Granularity allocation complete in {:.2}s", analysis_time_s);
         log::info!(
             "Estimated accuracy: {:.4}, compression ratio: {:.2}x",
             allocation.estimated_accuracy,
@@ -180,8 +171,10 @@ impl GranularityAllocator {
         let recommended_group_size = self.recommend_group_size(sensitivity_score);
 
         // Estimate accuracy impact and compression ratio
-        let accuracy_impact = self.estimate_accuracy_impact(sensitivity_score, recommended_group_size);
-        let compression_ratio = self.estimate_compression_ratio(recommended_group_size, base_config.bit_width);
+        let accuracy_impact =
+            self.estimate_accuracy_impact(sensitivity_score, recommended_group_size);
+        let compression_ratio =
+            self.estimate_compression_ratio(recommended_group_size, base_config.bit_width);
 
         Ok(LayerSensitivity {
             layer_name: layer_name.to_string(),
@@ -199,14 +192,14 @@ impl GranularityAllocator {
     ) -> Result<f32, QuantError> {
         // Extract weight statistics from layer data
         let num_params = layer_data.num_params;
-        
+
         // Generate synthetic gradients for sensitivity analysis
         // In production, these would be computed from calibration data
         let gradients = self.generate_synthetic_gradients(num_params);
 
         // Compute sensitivity as L2 norm of gradients
         let sensitivity = gradients.iter().map(|g| g * g).sum::<f32>().sqrt();
-        
+
         // Normalize by number of parameters
         let normalized_sensitivity = sensitivity / (num_params as f32).sqrt();
 
@@ -219,14 +212,14 @@ impl GranularityAllocator {
         layer_data: &ParquetV2Extended,
     ) -> Result<f32, QuantError> {
         let num_params = layer_data.num_params;
-        
+
         // Generate synthetic Hessian diagonal for sensitivity analysis
         // In production, this would be computed from calibration data
         let hessian_diag = self.generate_synthetic_hessian(num_params);
 
         // Compute sensitivity as trace of Hessian (sum of diagonal)
         let sensitivity = hessian_diag.iter().sum::<f32>();
-        
+
         // Normalize by number of parameters
         let normalized_sensitivity = sensitivity / num_params as f32;
 
@@ -240,7 +233,7 @@ impl GranularityAllocator {
     ) -> Result<f32, QuantError> {
         // Use weight variance as sensitivity proxy
         // Higher variance = more sensitive to quantization
-        
+
         // In production, extract actual weights from layer_data
         // For now, use synthetic data based on layer metadata
         let num_params = layer_data.num_params;
@@ -250,11 +243,7 @@ impl GranularityAllocator {
         let mean = weights.iter().sum::<f32>() / num_params as f32;
 
         // Compute variance
-        let variance = weights
-            .iter()
-            .map(|w| (w - mean).powi(2))
-            .sum::<f32>()
-            / num_params as f32;
+        let variance = weights.iter().map(|w| (w - mean).powi(2)).sum::<f32>() / num_params as f32;
 
         // Use standard deviation as sensitivity score
         Ok(variance.sqrt())
@@ -264,17 +253,17 @@ impl GranularityAllocator {
     pub fn recommend_group_size(&self, sensitivity_score: f32) -> usize {
         // Higher sensitivity → smaller group size (finer quantization)
         // Lower sensitivity → larger group size (coarser quantization)
-        
+
         let available_sizes = &self.config.available_group_sizes;
-        
+
         // Normalize sensitivity to [0, 1] range (assuming max sensitivity ~1.0)
         let normalized_sensitivity = sensitivity_score.min(1.0).max(0.0);
-        
+
         // Map sensitivity to group size index (inverse relationship)
         // High sensitivity (1.0) → smallest group size (index 0)
         // Low sensitivity (0.0) → largest group size (index n-1)
         let index = ((1.0 - normalized_sensitivity) * (available_sizes.len() - 1) as f32) as usize;
-        
+
         available_sizes[index.min(available_sizes.len() - 1)]
     }
 
@@ -282,13 +271,13 @@ impl GranularityAllocator {
     pub fn estimate_accuracy_impact(&self, sensitivity_score: f32, group_size: usize) -> f32 {
         // Accuracy impact increases with sensitivity and decreases with group size
         // This is a heuristic model based on empirical observations
-        
+
         let sensitivity_factor = sensitivity_score;
         let group_size_factor = 256.0 / group_size as f32; // Normalized to max group size
-        
+
         // Accuracy impact in range [0, 1]
         let impact = (sensitivity_factor * group_size_factor).min(1.0);
-        
+
         // Convert to accuracy (1.0 - impact)
         1.0 - impact * 0.3 // Max 30% accuracy loss
     }
@@ -298,15 +287,15 @@ impl GranularityAllocator {
         // Compression ratio = (original_bits / quantized_bits)
         // Original: FP32 (32 bits)
         // Quantized: bit_width bits + overhead for scales/zero_points
-        
+
         let original_bits = 32.0;
         let quantized_bits = bit_width as f32;
-        
+
         // Overhead: 2 floats (scale + zero_point) per group
         let overhead_per_param = (2.0 * 32.0) / group_size as f32;
-        
+
         let effective_bits = quantized_bits + overhead_per_param;
-        
+
         original_bits / effective_bits
     }
 
@@ -328,18 +317,15 @@ impl GranularityAllocator {
 
             // Try all available group sizes and pick the best
             for &group_size in &self.config.available_group_sizes {
-                let accuracy = self.estimate_accuracy_impact(
-                    sensitivity.sensitivity_score,
-                    group_size,
-                );
-                let compression = self.estimate_compression_ratio(
-                    group_size,
-                    base_config.bit_width,
-                );
+                let accuracy =
+                    self.estimate_accuracy_impact(sensitivity.sensitivity_score, group_size);
+                let compression =
+                    self.estimate_compression_ratio(group_size, base_config.bit_width);
 
                 // Multi-objective score: weighted sum of accuracy and compression
                 let accuracy_score = accuracy * self.config.accuracy_weight;
-                let compression_score = (compression / 20.0).min(1.0) * (1.0 - self.config.accuracy_weight);
+                let compression_score =
+                    (compression / 20.0).min(1.0) * (1.0 - self.config.accuracy_weight);
                 let score = accuracy_score + compression_score;
 
                 // Check if this meets minimum accuracy constraint
@@ -349,20 +335,13 @@ impl GranularityAllocator {
                 }
             }
 
-            layer_group_sizes.insert(
-                sensitivity.layer_name.clone(),
-                best_group_size,
-            );
+            layer_group_sizes.insert(sensitivity.layer_name.clone(), best_group_size);
 
             // Accumulate metrics
-            let final_accuracy = self.estimate_accuracy_impact(
-                sensitivity.sensitivity_score,
-                best_group_size,
-            );
-            let final_compression = self.estimate_compression_ratio(
-                best_group_size,
-                base_config.bit_width,
-            );
+            let final_accuracy =
+                self.estimate_accuracy_impact(sensitivity.sensitivity_score, best_group_size);
+            let final_compression =
+                self.estimate_compression_ratio(best_group_size, base_config.bit_width);
 
             total_accuracy += final_accuracy;
             total_compression += final_compression;
@@ -384,7 +363,10 @@ impl GranularityAllocator {
 
     // Helper methods for synthetic data generation (for testing)
 
-    pub fn create_synthetic_layer(&self, layer_name: &str) -> Result<ParquetV2Extended, QuantError> {
+    pub fn create_synthetic_layer(
+        &self,
+        layer_name: &str,
+    ) -> Result<ParquetV2Extended, QuantError> {
         // Create a minimal synthetic layer for testing
         Ok(ParquetV2Extended {
             layer_name: layer_name.to_string(),
@@ -410,7 +392,7 @@ impl GranularityAllocator {
         // Use normal distribution with mean=0, std=0.01
         use fastrand::Rng;
         let mut rng = Rng::new();
-        
+
         (0..num_params)
             .map(|_| {
                 // Box-Muller transform for normal distribution
@@ -427,7 +409,7 @@ impl GranularityAllocator {
         // Hessian values are typically positive and small
         use fastrand::Rng;
         let mut rng = Rng::new();
-        
+
         (0..num_params)
             .map(|_| rng.f32() * 0.001) // Small positive values
             .collect()
@@ -437,7 +419,7 @@ impl GranularityAllocator {
         // Generate synthetic weights with realistic distribution
         use fastrand::Rng;
         let mut rng = Rng::new();
-        
+
         (0..num_params)
             .map(|_| {
                 // Normal distribution with mean=0, std=0.1
@@ -457,7 +439,7 @@ mod tests {
     #[test]
     fn test_granularity_config_default() {
         let config = GranularityConfig::default();
-        
+
         assert_eq!(config.sensitivity_method, "gradient");
         assert_eq!(config.num_samples, 32);
         assert_eq!(config.target_compression_ratio, 10.0);
@@ -482,7 +464,7 @@ mod tests {
         // Low sensitivity → large group size
         let group_size_low = allocator.recommend_group_size(0.1);
         assert_eq!(group_size_low, 128);
-        
+
         // Very low sensitivity → largest group size
         let group_size_very_low = allocator.recommend_group_size(0.0);
         assert_eq!(group_size_very_low, 256);
@@ -495,19 +477,27 @@ mod tests {
 
         // High sensitivity + small group size → moderate accuracy (due to high impact)
         let accuracy_high = allocator.estimate_accuracy_impact(0.9, 32);
-        assert!(accuracy_high > 0.65, "Expected > 0.65, got {}", accuracy_high);
+        assert!(
+            accuracy_high > 0.65,
+            "Expected > 0.65, got {}",
+            accuracy_high
+        );
 
         // Low sensitivity + large group size → high accuracy (low impact)
         let accuracy_low = allocator.estimate_accuracy_impact(0.1, 256);
         assert!(accuracy_low > 0.9, "Expected > 0.9, got {}", accuracy_low);
-        
+
         // Medium sensitivity + medium group size → moderate accuracy
         let accuracy_med = allocator.estimate_accuracy_impact(0.5, 128);
         assert!(accuracy_med > 0.65, "Expected > 0.65, got {}", accuracy_med);
-        
+
         // Low sensitivity + small group size → good accuracy
         let accuracy_low_small = allocator.estimate_accuracy_impact(0.2, 64);
-        assert!(accuracy_low_small > 0.75, "Expected > 0.75, got {}", accuracy_low_small);
+        assert!(
+            accuracy_low_small > 0.75,
+            "Expected > 0.75, got {}",
+            accuracy_low_small
+        );
     }
 
     #[test]
@@ -530,9 +520,9 @@ mod tests {
         let allocator = GranularityAllocator::new(config);
 
         let gradients = allocator.generate_synthetic_gradients(1000);
-        
+
         assert_eq!(gradients.len(), 1000);
-        
+
         // Check that gradients have reasonable distribution
         let mean: f32 = gradients.iter().sum::<f32>() / gradients.len() as f32;
         assert!(mean.abs() < 0.01); // Mean should be close to 0

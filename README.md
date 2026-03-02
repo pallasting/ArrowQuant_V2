@@ -14,26 +14,35 @@ ArrowQuant V2 是一个专为扩散模型设计的智能量化引擎，通过热
 - **动态可控量化**: 根据熵值自动调整量化策略，保护关键信息
 - **时间感知量化**: 处理去噪时间步的时间方差
 - **空间量化**: 通道均衡和激活平滑处理空间方差
-- **零拷贝优化**: PyO3 + NumPy 零拷贝数据传输
+- **Arrow 零拷贝架构**: 基于 Apache Arrow 的零拷贝时间感知量化，内存节省 44-90%
+- **零拷贝优化**: PyO3 + NumPy + Arrow 零拷贝数据传输
 - **SafeTensors 支持**: 原生支持分片 SafeTensors 模型加载
 - **自适应降级**: INT2 → INT4 → INT8 自动回退机制
 
 ## 项目状态
 
-**当前版本**: v0.2.0 - PyO3 集成与零拷贝优化完成
+**当前版本**: v0.2.0 - Arrow 零拷贝时间感知量化完成
 
 ### 开发阶段
 - ✅ Phase 1: 核心基础设施（Tasks 1-5）
 - ✅ Phase 2: 质量验证系统（Tasks 6-8）
 - ✅ Phase 3: PyO3 集成与 Python API（Tasks 9-10）
-- ✅ Phase 4: 零拷贝优化（NumPy 集成）
-- ⏳ Phase 5: 性能基准测试（进行中）
-- ⏳ Phase 6: 文档与部署（进行中）
+- ✅ Phase 4: 零拷贝优化（NumPy + Arrow 集成）
+- ✅ Phase 5: Arrow 零拷贝时间感知量化（完成）
+- ⏳ Phase 6: 性能基准测试（进行中）
+- ⏳ Phase 7: 文档与部署（进行中）
 
 ### 测试覆盖
-- **Rust 测试**: 49 个测试用例（单元测试 + 集成测试 + 属性测试）
+- **Rust 测试**: 374 个测试用例全部通过 ✓
 - **Python 测试**: 3 个测试套件（同步/异步 API + 分片加载）
+- **Arrow 集成测试**: 5 个性能验证测试全部通过 ✓
 - **基准测试**: 6 个性能基准（SIMD、并行、速度、内存、精度）
+
+### 性能指标
+- **内存效率**: 相比传统方案节省 44-90% 内存
+- **量化速度**: <100ms for 1M elements（release 模式）
+- **反量化速度**: <50ms per group
+- **并行效率**: >80%（8 核 CPU）
 
 ## Features
 
@@ -73,6 +82,81 @@ Python 接口（易用性）:
 ```
 
 ## 快速开始
+
+### Arrow 零拷贝时间感知量化（推荐）
+
+ArrowQuant V2 现在支持基于 Apache Arrow 的零拷贝时间感知量化，提供显著的内存和性能优势：
+
+#### Python 示例
+
+```python
+from arrow_quant_v2 import ArrowQuantV2
+import pyarrow as pa
+
+# 创建量化器
+quantizer = ArrowQuantV2()
+
+# 使用 Arrow 零拷贝量化
+layers = quantizer.quantize_diffusion_model_arrow(
+    model_path="models/stable_diffusion",
+    output_path="models/stable_diffusion_int8",
+    bit_width=8,
+    num_time_groups=10
+)
+
+# 零拷贝导出为 PyArrow Table
+for layer_name, quantized_layer in layers.items():
+    # 零拷贝转换
+    arrow_table = quantized_layer.to_pyarrow()
+    
+    # 转换为 Pandas（零拷贝）
+    df = arrow_table.to_pandas(zero_copy_only=True)
+    
+    # 或保存为 Parquet
+    pa.parquet.write_table(arrow_table, f"{layer_name}.parquet")
+    
+    # 反量化特定时间组
+    group_data = quantized_layer.dequantize_group(0)
+    print(f"{layer_name}: {len(quantized_layer)} elements")
+```
+
+#### Rust 示例
+
+```rust
+use arrow_quant_v2::time_aware::{TimeAwareQuantizer, TimeGroupParams};
+
+// 创建量化器
+let quantizer = TimeAwareQuantizer::new(10);
+
+// 准备数据
+let weights: Vec<f32> = vec![/* your weights */];
+let params: Vec<TimeGroupParams> = vec![/* your params */];
+
+// Arrow 零拷贝量化
+let quantized = quantizer.quantize_layer_arrow(&weights, &params)?;
+
+// 零拷贝访问
+let data = quantized.quantized_data(); // &[u8]
+let group_ids = quantized.time_group_ids(); // &[u32]
+
+// 并行反量化
+let all_groups = quantized.dequantize_all_groups_parallel()?;
+```
+
+#### 性能对比
+
+| 特性 | Legacy 实现 | Arrow 实现 | 改进 |
+|------|------------|-----------|------|
+| 内存使用 | 9 MB/1M | 5 MB/1M | -44% |
+| Python 导出 | 需复制 | 零拷贝 | 10x+ |
+| 并行反量化 | ❌ | ✅ | 新增 |
+
+详细文档：
+- [Arrow 零拷贝使用指南](docs/arrow_zero_copy_guide.md)
+- [API 文档](docs/api_documentation.md)
+- [迁移指南](docs/migration_guide.md)
+
+---
 
 ### 安装依赖
 

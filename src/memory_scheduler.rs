@@ -3,8 +3,8 @@
 //! Provides a token-based mechanism to ensure that multiple parallel quantization
 //! tasks do not exceed the available physical memory.
 
-use std::sync::{Arc, Condvar, Mutex};
 use log::{debug, trace};
+use std::sync::{Arc, Condvar, Mutex};
 
 /// Controls memory allocation for parallel tasks using a semaphore-like approach
 /// with support for variable-sized "tokens" representing bytes of RAM.
@@ -20,7 +20,10 @@ pub struct MemoryScheduler {
 impl MemoryScheduler {
     /// Create a new MemoryScheduler with a specific limit in bytes
     pub fn new(max_memory_bytes: usize) -> Self {
-        debug!("Initializing MemoryScheduler with {} MB limit", max_memory_bytes / (1024 * 1024));
+        debug!(
+            "Initializing MemoryScheduler with {} MB limit",
+            max_memory_bytes / (1024 * 1024)
+        );
         Self {
             max_memory_bytes,
             current_used_bytes: Mutex::new(0),
@@ -35,9 +38,9 @@ impl MemoryScheduler {
     /// * `required_bytes` - Amount of RAM requested for the layer
     pub fn acquire(&self, required_bytes: usize) {
         let mut used = self.current_used_bytes.lock().unwrap();
-        
+
         // Safety check: if a single layer is larger than the total limit,
-        // we allow it to proceed (otherwise we'd deadlock), but it will block 
+        // we allow it to proceed (otherwise we'd deadlock), but it will block
         // everyone else.
         if required_bytes > self.max_memory_bytes {
             debug!(
@@ -55,7 +58,7 @@ impl MemoryScheduler {
             );
             used = self.condvar.wait(used).unwrap();
         }
-        
+
         *used += required_bytes;
         trace!(
             "Acquired {} MB. Current total usage: {} MB",
@@ -67,20 +70,20 @@ impl MemoryScheduler {
     /// Release memory back to the pool and notify waiting threads.
     pub fn release(&self, released_bytes: usize) {
         let mut used = self.current_used_bytes.lock().unwrap();
-        
+
         if released_bytes > *used {
             *used = 0;
             debug!("Warning: Released more memory than currently marked as used.");
         } else {
             *used -= released_bytes;
         }
-        
+
         trace!(
             "Released {} MB. Current total usage: {} MB",
             released_bytes / (1024 * 1024),
             *used / (1024 * 1024)
         );
-        
+
         self.condvar.notify_all();
     }
 

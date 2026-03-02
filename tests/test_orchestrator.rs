@@ -518,7 +518,7 @@ fn test_fallback_disabled_with_fail_fast() {
     let config = DiffusionQuantConfig {
         bit_width: 2,
         min_accuracy: 0.95, // High threshold
-        fail_fast: true, // Disable fallback
+        fail_fast: true,    // Disable fallback
         ..Default::default()
     };
     let orchestrator = DiffusionOrchestrator::new(config).unwrap();

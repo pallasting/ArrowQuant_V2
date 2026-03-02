@@ -6,7 +6,6 @@
 /// - 7B parameter model (Dream 7B target: <5 minutes = 300s)
 ///
 /// Target: 5-10x speedup vs Python implementation
-
 use arrow_quant_v2::{DiffusionOrchestrator, DiffusionQuantConfig};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use ndarray::Array2;
@@ -78,12 +77,12 @@ fn create_synthetic_model(config: &ModelConfig) -> TempDir {
         for proj in &["q_proj", "k_proj", "v_proj", "o_proj"] {
             let layer_name = format!("layer_{}_attn_{}.parquet", i, proj);
             let layer_path = model_path.join(&layer_name);
-            
-            let _weights = Array2::from_shape_fn(
-                (config.hidden_size, config.hidden_size),
-                |(i, j)| ((i * j) as f32 / 1000.0).sin() * 0.5,
-            );
-            
+
+            let _weights =
+                Array2::from_shape_fn((config.hidden_size, config.hidden_size), |(i, j)| {
+                    ((i * j) as f32 / 1000.0).sin() * 0.5
+                });
+
             // Write placeholder (in real implementation would use proper Parquet schema)
             fs::write(&layer_path, b"synthetic_layer_data").unwrap();
         }
@@ -92,23 +91,23 @@ fn create_synthetic_model(config: &ModelConfig) -> TempDir {
         for proj in &["gate_proj", "up_proj"] {
             let layer_name = format!("layer_{}_mlp_{}.parquet", i, proj);
             let layer_path = model_path.join(&layer_name);
-            
-            let _weights = Array2::from_shape_fn(
-                (config.intermediate_size, config.hidden_size),
-                |(i, j)| ((i * j) as f32 / 1000.0).sin() * 0.5,
-            );
-            
+
+            let _weights =
+                Array2::from_shape_fn((config.intermediate_size, config.hidden_size), |(i, j)| {
+                    ((i * j) as f32 / 1000.0).sin() * 0.5
+                });
+
             fs::write(&layer_path, b"synthetic_layer_data").unwrap();
         }
 
         let layer_name = format!("layer_{}_mlp_down_proj.parquet", i);
         let layer_path = model_path.join(&layer_name);
-        
-        let _weights = Array2::from_shape_fn(
-            (config.hidden_size, config.intermediate_size),
-            |(i, j)| ((i * j) as f32 / 1000.0).sin() * 0.5,
-        );
-        
+
+        let _weights =
+            Array2::from_shape_fn((config.hidden_size, config.intermediate_size), |(i, j)| {
+                ((i * j) as f32 / 1000.0).sin() * 0.5
+            });
+
         fs::write(&layer_path, b"synthetic_layer_data").unwrap();
     }
 
@@ -123,7 +122,7 @@ fn create_synthetic_model(config: &ModelConfig) -> TempDir {
 /// Benchmark quantization speed for different model sizes
 fn bench_quantization_speed(c: &mut Criterion) {
     let mut group = c.benchmark_group("quantization_speed");
-    
+
     // Set longer measurement time for large models
     group.sample_size(10);
     group.measurement_time(std::time::Duration::from_secs(60));
@@ -152,10 +151,8 @@ fn bench_quantization_speed(c: &mut Criterion) {
 
                     let orchestrator = DiffusionOrchestrator::new(quant_config).unwrap();
 
-                    let _ = black_box(orchestrator.quantize_model(
-                        model_dir.path(),
-                        output_dir.path(),
-                    ));
+                    let _ =
+                        black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
                 });
             },
         );
@@ -167,10 +164,10 @@ fn bench_quantization_speed(c: &mut Criterion) {
 /// Benchmark quantization speed with different bit widths
 fn bench_bit_width_comparison(c: &mut Criterion) {
     let mut group = c.benchmark_group("bit_width_comparison");
-    
+
     // Use 100M model for bit width comparison
     let config = &MODEL_CONFIGS[0];
-    
+
     group.throughput(Throughput::Elements(config.num_params as u64));
 
     for bit_width in [2, 4, 8].iter() {
@@ -195,10 +192,8 @@ fn bench_bit_width_comparison(c: &mut Criterion) {
 
                     let orchestrator = DiffusionOrchestrator::new(quant_config).unwrap();
 
-                    let _ = black_box(orchestrator.quantize_model(
-                        model_dir.path(),
-                        output_dir.path(),
-                    ));
+                    let _ =
+                        black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
                 });
             },
         );
@@ -210,10 +205,10 @@ fn bench_bit_width_comparison(c: &mut Criterion) {
 /// Benchmark Dream 7B quantization (specific target: <5 minutes)
 fn bench_dream_7b_target(c: &mut Criterion) {
     let mut group = c.benchmark_group("dream_7b_target");
-    
+
     // Dream 7B configuration
     let config = &MODEL_CONFIGS[2]; // 7B model
-    
+
     group.throughput(Throughput::Elements(config.num_params as u64));
     group.sample_size(10);
     group.measurement_time(std::time::Duration::from_secs(120));
@@ -236,10 +231,7 @@ fn bench_dream_7b_target(c: &mut Criterion) {
 
             let orchestrator = DiffusionOrchestrator::new(quant_config).unwrap();
 
-            let _ = black_box(orchestrator.quantize_model(
-                model_dir.path(),
-                output_dir.path(),
-            ));
+            let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
         });
     });
 
@@ -249,10 +241,10 @@ fn bench_dream_7b_target(c: &mut Criterion) {
 /// Benchmark with different optimization levels
 fn bench_optimization_levels(c: &mut Criterion) {
     let mut group = c.benchmark_group("optimization_levels");
-    
+
     // Use 100M model for optimization comparison
     let config = &MODEL_CONFIGS[0];
-    
+
     group.throughput(Throughput::Elements(config.num_params as u64));
 
     // Baseline: No optimizations
@@ -274,10 +266,7 @@ fn bench_optimization_levels(c: &mut Criterion) {
 
             let orchestrator = DiffusionOrchestrator::new(quant_config).unwrap();
 
-            let _ = black_box(orchestrator.quantize_model(
-                model_dir.path(),
-                output_dir.path(),
-            ));
+            let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
         });
     });
 
@@ -300,10 +289,7 @@ fn bench_optimization_levels(c: &mut Criterion) {
 
             let orchestrator = DiffusionOrchestrator::new(quant_config).unwrap();
 
-            let _ = black_box(orchestrator.quantize_model(
-                model_dir.path(),
-                output_dir.path(),
-            ));
+            let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
         });
     });
 
@@ -326,10 +312,7 @@ fn bench_optimization_levels(c: &mut Criterion) {
 
             let orchestrator = DiffusionOrchestrator::new(quant_config).unwrap();
 
-            let _ = black_box(orchestrator.quantize_model(
-                model_dir.path(),
-                output_dir.path(),
-            ));
+            let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
         });
     });
 
@@ -352,10 +335,7 @@ fn bench_optimization_levels(c: &mut Criterion) {
 
             let orchestrator = DiffusionOrchestrator::new(quant_config).unwrap();
 
-            let _ = black_box(orchestrator.quantize_model(
-                model_dir.path(),
-                output_dir.path(),
-            ));
+            let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
         });
     });
 

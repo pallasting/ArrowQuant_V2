@@ -7,7 +7,7 @@
 //! - Quantization correctness with time-aware params
 //! - Adaptive group size selection
 
-use arrow_quant_v2::time_aware::{ActivationStats, TimeAwareQuantizer, QuantizedLayer};
+use arrow_quant_v2::time_aware::{ActivationStats, QuantizedLayer, TimeAwareQuantizer};
 
 // ============================================================================
 // Test 1: Timestep Grouping with Different Group Counts
@@ -22,10 +22,10 @@ fn test_timestep_grouping_10_groups() {
 
     // Should have 11 boundaries (10 groups + 1)
     assert_eq!(boundaries.len(), 11);
-    
+
     // First boundary should be 0
     assert_eq!(boundaries[0], 0);
-    
+
     // Last boundary should be 1000
     assert_eq!(boundaries[10], 1000);
 
@@ -41,10 +41,7 @@ fn test_timestep_grouping_5_groups() {
 
     let boundaries = quantizer.time_group_boundaries();
     assert_eq!(boundaries.len(), 6);
-    assert_eq!(
-        boundaries,
-        vec![0, 200, 400, 600, 800, 1000]
-    );
+    assert_eq!(boundaries, vec![0, 200, 400, 600, 800, 1000]);
 }
 
 #[test]
@@ -75,7 +72,7 @@ fn test_timestep_grouping_non_standard_timesteps() {
     // Test with 500 timesteps
     let mut quantizer = TimeAwareQuantizer::new(10);
     quantizer.group_timesteps(500);
-    
+
     let boundaries = quantizer.time_group_boundaries();
     assert_eq!(boundaries.len(), 11);
     assert_eq!(
@@ -86,13 +83,10 @@ fn test_timestep_grouping_non_standard_timesteps() {
     // Test with 250 timesteps
     let mut quantizer = TimeAwareQuantizer::new(5);
     quantizer.group_timesteps(250);
-    
+
     let boundaries = quantizer.time_group_boundaries();
     assert_eq!(boundaries.len(), 6);
-    assert_eq!(
-        boundaries,
-        vec![0, 50, 100, 150, 200, 250]
-    );
+    assert_eq!(boundaries, vec![0, 50, 100, 150, 200, 250]);
 }
 
 #[test]
@@ -104,10 +98,7 @@ fn test_timestep_grouping_edge_case_fewer_timesteps_than_groups() {
     let boundaries = quantizer.time_group_boundaries();
     // Should create 10 groups (one per timestep)
     assert_eq!(boundaries.len(), 11);
-    assert_eq!(
-        boundaries,
-        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    );
+    assert_eq!(boundaries, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 }
 
 #[test]
@@ -405,11 +396,16 @@ fn test_quantize_layer_basic() {
     // Note: Legacy implementation uses global quantization (1 scale/zero_point)
     assert_eq!(result.num_groups(), 2); // 2 time groups in metadata
     match &result {
-        QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+        QuantizedLayer::Legacy {
+            data,
+            scales,
+            zero_points,
+            time_group_params,
+        } => {
             assert_eq!(scales.len(), 1); // Global quantization
             assert_eq!(zero_points.len(), 1); // Global quantization
             assert_eq!(time_group_params.len(), 2); // 2 time groups in metadata
-            
+
             // Data should NOT be replicated (1x size)
             assert_eq!(data.len(), weights.len());
         }
@@ -437,7 +433,9 @@ fn test_quantize_layer_stores_params_correctly() {
     // Verify time_group_params are stored correctly
     assert_eq!(result.num_groups(), 3);
     match &result {
-        QuantizedLayer::Legacy { time_group_params, .. } => {
+        QuantizedLayer::Legacy {
+            time_group_params, ..
+        } => {
             assert_eq!(time_group_params.len(), 3);
             assert_eq!(time_group_params[0].time_range, (0, 100));
             assert_eq!(time_group_params[1].time_range, (100, 200));
@@ -532,7 +530,12 @@ fn test_quantize_layer_multiple_groups() {
     // Should have 5 time groups in metadata
     assert_eq!(result.num_groups(), 5);
     match &result {
-        QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+        QuantizedLayer::Legacy {
+            data,
+            scales,
+            zero_points,
+            time_group_params,
+        } => {
             assert_eq!(scales.len(), 1); // Global quantization
             assert_eq!(zero_points.len(), 1); // Global quantization
             assert_eq!(time_group_params.len(), 5); // 5 time groups in metadata
@@ -625,7 +628,12 @@ fn test_quantize_layer_empty_weights() {
 
     // Should handle empty weights gracefully
     match &result {
-        QuantizedLayer::Legacy { data, scales, zero_points, .. } => {
+        QuantizedLayer::Legacy {
+            data,
+            scales,
+            zero_points,
+            ..
+        } => {
             assert_eq!(data.len(), 0);
             assert_eq!(scales.len(), 1); // Global quantization
             assert_eq!(zero_points.len(), 1); // Global quantization
@@ -667,7 +675,12 @@ fn test_end_to_end_quantization_workflow() {
     // Verify structure
     assert_eq!(result.num_groups(), 10);
     match &result {
-        QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+        QuantizedLayer::Legacy {
+            data,
+            scales,
+            zero_points,
+            time_group_params,
+        } => {
             assert_eq!(scales.len(), 1); // Global quantization
             assert_eq!(zero_points.len(), 1); // Global quantization
             assert_eq!(time_group_params.len(), 10); // 10 time groups in metadata
@@ -688,35 +701,35 @@ fn test_end_to_end_quantization_workflow() {
 #[test]
 fn test_different_modalities_simulation() {
     // Test quantization for different diffusion modalities
-    
+
     // Text modality (discrete diffusion) - typically 1000 timesteps
     let mut text_quantizer = TimeAwareQuantizer::new(10);
     text_quantizer.group_timesteps(1000);
-    
+
     let text_stats = ActivationStats {
         mean: vec![0.0; 1000],
         std: vec![0.5; 1000],
         min: vec![-2.0; 1000],
         max: vec![2.0; 1000],
     };
-    
+
     let text_params = text_quantizer.compute_params_per_group(&text_stats);
     assert_eq!(text_params.len(), 10);
-    
+
     // Image modality (continuous diffusion) - typically 1000 timesteps
     let mut image_quantizer = TimeAwareQuantizer::new(20);
     image_quantizer.group_timesteps(1000);
-    
+
     let image_stats = ActivationStats {
         mean: vec![0.0; 1000],
         std: vec![1.5; 1000],
         min: vec![-5.0; 1000],
         max: vec![5.0; 1000],
     };
-    
+
     let image_params = image_quantizer.compute_params_per_group(&image_stats);
     assert_eq!(image_params.len(), 20);
-    
+
     // Verify different configurations produce different results
     assert_ne!(text_params.len(), image_params.len());
 }

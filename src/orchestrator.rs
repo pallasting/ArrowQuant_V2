@@ -6,11 +6,11 @@ use crate::schema::ParquetV2Extended;
 use crate::spatial::SpatialQuantizer;
 use crate::time_aware::{ActivationStats, TimeAwareQuantizer};
 use crate::validation::ValidationSystem;
+use crossbeam_channel::{bounded, Receiver, Sender};
+use log::debug;
 use regex::Regex;
 use std::path::Path;
 use std::sync::Arc;
-use crossbeam_channel::{bounded, Sender, Receiver};
-use log::debug;
 
 /// Result of quantization operation
 ///
@@ -89,7 +89,7 @@ impl DiffusionOrchestrator {
             use sysinfo::System;
             let mut sys = System::new_all();
             sys.refresh_memory();
-            
+
             let total_memory = sys.total_memory(); // in bytes
             let limit_bytes = match config.max_memory_limit_mb {
                 Some(mb) => (mb as u64) * 1024 * 1024,
@@ -98,8 +98,10 @@ impl DiffusionOrchestrator {
                     (total_memory as f64 * 0.75) as u64
                 }
             };
-            
-            Some(std::sync::Arc::new(crate::memory_scheduler::MemoryScheduler::new(limit_bytes as usize)))
+
+            Some(std::sync::Arc::new(
+                crate::memory_scheduler::MemoryScheduler::new(limit_bytes as usize),
+            ))
         } else {
             None
         };
@@ -138,18 +140,20 @@ impl DiffusionOrchestrator {
 
         // Step 5: Handle validation
         if !validation.passed {
-            eprintln!("\n[Quality Alert] Validation similarity ({:.4}) is below threshold ({:.4})", 
-                validation.cosine_similarity, self.config.min_accuracy);
-            
+            eprintln!(
+                "\n[Quality Alert] Validation similarity ({:.4}) is below threshold ({:.4})",
+                validation.cosine_similarity, self.config.min_accuracy
+            );
+
             // In a real scenarios with synthetic data, we might want to proceed anyway
             if self.config.fail_fast {
-                 return Err(QuantError::QuantizationFailed(format!(
+                return Err(QuantError::QuantizationFailed(format!(
                     "Quantization failed quality threshold (cosine_similarity: {:.3}, required: {:.3}). Fail-fast mode enabled, no fallback attempted.",
                     validation.cosine_similarity,
                     self.config.min_accuracy
                 )));
             }
-            
+
             // Check if we already tried INT8 (the final safety net)
             if self.config.bit_width >= 8 {
                 eprintln!("[Info] INT8 precision is the final safety net. Proceeding with results despite low similarity scores (likely due to synthetic data limitations).");
@@ -225,7 +229,7 @@ impl DiffusionOrchestrator {
     }
 
     /// Quantize layers using Memory-Aware Pipelined Architecture
-    /// 
+    ///
     /// This is the most advanced processing mode, implementing:
     /// - Memory Token Bucket (preventing OOM)
     /// - Asynchronous Pipelining (overlapping I/O and Compute)
@@ -238,7 +242,7 @@ impl DiffusionOrchestrator {
         modality: Modality,
     ) -> Result<()> {
         eprintln!(">>> Starting Memory-Aware Pipelined Quantization Engine");
-        
+
         // Step 1: Discover all layer files
         let layer_files = self.discover_layer_files(model_path)?;
         if layer_files.is_empty() {
@@ -254,43 +258,45 @@ impl DiffusionOrchestrator {
 
         // Step 3: Initialize channels and scheduler
         let scheduler = self.memory_scheduler.as_ref().unwrap().clone();
-        
+
         // Channel for Reader -> Compute (Allow pre-loading up to 8 layers)
-        let (task_tx, task_rx): (Sender<LayerQuantizeTask>, Receiver<LayerQuantizeTask>) = bounded(8);
+        let (task_tx, task_rx): (Sender<LayerQuantizeTask>, Receiver<LayerQuantizeTask>) =
+            bounded(8);
         // Channel for Compute -> Writer (Buffer up to 16 results)
-        let (result_tx, result_rx): (Sender<LayerQuantizeResult>, Receiver<LayerQuantizeResult>) = bounded(16);
+        let (result_tx, result_rx): (Sender<LayerQuantizeResult>, Receiver<LayerQuantizeResult>) =
+            bounded(16);
 
         let model_path_buf = model_path.to_path_buf();
         let output_path_buf = output_path.to_path_buf();
         let strategy_clone = *strategy;
-        
+
         let start_time = std::time::Instant::now();
         let total_layers = layer_files.len();
-        
+
         // Step 4: Launch Writer Thread
         let writer_handle = {
             let result_rx = result_rx.clone();
             let _scheduler = scheduler.clone();
             let output_path = output_path_buf.clone();
-            
+
             std::thread::spawn(move || -> Result<()> {
                 let mut count = 0;
                 while let Ok(result) = result_rx.recv() {
                     let layer_file = result.layer_file;
                     let output_file = output_path.join(&layer_file);
-                    
+
                     // Write to disk
                     result.quantized_data.write_to_parquet(&output_file)?;
-                    
+
                     // Token is released here automatically when result is dropped
                     count += 1;
                     let percentage = (count as f32 / total_layers as f32 * 100.0) as u32;
                     let elapsed = start_time.elapsed().as_secs_f32();
                     let rate = count as f32 / elapsed; // layers per second
                     let eta_secs = (total_layers - count) as f32 / rate;
-                    
+
                     eprintln!(
-                        "[*] Progress: {}% ({}/{} layers) | Rate: {:.2} layer/s | ETA: {:.1}s", 
+                        "[*] Progress: {}% ({}/{} layers) | Rate: {:.2} layer/s | ETA: {:.1}s",
                         percentage, count, total_layers, rate, eta_secs
                     );
                 }
@@ -301,35 +307,50 @@ impl DiffusionOrchestrator {
         // Step 5: Launch Compute Stage Workers (Multi-worker for higher throughput)
         let num_compute_workers = 4;
         let mut compute_handles = Vec::with_capacity(num_compute_workers);
-        
+
         for i in 0..num_compute_workers {
             let task_rx = task_rx.clone();
             let result_tx = result_tx.clone();
             let orchestrator = self.clone();
             let model_path = model_path_buf.clone();
             let activation_stats = activation_stats.clone();
-            
+
             let handle = std::thread::spawn(move || -> Result<()> {
                 debug!("Compute Worker {} started", i);
                 while let Ok(task) = task_rx.recv() {
                     let orchestrator = orchestrator.clone();
                     let model_path = model_path.clone();
                     let result_tx = result_tx.clone();
-                    
+
                     // Perform quantization
-                    let layer_name = task.layer_file.strip_suffix(".parquet").unwrap_or(&task.layer_file);
+                    let layer_name = task
+                        .layer_file
+                        .strip_suffix(".parquet")
+                        .unwrap_or(&task.layer_file);
                     let mut bit_width = orchestrator.config.get_layer_bit_width(layer_name);
 
                     // --- Entropy Analyzer ---
                     if orchestrator.config.enable_entropy_adaptation && bit_width != 16 {
-                        if !orchestrator.config.layer_bit_widths.contains_key(layer_name) {
-                            let bin_name = format!("{}.bin", crate::safetensors_to_parquet::sanitize_filename(layer_name));
+                        if !orchestrator
+                            .config
+                            .layer_bit_widths
+                            .contains_key(layer_name)
+                        {
+                            let bin_name = format!(
+                                "{}.bin",
+                                crate::safetensors_to_parquet::sanitize_filename(layer_name)
+                            );
                             let bin_path = model_path.join(&bin_name);
                             if let Ok(bytes) = std::fs::read(&bin_path) {
                                 let floats_len = bytes.len() / 4;
                                 let mut w = Vec::with_capacity(floats_len);
                                 for i in 0..floats_len {
-                                    let b = [bytes[i*4], bytes[i*4+1], bytes[i*4+2], bytes[i*4+3]];
+                                    let b = [
+                                        bytes[i * 4],
+                                        bytes[i * 4 + 1],
+                                        bytes[i * 4 + 2],
+                                        bytes[i * 4 + 3],
+                                    ];
                                     w.push(f32::from_le_bytes(b));
                                 }
                                 let analyzer = crate::thermodynamic::EntropyAnalyzer::default();
@@ -342,25 +363,43 @@ impl DiffusionOrchestrator {
                             }
                         }
                     }
-                    
+
                     let quantized_schema = if strategy_clone.time_aware {
                         let stats = activation_stats.as_ref().ok_or_else(|| {
                             QuantError::Internal("Activation stats missing".to_string())
                         })?;
                         orchestrator.apply_time_aware_quantization(
-                            task.layer_data, modality, bit_width, stats, &model_path
+                            task.layer_data,
+                            modality,
+                            bit_width,
+                            stats,
+                            &model_path,
                         )?
                     } else if strategy_clone.spatial {
-                        orchestrator.apply_spatial_quantization(task.layer_data, modality, bit_width, &model_path)?
+                        orchestrator.apply_spatial_quantization(
+                            task.layer_data,
+                            modality,
+                            bit_width,
+                            &model_path,
+                        )?
                     } else {
-                        orchestrator.apply_base_quantization(task.layer_data, modality, bit_width, &model_path)?
+                        orchestrator.apply_base_quantization(
+                            task.layer_data,
+                            modality,
+                            bit_width,
+                            &model_path,
+                        )?
                     };
 
-                    result_tx.send(LayerQuantizeResult {
-                        layer_file: task.layer_file,
-                        quantized_data: quantized_schema,
-                        token: task.token,
-                    }).map_err(|e| QuantError::Internal(format!("Compute: Channel failed: {}", e)))?;
+                    result_tx
+                        .send(LayerQuantizeResult {
+                            layer_file: task.layer_file,
+                            quantized_data: quantized_schema,
+                            token: task.token,
+                        })
+                        .map_err(|e| {
+                            QuantError::Internal(format!("Compute: Channel failed: {}", e))
+                        })?;
                 }
                 debug!("Compute Worker {} finished", i);
                 Ok(())
@@ -371,43 +410,52 @@ impl DiffusionOrchestrator {
         // Step 6: Main Thread acts as Reader
         for layer_file in layer_files {
             let input_path = model_path_buf.join(&layer_file);
-            
+
             // Predict memory usage (Parquet V2 size + overhead)
             let metadata = std::fs::metadata(&input_path).map_err(|e| {
-                QuantError::IoError(std::io::Error::new(std::io::ErrorKind::Other, format!("Metadata fail: {}", e)))
+                QuantError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Metadata fail: {}", e),
+                ))
             })?;
-            let est_size = metadata.len() as usize; 
+            let est_size = metadata.len() as usize;
 
             // Acquire Memory Token
             let token = scheduler.acquire_token(est_size);
-            
+
             // Load layer (Zero-copy mmap if enabled)
             let layer_data = self.load_layer_from_parquet(&input_path)?;
-            
+
             // Send to Compute
-            task_tx.send(LayerQuantizeTask {
-                layer_file: layer_file.clone(),
-                layer_data,
-                token,
-            }).map_err(|e| QuantError::Internal(format!("Reader: Channel failed: {}", e)))?;
-            
+            task_tx
+                .send(LayerQuantizeTask {
+                    layer_file: layer_file.clone(),
+                    layer_data,
+                    token,
+                })
+                .map_err(|e| QuantError::Internal(format!("Reader: Channel failed: {}", e)))?;
+
             debug!("Reader: Dispatched {}", layer_file);
         }
 
         // Close task channel to signal Compute threads
         drop(task_tx);
-        
+
         // Wait for threads to finish
         for handle in compute_handles {
-            handle.join().map_err(|_| QuantError::Internal("Compute worker panicked".to_string()))??;
+            handle
+                .join()
+                .map_err(|_| QuantError::Internal("Compute worker panicked".to_string()))??;
         }
         // Close result channel to signal Writer thread
         drop(result_tx);
-        writer_handle.join().map_err(|_| QuantError::Internal("Writer thread panicked".to_string()))??;
+        writer_handle
+            .join()
+            .map_err(|_| QuantError::Internal("Writer thread panicked".to_string()))??;
 
         // Step 7: Copy metadata
         self.copy_metadata_files(model_path, output_path)?;
-        
+
         eprintln!(">>> Memory-Aware Pipelined Quantization Complete.");
         Ok(())
     }
@@ -754,9 +802,7 @@ impl DiffusionOrchestrator {
         let layer_data = self.load_layer_from_parquet(&input_path)?;
 
         // Extract layer name from file (remove .parquet extension)
-        let layer_name = layer_file
-            .strip_suffix(".parquet")
-            .unwrap_or(layer_file);
+        let layer_name = layer_file.strip_suffix(".parquet").unwrap_or(layer_file);
 
         // Step 2: Check if this is a sensitive layer that should skip quantization
         if self.is_sensitive_layer(layer_name) {
@@ -776,20 +822,31 @@ impl DiffusionOrchestrator {
         // --- Entropy Analyzer ---
         if self.config.enable_entropy_adaptation && layer_bit_width != 16 {
             if !self.config.layer_bit_widths.contains_key(layer_name) {
-                let bin_name = format!("{}.bin", crate::safetensors_to_parquet::sanitize_filename(layer_name));
+                let bin_name = format!(
+                    "{}.bin",
+                    crate::safetensors_to_parquet::sanitize_filename(layer_name)
+                );
                 let bin_path = model_path.join(&bin_name);
                 if let Ok(bytes) = std::fs::read(&bin_path) {
                     let floats_len = bytes.len() / 4;
                     let mut w = Vec::with_capacity(floats_len);
                     for i in 0..floats_len {
-                        let b = [bytes[i*4], bytes[i*4+1], bytes[i*4+2], bytes[i*4+3]];
+                        let b = [
+                            bytes[i * 4],
+                            bytes[i * 4 + 1],
+                            bytes[i * 4 + 2],
+                            bytes[i * 4 + 3],
+                        ];
                         w.push(f32::from_le_bytes(b));
                     }
                     let analyzer = crate::thermodynamic::EntropyAnalyzer::default();
                     let entropy = analyzer.compute_normalized_entropy(&w);
                     let suggested = analyzer.suggest_bit_width(entropy);
                     if suggested != layer_bit_width {
-                        eprintln!("[Entropy] {}: Entropy={:.3} -> Adjusted bits from {} to {}", layer_name, entropy, layer_bit_width, suggested);
+                        eprintln!(
+                            "[Entropy] {}: Entropy={:.3} -> Adjusted bits from {} to {}",
+                            layer_name, entropy, layer_bit_width, suggested
+                        );
                         layer_bit_width = suggested;
                     }
                 }
@@ -875,17 +932,29 @@ impl DiffusionOrchestrator {
         let time_group_params = quantizer.compute_params_per_group(activation_stats);
 
         // Read real weights from the intermediate .bin file
-        let bin_filename = format!("{}.bin", crate::safetensors_to_parquet::sanitize_filename(&layer_data.layer_name));
+        let bin_filename = format!(
+            "{}.bin",
+            crate::safetensors_to_parquet::sanitize_filename(&layer_data.layer_name)
+        );
         let bin_path = model_path.join(&bin_filename);
         let bytes = std::fs::read(&bin_path).map_err(|e| {
-            crate::errors::QuantError::Internal(format!("Failed to read bin file {}: {}", bin_path.display(), e))
+            crate::errors::QuantError::Internal(format!(
+                "Failed to read bin file {}: {}",
+                bin_path.display(),
+                e
+            ))
         })?;
-        
+
         // Convert bytes to f32
         let floats_len = bytes.len() / 4;
         let mut weights = Vec::with_capacity(floats_len);
         for i in 0..floats_len {
-            let b = [bytes[i*4], bytes[i*4+1], bytes[i*4+2], bytes[i*4+3]];
+            let b = [
+                bytes[i * 4],
+                bytes[i * 4 + 1],
+                bytes[i * 4 + 2],
+                bytes[i * 4 + 3],
+            ];
             weights.push(f32::from_le_bytes(b));
         }
         let quantized_layer = quantizer.quantize_layer(&weights, &time_group_params)?;
@@ -909,28 +978,42 @@ impl DiffusionOrchestrator {
         let quantizer = SpatialQuantizer::new(self.config.group_size);
 
         // Read real weights from the intermediate .bin file
-        let bin_filename = format!("{}.bin", crate::safetensors_to_parquet::sanitize_filename(&layer_data.layer_name));
+        let bin_filename = format!(
+            "{}.bin",
+            crate::safetensors_to_parquet::sanitize_filename(&layer_data.layer_name)
+        );
         let bin_path = model_path.join(&bin_filename);
         let bytes = std::fs::read(&bin_path).map_err(|e| {
-            crate::errors::QuantError::Internal(format!("Failed to read bin file {}: {}", bin_path.display(), e))
+            crate::errors::QuantError::Internal(format!(
+                "Failed to read bin file {}: {}",
+                bin_path.display(),
+                e
+            ))
         })?;
 
         // Convert bytes to f32
         let floats_len = bytes.len() / 4;
         let mut weights_flat = Vec::with_capacity(floats_len);
         for i in 0..floats_len {
-            let b = [bytes[i*4], bytes[i*4+1], bytes[i*4+2], bytes[i*4+3]];
+            let b = [
+                bytes[i * 4],
+                bytes[i * 4 + 1],
+                bytes[i * 4 + 2],
+                bytes[i * 4 + 3],
+            ];
             weights_flat.push(f32::from_le_bytes(b));
         }
 
         // Reshape weights to 2D
         let shape = &layer_data.shape;
         let weights = if shape.len() == 2 {
-            Array2::from_shape_vec((shape[0], shape[1]), weights_flat).unwrap_or_else(|_| Array2::zeros((1, 1)))
+            Array2::from_shape_vec((shape[0], shape[1]), weights_flat)
+                .unwrap_or_else(|_| Array2::zeros((1, 1)))
         } else if shape.len() > 0 {
             let first = shape[0];
             let rest: usize = shape[1..].iter().product();
-            Array2::from_shape_vec((first, rest), weights_flat).unwrap_or_else(|_| Array2::zeros((1, 1)))
+            Array2::from_shape_vec((first, rest), weights_flat)
+                .unwrap_or_else(|_| Array2::zeros((1, 1)))
         } else {
             Array2::zeros((1, 1))
         };
@@ -1082,8 +1165,11 @@ impl DiffusionOrchestrator {
         // INT8 failed - no more fallback options
         // INT8 failed - but for Dream 7B/Synthetic data, we proceed anyway
         eprintln!("[Warning] INT8 validation failed. This is likely due to the gap between synthetic and real calibration data.");
-        eprintln!("[Status] Quantization complete. Results saved at: {}", output_path.display());
-        
+        eprintln!(
+            "[Status] Quantization complete. Results saved at: {}",
+            output_path.display()
+        );
+
         Ok(QuantizationResult {
             quantized_path: output_path.to_path_buf(),
             compression_ratio: 4.0, // Best estimate for INT8
@@ -1180,17 +1266,17 @@ impl DiffusionOrchestrator {
 
         // Strategy 1: Automatic detection of common sensitive layer types
         let auto_sensitive_patterns = [
-            "embed",       // Embeddings (embed_tokens, position_embeddings, etc.)
-            "embedding",   // Alternative embedding naming
-            ".wte.",       // GPT-style word token embeddings (transformer.wte.weight)
-            ".wpe.",       // GPT-style position embeddings (transformer.wpe.weight)
-            "norm",        // Layer norms (layer_norm, norm, rms_norm, etc.)
-            "ln_",         // Layer norm prefix (ln_1, ln_2, etc.)
-            "layernorm",   // LayerNorm variations
-            "lm_head",     // Language model head
-            ".head.",      // Output heads (with dots to avoid matching "ahead")
-            "output",      // Output layers
-            "pooler",      // BERT-style pooler layers
+            "embed",     // Embeddings (embed_tokens, position_embeddings, etc.)
+            "embedding", // Alternative embedding naming
+            ".wte.",     // GPT-style word token embeddings (transformer.wte.weight)
+            ".wpe.",     // GPT-style position embeddings (transformer.wpe.weight)
+            "norm",      // Layer norms (layer_norm, norm, rms_norm, etc.)
+            "ln_",       // Layer norm prefix (ln_1, ln_2, etc.)
+            "layernorm", // LayerNorm variations
+            "lm_head",   // Language model head
+            ".head.",    // Output heads (with dots to avoid matching "ahead")
+            "output",    // Output layers
+            "pooler",    // BERT-style pooler layers
         ];
 
         let layer_lower = layer_name.to_lowercase();
@@ -1201,7 +1287,11 @@ impl DiffusionOrchestrator {
         }
 
         // Strategy 2: Exact match against user-defined sensitive layer names
-        if self.config.sensitive_layer_names.contains(&layer_name.to_string()) {
+        if self
+            .config
+            .sensitive_layer_names
+            .contains(&layer_name.to_string())
+        {
             return true;
         }
 
@@ -1269,7 +1359,7 @@ impl DiffusionOrchestrator {
     /// ```rust,ignore
     /// let orchestrator = DiffusionOrchestrator::new(config)?;
     /// orchestrator.quantize_model(&model_path, &output_path)?;
-    /// 
+    ///
     /// if let Some(metrics) = orchestrator.get_thermodynamic_metrics() {
     ///     println!("Smoothness score: {:.3}", metrics.smoothness_score);
     ///     println!("Violations: {}", metrics.violation_count);
@@ -1507,15 +1597,24 @@ mod tests {
         // Create a temporary directory for test
         let temp_dir = tempfile::tempdir().unwrap();
         let model_path = temp_dir.path();
-        
+
         // Create a dummy .bin file for the test
-        let bin_filename = format!("{}.bin", crate::safetensors_to_parquet::sanitize_filename(&layer_data.layer_name));
+        let bin_filename = format!(
+            "{}.bin",
+            crate::safetensors_to_parquet::sanitize_filename(&layer_data.layer_name)
+        );
         let bin_path = model_path.join(&bin_filename);
         let dummy_weights: Vec<f32> = vec![0.5; 1000];
         let bytes: Vec<u8> = dummy_weights.iter().flat_map(|f| f.to_le_bytes()).collect();
         std::fs::write(&bin_path, bytes).unwrap();
 
-        let result = orchestrator.apply_time_aware_quantization(layer_data, Modality::Text, 4, &stats, model_path);
+        let result = orchestrator.apply_time_aware_quantization(
+            layer_data,
+            Modality::Text,
+            4,
+            &stats,
+            model_path,
+        );
 
         assert!(result.is_ok());
         let quantized = result.unwrap();
@@ -1545,15 +1644,19 @@ mod tests {
         // Create a temporary directory for test
         let temp_dir = tempfile::tempdir().unwrap();
         let model_path = temp_dir.path();
-        
+
         // Create a dummy .bin file for the test
-        let bin_filename = format!("{}.bin", crate::safetensors_to_parquet::sanitize_filename(&layer_data.layer_name));
+        let bin_filename = format!(
+            "{}.bin",
+            crate::safetensors_to_parquet::sanitize_filename(&layer_data.layer_name)
+        );
         let bin_path = model_path.join(&bin_filename);
         let dummy_weights: Vec<f32> = vec![0.5; 32768];
         let bytes: Vec<u8> = dummy_weights.iter().flat_map(|f| f.to_le_bytes()).collect();
         std::fs::write(&bin_path, bytes).unwrap();
 
-        let result = orchestrator.apply_spatial_quantization(layer_data, Modality::Image, 4, model_path);
+        let result =
+            orchestrator.apply_spatial_quantization(layer_data, Modality::Image, 4, model_path);
 
         assert!(result.is_ok());
         let quantized = result.unwrap();

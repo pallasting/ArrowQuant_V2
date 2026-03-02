@@ -42,28 +42,28 @@ mod arrow_ffi_helpers {
     pub fn import_pyarrow_array(py_array: &Bound<'_, PyAny>) -> PyResult<ArrayRef> {
         // Call __arrow_c_array__ method to get C Data Interface pointers
         let c_array_tuple = py_array.call_method0("__arrow_c_array__")?;
-        
+
         // Extract schema and array pointers from tuple
         let schema_capsule: Bound<'_, PyCapsule> = c_array_tuple.get_item(0)?.downcast_into()?;
         let array_capsule: Bound<'_, PyCapsule> = c_array_tuple.get_item(1)?.downcast_into()?;
-        
+
         // Get raw pointers from capsules
         let schema_ptr = schema_capsule.pointer() as *mut FFI_ArrowSchema;
         let array_ptr = array_capsule.pointer() as *mut FFI_ArrowArray;
-        
+
         // Import using Arrow FFI
         let array_data = unsafe {
-            arrow::ffi::from_ffi(array_ptr.read(), &schema_ptr.read())
-                .map_err(|e| {
-                    pyo3::exceptions::PyValueError::new_err(
-                        format!("Failed to import PyArrow array via C Data Interface: {}", e)
-                    )
-                })?
+            arrow::ffi::from_ffi(array_ptr.read(), &schema_ptr.read()).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Failed to import PyArrow array via C Data Interface: {}",
+                    e
+                ))
+            })?
         };
-        
+
         // Convert ArrayData to ArrayRef
         let array = arrow::array::make_array(array_data);
-        
+
         Ok(array)
     }
 
@@ -89,38 +89,38 @@ mod arrow_ffi_helpers {
     pub fn import_pyarrow_recordbatch(py_batch: &Bound<'_, PyAny>) -> PyResult<RecordBatch> {
         // Call __arrow_c_array__ method to get C Data Interface pointers
         let c_array_tuple = py_batch.call_method0("__arrow_c_array__")?;
-        
+
         // Extract schema and array pointers from tuple
         let schema_capsule: Bound<'_, PyCapsule> = c_array_tuple.get_item(0)?.downcast_into()?;
         let array_capsule: Bound<'_, PyCapsule> = c_array_tuple.get_item(1)?.downcast_into()?;
-        
+
         // Get raw pointers from capsules
         let schema_ptr = schema_capsule.pointer() as *mut FFI_ArrowSchema;
         let array_ptr = array_capsule.pointer() as *mut FFI_ArrowArray;
-        
+
         // Import using Arrow FFI
         let array_data = unsafe {
-            arrow::ffi::from_ffi(array_ptr.read(), &schema_ptr.read())
-                .map_err(|e| {
-                    pyo3::exceptions::PyValueError::new_err(
-                        format!("Failed to import PyArrow RecordBatch via C Data Interface: {}", e)
-                    )
-                })?
+            arrow::ffi::from_ffi(array_ptr.read(), &schema_ptr.read()).map_err(|e| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Failed to import PyArrow RecordBatch via C Data Interface: {}",
+                    e
+                ))
+            })?
         };
-        
+
         // Convert ArrayData to ArrayRef
         let array = arrow::array::make_array(array_data);
-        
+
         // Convert StructArray to RecordBatch
         let struct_array = array
             .as_any()
             .downcast_ref::<arrow::array::StructArray>()
             .ok_or_else(|| {
                 pyo3::exceptions::PyValueError::new_err(
-                    "Expected StructArray from RecordBatch import"
+                    "Expected StructArray from RecordBatch import",
                 )
             })?;
-        
+
         let batch = RecordBatch::from(struct_array);
         Ok(batch)
     }
@@ -149,13 +149,13 @@ mod arrow_ffi_helpers {
         // Convert table to RecordBatch using to_batches()
         let batches = py_table.call_method0("to_batches")?;
         let batches_list: Vec<Bound<'_, PyAny>> = batches.extract()?;
-        
+
         if batches_list.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "PyArrow Table is empty (no batches)"
+                "PyArrow Table is empty (no batches)",
             ));
         }
-        
+
         // Import first batch
         import_pyarrow_recordbatch(&batches_list[0])
     }
@@ -181,63 +181,61 @@ mod arrow_ffi_helpers {
         // Convert RecordBatch to StructArray for FFI export
         let struct_array = arrow::array::StructArray::from(batch.clone());
         let array_ref: ArrayRef = StdArc::new(struct_array);
-        
+
         // Export to FFI structures
         let array_data = array_ref.to_data();
-        let (ffi_array, ffi_schema) = arrow::ffi::to_ffi(&array_data)
-            .map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(
-                    format!("Failed to export RecordBatch to C Data Interface: {}", e)
-                )
-            })?;
-        
+        let (ffi_array, ffi_schema) = arrow::ffi::to_ffi(&array_data).map_err(|e| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "Failed to export RecordBatch to C Data Interface: {}",
+                e
+            ))
+        })?;
+
         // Box the FFI structures to get stable pointers
         let schema_box = Box::new(ffi_schema);
         let array_box = Box::new(ffi_array);
-        
+
         // Leak the boxes to get raw pointers - PyArrow will manage the memory via release callbacks
         let schema_ptr = Box::leak(schema_box) as *mut FFI_ArrowSchema;
         let array_ptr = Box::leak(array_box) as *mut FFI_ArrowArray;
-        
+
         // Create PyCapsules WITHOUT destructors
         // The FFI structures' release callbacks will handle cleanup when PyArrow is done
         let schema_capsule = unsafe {
             let capsule = pyo3::ffi::PyCapsule_New(
                 schema_ptr as *mut std::ffi::c_void,
                 b"arrow_schema\0".as_ptr() as *const i8,
-                None,  // No destructor - FFI release callback handles it
+                None, // No destructor - FFI release callback handles it
             );
             if capsule.is_null() {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                    "Failed to create schema capsule"
+                    "Failed to create schema capsule",
                 ));
             }
             PyObject::from_owned_ptr(py, capsule)
         };
-        
+
         let array_capsule = unsafe {
             let capsule = pyo3::ffi::PyCapsule_New(
                 array_ptr as *mut std::ffi::c_void,
                 b"arrow_array\0".as_ptr() as *const i8,
-                None,  // No destructor - FFI release callback handles it
+                None, // No destructor - FFI release callback handles it
             );
             if capsule.is_null() {
                 return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                    "Failed to create array capsule"
+                    "Failed to create array capsule",
                 ));
             }
             PyObject::from_owned_ptr(py, capsule)
         };
-        
+
         // Import into PyArrow using RecordBatch._import_from_c
         // PyArrow will take ownership and call the FFI release callbacks when done
         let pyarrow = py.import_bound("pyarrow")?;
         let recordbatch_class = pyarrow.getattr("RecordBatch")?;
-        let result = recordbatch_class.call_method1(
-            "_import_from_c",
-            (schema_capsule, array_capsule)
-        )?;
-        
+        let result =
+            recordbatch_class.call_method1("_import_from_c", (schema_capsule, array_capsule))?;
+
         Ok(result.to_object(py))
     }
 
@@ -272,7 +270,7 @@ mod arrow_ffi_helpers {
                     Expected schema: {layer_name: string, weights: list<float32>, shape: list<int64>}"
                 )
             })?;
-        
+
         let weights_field = schema.field_with_name("weights")
             .map_err(|_| {
                 pyo3::exceptions::PyValueError::new_err(
@@ -280,63 +278,56 @@ mod arrow_ffi_helpers {
                     Expected schema: {layer_name: string, weights: list<float32>, shape: list<int64>}"
                 )
             })?;
-        
+
         // Validate field types
-        if !matches!(layer_name_field.data_type(), DataType::Utf8 | DataType::LargeUtf8) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!(
-                    "Invalid type for 'layer_name' field: {:?}. Expected string type.",
-                    layer_name_field.data_type()
-                )
-            ));
+        if !matches!(
+            layer_name_field.data_type(),
+            DataType::Utf8 | DataType::LargeUtf8
+        ) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid type for 'layer_name' field: {:?}. Expected string type.",
+                layer_name_field.data_type()
+            )));
         }
-        
+
         // Validate weights field is a list of float32
         match weights_field.data_type() {
             DataType::List(inner) | DataType::LargeList(inner) => {
                 if !matches!(inner.data_type(), DataType::Float32) {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        format!(
-                            "Invalid type for 'weights' field: list<{:?}>. Expected list<float32>.",
-                            inner.data_type()
-                        )
-                    ));
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Invalid type for 'weights' field: list<{:?}>. Expected list<float32>.",
+                        inner.data_type()
+                    )));
                 }
             }
             _ => {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!(
-                        "Invalid type for 'weights' field: {:?}. Expected list<float32>.",
-                        weights_field.data_type()
-                    )
-                ));
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid type for 'weights' field: {:?}. Expected list<float32>.",
+                    weights_field.data_type()
+                )));
             }
         }
-        
+
         // Validate optional shape field if present
         if let Ok(shape_field) = schema.field_with_name("shape") {
             match shape_field.data_type() {
                 DataType::List(inner) | DataType::LargeList(inner) => {
                     if !matches!(inner.data_type(), DataType::Int64) {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            format!(
-                                "Invalid type for 'shape' field: list<{:?}>. Expected list<int64>.",
-                                inner.data_type()
-                            )
-                        ));
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "Invalid type for 'shape' field: list<{:?}>. Expected list<int64>.",
+                            inner.data_type()
+                        )));
                     }
                 }
                 _ => {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        format!(
-                            "Invalid type for 'shape' field: {:?}. Expected list<int64>.",
-                            shape_field.data_type()
-                        )
-                    ));
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Invalid type for 'shape' field: {:?}. Expected list<int64>.",
+                        shape_field.data_type()
+                    )));
                 }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -745,7 +736,7 @@ impl ArrowQuantV2 {
     ) -> PyResult<PyObject> {
         // Check if Arrow format is requested
         let use_arrow = use_arrow.unwrap_or(false);
-        
+
         if use_arrow {
             // Use Arrow implementation
             let arrow_result = self.quantize_diffusion_model_arrow(
@@ -756,7 +747,7 @@ impl ArrowQuantV2 {
             )?;
             return Ok(arrow_result.into_py(py));
         }
-        
+
         // Legacy implementation (backward compatible)
         let config = match config {
             Some(c) => c.inner,
@@ -776,14 +767,15 @@ impl ArrowQuantV2 {
         progress_reporter.report("Starting quantization...", 0.0);
 
         // Execute quantization with progress reporting
-        let result = py.allow_threads(|| {
-            self.quantize_with_progress(
-                &PathBuf::from(&model_path),
-                &PathBuf::from(&output_path),
-                &progress_reporter,
-            )
-        })
-        .map_err(convert_error)?;
+        let result = py
+            .allow_threads(|| {
+                self.quantize_with_progress(
+                    &PathBuf::from(&model_path),
+                    &PathBuf::from(&output_path),
+                    &progress_reporter,
+                )
+            })
+            .map_err(convert_error)?;
 
         // Report completion
         progress_reporter.report("Quantization complete", 1.0);
@@ -1071,15 +1063,24 @@ impl ArrowQuantV2 {
             if let Some(metrics) = orchestrator.get_thermodynamic_metrics() {
                 return Python::with_gil(|py| {
                     let mut dict = HashMap::new();
-                    
+
                     // Add basic metrics
-                    dict.insert("smoothness_score".to_string(), metrics.smoothness_score.to_object(py));
-                    dict.insert("violation_count".to_string(), metrics.violation_count.to_object(py));
+                    dict.insert(
+                        "smoothness_score".to_string(),
+                        metrics.smoothness_score.to_object(py),
+                    );
+                    dict.insert(
+                        "violation_count".to_string(),
+                        metrics.violation_count.to_object(py),
+                    );
                     dict.insert("is_valid".to_string(), metrics.is_valid().to_object(py));
-                    
+
                     // Add boundary scores as list
-                    dict.insert("boundary_scores".to_string(), metrics.boundary_scores.to_object(py));
-                    
+                    dict.insert(
+                        "boundary_scores".to_string(),
+                        metrics.boundary_scores.to_object(py),
+                    );
+
                     // Add violations as list of dicts
                     let violations_list = pyo3::types::PyList::empty_bound(py);
                     for violation in &metrics.violations {
@@ -1091,7 +1092,7 @@ impl ArrowQuantV2 {
                         violations_list.append(violation_dict)?;
                     }
                     dict.insert("violations".to_string(), violations_list.to_object(py));
-                    
+
                     Ok(Some(dict))
                 });
             }
@@ -1130,9 +1131,9 @@ impl ArrowQuantV2 {
     ///     >>> import numpy as np
     ///     >>> import pyarrow as pa
     ///     >>> from arrow_quant_v2 import ArrowQuantV2
-    ///     >>> 
+    ///     >>>
     ///     >>> quantizer = ArrowQuantV2(mode="diffusion")
-    ///     >>> 
+    ///     >>>
     ///     >>> # Create Arrow Table (zero-copy from numpy)
     ///     >>> weights_data = {
     ///     ...     "layer_name": ["layer.0.weight", "layer.1.weight"],
@@ -1143,7 +1144,7 @@ impl ArrowQuantV2 {
     ///     ...     "shape": [[1000000], [1000000]],
     ///     ... }
     ///     >>> table = pa.Table.from_pydict(weights_data)
-    ///     >>> 
+    ///     >>>
     ///     >>> # Zero-copy quantization via Arrow IPC
     ///     >>> result_table = quantizer.quantize_arrow(table, bit_width=4)
     ///     >>> print(result_table.schema)
@@ -1160,26 +1161,30 @@ impl ArrowQuantV2 {
         weights_table: &Bound<'_, PyAny>,
         bit_width: Option<u8>,
     ) -> PyResult<PyObject> {
-        use arrow::array::{BinaryBuilder, Float32Builder, Int64Builder, ListBuilder, StringBuilder, UInt8Builder};
+        use arrow::array::{
+            BinaryBuilder, Float32Builder, Int64Builder, ListBuilder, StringBuilder, UInt8Builder,
+        };
         use arrow::datatypes::{DataType, Field, Schema};
         use arrow::record_batch::RecordBatch;
-        
+
         Python::with_gil(|py| {
             let bit_width = bit_width.unwrap_or(4);
 
             // Validate bit width
             if ![2, 4, 8].contains(&bit_width) {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Invalid bit_width: {}. Must be 2, 4, or 8", bit_width)
-                ));
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid bit_width: {}. Must be 2, 4, or 8",
+                    bit_width
+                )));
             }
 
             // Import PyArrow Table using C Data Interface (zero-copy)
-            let record_batch = arrow_ffi_helpers::import_pyarrow_table(weights_table)
-                .map_err(|e| {
-                    pyo3::exceptions::PyValueError::new_err(
-                        format!("Failed to import PyArrow Table: {}", e)
-                    )
+            let record_batch =
+                arrow_ffi_helpers::import_pyarrow_table(weights_table).map_err(|e| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Failed to import PyArrow Table: {}",
+                        e
+                    ))
                 })?;
 
             // Validate schema
@@ -1189,25 +1194,19 @@ impl ArrowQuantV2 {
             let layer_names = record_batch
                 .column_by_name("layer_name")
                 .ok_or_else(|| {
-                    pyo3::exceptions::PyValueError::new_err(
-                        "Missing required column 'layer_name'"
-                    )
+                    pyo3::exceptions::PyValueError::new_err("Missing required column 'layer_name'")
                 })?
                 .as_any()
                 .downcast_ref::<StringArray>()
                 .ok_or_else(|| {
                     pyo3::exceptions::PyValueError::new_err(
-                        "Column 'layer_name' must be string type"
+                        "Column 'layer_name' must be string type",
                     )
                 })?;
 
-            let weights_list = record_batch
-                .column_by_name("weights")
-                .ok_or_else(|| {
-                    pyo3::exceptions::PyValueError::new_err(
-                        "Missing required column 'weights'"
-                    )
-                })?;
+            let weights_list = record_batch.column_by_name("weights").ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("Missing required column 'weights'")
+            })?;
 
             // Get optional shape column
             let shapes_list = record_batch.column_by_name("shape");
@@ -1225,7 +1224,7 @@ impl ArrowQuantV2 {
             for row_idx in 0..num_rows {
                 // Get layer name
                 let layer_name = layer_names.value(row_idx);
-                
+
                 // Extract weights array from list column
                 let weights_array = match weights_list.data_type() {
                     DataType::List(_) => {
@@ -1234,10 +1233,10 @@ impl ArrowQuantV2 {
                             .downcast_ref::<arrow::array::ListArray>()
                             .ok_or_else(|| {
                                 pyo3::exceptions::PyValueError::new_err(
-                                    "Failed to downcast weights column to ListArray"
+                                    "Failed to downcast weights column to ListArray",
                                 )
                             })?;
-                        
+
                         list_array.value(row_idx)
                     }
                     DataType::LargeList(_) => {
@@ -1246,16 +1245,17 @@ impl ArrowQuantV2 {
                             .downcast_ref::<arrow::array::LargeListArray>()
                             .ok_or_else(|| {
                                 pyo3::exceptions::PyValueError::new_err(
-                                    "Failed to downcast weights column to LargeListArray"
+                                    "Failed to downcast weights column to LargeListArray",
                                 )
                             })?;
-                        
+
                         list_array.value(row_idx)
                     }
                     _ => {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            format!("Unsupported weights column type: {:?}", weights_list.data_type())
-                        ));
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "Unsupported weights column type: {:?}",
+                            weights_list.data_type()
+                        )));
                     }
                 };
 
@@ -1265,7 +1265,7 @@ impl ArrowQuantV2 {
                     .downcast_ref::<Float32Array>()
                     .ok_or_else(|| {
                         pyo3::exceptions::PyValueError::new_err(
-                            "Weights array must contain float32 values"
+                            "Weights array must contain float32 values",
                         )
                     })?;
 
@@ -1274,13 +1274,11 @@ impl ArrowQuantV2 {
 
                 // Validate for NaN/Inf values
                 if let Some(idx) = weights_slice.iter().position(|&x| !x.is_finite()) {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        format!(
-                            "Layer '{}' contains NaN or Inf at index {}. \
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Layer '{}' contains NaN or Inf at index {}. \
                             Please clean your data before quantization.",
-                            layer_name, idx
-                        )
-                    ));
+                        layer_name, idx
+                    )));
                 }
 
                 // Get shape if available
@@ -1292,20 +1290,20 @@ impl ArrowQuantV2 {
                                 .downcast_ref::<arrow::array::ListArray>()
                                 .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
-                                        "Failed to downcast shape column to ListArray"
+                                        "Failed to downcast shape column to ListArray",
                                     )
                                 })?;
-                            
+
                             let shape_array = list_array.value(row_idx);
                             let shape_i64 = shape_array
                                 .as_any()
                                 .downcast_ref::<arrow::array::Int64Array>()
                                 .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
-                                        "Shape array must contain int64 values"
+                                        "Shape array must contain int64 values",
                                     )
                                 })?;
-                            
+
                             shape_i64.values().to_vec()
                         }
                         DataType::LargeList(_) => {
@@ -1314,20 +1312,20 @@ impl ArrowQuantV2 {
                                 .downcast_ref::<arrow::array::LargeListArray>()
                                 .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
-                                        "Failed to downcast shape column to LargeListArray"
+                                        "Failed to downcast shape column to LargeListArray",
                                     )
                                 })?;
-                            
+
                             let shape_array = list_array.value(row_idx);
                             let shape_i64 = shape_array
                                 .as_any()
                                 .downcast_ref::<arrow::array::Int64Array>()
                                 .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
-                                        "Shape array must contain int64 values"
+                                        "Shape array must contain int64 values",
                                     )
                                 })?;
-                            
+
                             shape_i64.values().to_vec()
                         }
                         _ => vec![weights_slice.len() as i64],
@@ -1337,71 +1335,73 @@ impl ArrowQuantV2 {
                 };
 
                 // Perform quantization using orchestrator if available
-                let (scales, zero_points, quantized_data) = if let Some(ref orchestrator) = self.orchestrator {
-                    // Use orchestrator's quantization with proper group size
-                    let group_size = orchestrator.get_group_size();
-                    
-                    // Determine 2D shape for orchestrator
-                    let (rows, cols) = if shape.len() == 2 {
-                        (shape[0] as usize, shape[1] as usize)
+                let (scales, zero_points, quantized_data) =
+                    if let Some(ref orchestrator) = self.orchestrator {
+                        // Use orchestrator's quantization with proper group size
+                        let group_size = orchestrator.get_group_size();
+
+                        // Determine 2D shape for orchestrator
+                        let (rows, cols) = if shape.len() == 2 {
+                            (shape[0] as usize, shape[1] as usize)
+                        } else {
+                            (1, weights_slice.len())
+                        };
+
+                        // Convert slice to 2D ndarray for orchestrator
+                        let weights_2d =
+                            ndarray::Array2::from_shape_vec((rows, cols), weights_slice.to_vec())
+                                .map_err(|e| {
+                                QuantizationError::new_err(format!(
+                                    "Failed to reshape array for layer '{}': {}",
+                                    layer_name, e
+                                ))
+                            })?;
+
+                        // Quantize using orchestrator
+                        let (scales, zero_points) = orchestrator
+                            .quantize_layer_internal(&weights_2d, bit_width, group_size)
+                            .map_err(convert_error)?;
+
+                        // Quantize data using scales and zero points
+                        let quantized_data = self.quantize_with_params(
+                            weights_slice,
+                            &scales,
+                            &zero_points,
+                            group_size,
+                        )?;
+
+                        (scales, zero_points, quantized_data)
                     } else {
-                        (1, weights_slice.len())
+                        // Fallback: simple per-tensor quantization
+                        let (scale, zero_point) =
+                            self.compute_quantization_params(weights_slice, bit_width);
+                        let quantized_data = self.quantize_simple(weights_slice, scale, zero_point);
+
+                        (vec![scale], vec![zero_point], quantized_data)
                     };
-                    
-                    // Convert slice to 2D ndarray for orchestrator
-                    let weights_2d = ndarray::Array2::from_shape_vec(
-                        (rows, cols),
-                        weights_slice.to_vec(),
-                    ).map_err(|e| {
-                        QuantizationError::new_err(
-                            format!("Failed to reshape array for layer '{}': {}", layer_name, e)
-                        )
-                    })?;
-
-                    // Quantize using orchestrator
-                    let (scales, zero_points) = orchestrator
-                        .quantize_layer_internal(&weights_2d, bit_width, group_size)
-                        .map_err(convert_error)?;
-
-                    // Quantize data using scales and zero points
-                    let quantized_data = self.quantize_with_params(
-                        weights_slice,
-                        &scales,
-                        &zero_points,
-                        group_size,
-                    )?;
-
-                    (scales, zero_points, quantized_data)
-                } else {
-                    // Fallback: simple per-tensor quantization
-                    let (scale, zero_point) = self.compute_quantization_params(weights_slice, bit_width);
-                    let quantized_data = self.quantize_simple(weights_slice, scale, zero_point);
-                    
-                    (vec![scale], vec![zero_point], quantized_data)
-                };
 
                 // Append results to builders
                 result_layer_names.append_value(layer_name);
                 result_quantized_data.append_value(&quantized_data);
-                
+
                 // Append scales as list
                 for scale in &scales {
                     result_scales.values().append_value(*scale);
                 }
                 result_scales.append(true);
-                
+
                 // Append zero_points as list
                 for zp in &zero_points {
                     result_zero_points.values().append_value(*zp);
                 }
                 result_zero_points.append(true);
-                
+
                 // Append shape as list
                 for dim in &shape {
                     result_shapes.values().append_value(*dim);
                 }
                 result_shapes.append(true);
-                
+
                 result_bit_widths.append_value(bit_width);
             }
 
@@ -1416,19 +1416,21 @@ impl ArrowQuantV2 {
             // Convert arrays to Python lists
             use pyo3::types::PyDict;
             let result_dict = PyDict::new_bound(py);
-            
+
             // layer_name column
-            let layer_names_list = result_layer_names_array.iter()
+            let layer_names_list = result_layer_names_array
+                .iter()
                 .map(|v| v.map(|s| s.to_string()))
                 .collect::<Vec<_>>();
             result_dict.set_item("layer_name", layer_names_list)?;
-            
+
             // quantized_data column (binary)
-            let quantized_data_list = result_quantized_data_array.iter()
+            let quantized_data_list = result_quantized_data_array
+                .iter()
                 .map(|v| v.map(|bytes| bytes.to_vec()))
                 .collect::<Vec<_>>();
             result_dict.set_item("quantized_data", quantized_data_list)?;
-            
+
             // scales column (list of float32)
             let scales_list: Vec<Vec<f32>> = (0..result_scales_array.len())
                 .map(|i| {
@@ -1438,7 +1440,7 @@ impl ArrowQuantV2 {
                 })
                 .collect();
             result_dict.set_item("scales", scales_list)?;
-            
+
             // zero_points column (list of float32)
             let zero_points_list: Vec<Vec<f32>> = (0..result_zero_points_array.len())
                 .map(|i| {
@@ -1448,17 +1450,20 @@ impl ArrowQuantV2 {
                 })
                 .collect();
             result_dict.set_item("zero_points", zero_points_list)?;
-            
+
             // shape column (list of int64)
             let shapes_list: Vec<Vec<i64>> = (0..result_shapes_array.len())
                 .map(|i| {
                     let list_array = result_shapes_array.value(i);
-                    let int_array = list_array.as_any().downcast_ref::<arrow::array::Int64Array>().unwrap();
+                    let int_array = list_array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Int64Array>()
+                        .unwrap();
                     int_array.values().to_vec()
                 })
                 .collect();
             result_dict.set_item("shape", shapes_list)?;
-            
+
             // bit_width column
             let bit_widths_list = result_bit_widths_array.values().to_vec();
             result_dict.set_item("bit_width", bit_widths_list)?;
@@ -1530,26 +1535,30 @@ impl ArrowQuantV2 {
         record_batch: &Bound<'_, PyAny>,
         bit_width: Option<u8>,
     ) -> PyResult<PyObject> {
-        use arrow::array::{BinaryBuilder, Float32Builder, Int64Builder, ListBuilder, StringBuilder, UInt8Builder};
+        use arrow::array::{
+            BinaryBuilder, Float32Builder, Int64Builder, ListBuilder, StringBuilder, UInt8Builder,
+        };
         use arrow::datatypes::{DataType, Field, Schema};
         use arrow::record_batch::RecordBatch;
-        
+
         Python::with_gil(|py| {
             let bit_width = bit_width.unwrap_or(4);
 
             // Validate bit width
             if ![2, 4, 8].contains(&bit_width) {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Invalid bit_width: {}. Must be 2, 4, or 8", bit_width)
-                ));
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid bit_width: {}. Must be 2, 4, or 8",
+                    bit_width
+                )));
             }
 
             // Import PyArrow RecordBatch using C Data Interface (zero-copy)
-            let batch = arrow_ffi_helpers::import_pyarrow_recordbatch(record_batch)
-                .map_err(|e| {
-                    pyo3::exceptions::PyValueError::new_err(
-                        format!("Failed to import PyArrow RecordBatch: {}", e)
-                    )
+            let batch =
+                arrow_ffi_helpers::import_pyarrow_recordbatch(record_batch).map_err(|e| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Failed to import PyArrow RecordBatch: {}",
+                        e
+                    ))
                 })?;
 
             // Validate schema
@@ -1559,25 +1568,19 @@ impl ArrowQuantV2 {
             let layer_names = batch
                 .column_by_name("layer_name")
                 .ok_or_else(|| {
-                    pyo3::exceptions::PyValueError::new_err(
-                        "Missing required column 'layer_name'"
-                    )
+                    pyo3::exceptions::PyValueError::new_err("Missing required column 'layer_name'")
                 })?
                 .as_any()
                 .downcast_ref::<StringArray>()
                 .ok_or_else(|| {
                     pyo3::exceptions::PyValueError::new_err(
-                        "Column 'layer_name' must be string type"
+                        "Column 'layer_name' must be string type",
                     )
                 })?;
 
-            let weights_list = batch
-                .column_by_name("weights")
-                .ok_or_else(|| {
-                    pyo3::exceptions::PyValueError::new_err(
-                        "Missing required column 'weights'"
-                    )
-                })?;
+            let weights_list = batch.column_by_name("weights").ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err("Missing required column 'weights'")
+            })?;
 
             // Get optional shape column
             let shapes_list = batch.column_by_name("shape");
@@ -1595,7 +1598,7 @@ impl ArrowQuantV2 {
             for row_idx in 0..num_rows {
                 // Get layer name
                 let layer_name = layer_names.value(row_idx);
-                
+
                 // Extract weights array from list column
                 let weights_array = match weights_list.data_type() {
                     DataType::List(_) => {
@@ -1604,10 +1607,10 @@ impl ArrowQuantV2 {
                             .downcast_ref::<arrow::array::ListArray>()
                             .ok_or_else(|| {
                                 pyo3::exceptions::PyValueError::new_err(
-                                    "Failed to downcast weights column to ListArray"
+                                    "Failed to downcast weights column to ListArray",
                                 )
                             })?;
-                        
+
                         list_array.value(row_idx)
                     }
                     DataType::LargeList(_) => {
@@ -1616,16 +1619,17 @@ impl ArrowQuantV2 {
                             .downcast_ref::<arrow::array::LargeListArray>()
                             .ok_or_else(|| {
                                 pyo3::exceptions::PyValueError::new_err(
-                                    "Failed to downcast weights column to LargeListArray"
+                                    "Failed to downcast weights column to LargeListArray",
                                 )
                             })?;
-                        
+
                         list_array.value(row_idx)
                     }
                     _ => {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            format!("Unsupported weights column type: {:?}", weights_list.data_type())
-                        ));
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "Unsupported weights column type: {:?}",
+                            weights_list.data_type()
+                        )));
                     }
                 };
 
@@ -1635,7 +1639,7 @@ impl ArrowQuantV2 {
                     .downcast_ref::<Float32Array>()
                     .ok_or_else(|| {
                         pyo3::exceptions::PyValueError::new_err(
-                            "Weights array must contain float32 values"
+                            "Weights array must contain float32 values",
                         )
                     })?;
 
@@ -1644,13 +1648,11 @@ impl ArrowQuantV2 {
 
                 // Validate for NaN/Inf values
                 if let Some(idx) = weights_slice.iter().position(|&x| !x.is_finite()) {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        format!(
-                            "Layer '{}' contains NaN or Inf at index {}. \
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Layer '{}' contains NaN or Inf at index {}. \
                             Please clean your data before quantization.",
-                            layer_name, idx
-                        )
-                    ));
+                        layer_name, idx
+                    )));
                 }
 
                 // Get shape if available
@@ -1662,20 +1664,20 @@ impl ArrowQuantV2 {
                                 .downcast_ref::<arrow::array::ListArray>()
                                 .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
-                                        "Failed to downcast shape column to ListArray"
+                                        "Failed to downcast shape column to ListArray",
                                     )
                                 })?;
-                            
+
                             let shape_array = list_array.value(row_idx);
                             let shape_i64 = shape_array
                                 .as_any()
                                 .downcast_ref::<arrow::array::Int64Array>()
                                 .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
-                                        "Shape array must contain int64 values"
+                                        "Shape array must contain int64 values",
                                     )
                                 })?;
-                            
+
                             shape_i64.values().to_vec()
                         }
                         DataType::LargeList(_) => {
@@ -1684,20 +1686,20 @@ impl ArrowQuantV2 {
                                 .downcast_ref::<arrow::array::LargeListArray>()
                                 .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
-                                        "Failed to downcast shape column to LargeListArray"
+                                        "Failed to downcast shape column to LargeListArray",
                                     )
                                 })?;
-                            
+
                             let shape_array = list_array.value(row_idx);
                             let shape_i64 = shape_array
                                 .as_any()
                                 .downcast_ref::<arrow::array::Int64Array>()
                                 .ok_or_else(|| {
                                     pyo3::exceptions::PyValueError::new_err(
-                                        "Shape array must contain int64 values"
+                                        "Shape array must contain int64 values",
                                     )
                                 })?;
-                            
+
                             shape_i64.values().to_vec()
                         }
                         _ => vec![weights_slice.len() as i64],
@@ -1707,71 +1709,73 @@ impl ArrowQuantV2 {
                 };
 
                 // Perform quantization using orchestrator if available
-                let (scales, zero_points, quantized_data) = if let Some(ref orchestrator) = self.orchestrator {
-                    // Use orchestrator's quantization with proper group size
-                    let group_size = orchestrator.get_group_size();
-                    
-                    // Determine 2D shape for orchestrator
-                    let (rows, cols) = if shape.len() == 2 {
-                        (shape[0] as usize, shape[1] as usize)
+                let (scales, zero_points, quantized_data) =
+                    if let Some(ref orchestrator) = self.orchestrator {
+                        // Use orchestrator's quantization with proper group size
+                        let group_size = orchestrator.get_group_size();
+
+                        // Determine 2D shape for orchestrator
+                        let (rows, cols) = if shape.len() == 2 {
+                            (shape[0] as usize, shape[1] as usize)
+                        } else {
+                            (1, weights_slice.len())
+                        };
+
+                        // Convert slice to 2D ndarray for orchestrator
+                        let weights_2d =
+                            ndarray::Array2::from_shape_vec((rows, cols), weights_slice.to_vec())
+                                .map_err(|e| {
+                                QuantizationError::new_err(format!(
+                                    "Failed to reshape array for layer '{}': {}",
+                                    layer_name, e
+                                ))
+                            })?;
+
+                        // Quantize using orchestrator
+                        let (scales, zero_points) = orchestrator
+                            .quantize_layer_internal(&weights_2d, bit_width, group_size)
+                            .map_err(convert_error)?;
+
+                        // Quantize data using scales and zero points
+                        let quantized_data = self.quantize_with_params(
+                            weights_slice,
+                            &scales,
+                            &zero_points,
+                            group_size,
+                        )?;
+
+                        (scales, zero_points, quantized_data)
                     } else {
-                        (1, weights_slice.len())
+                        // Fallback: simple per-tensor quantization
+                        let (scale, zero_point) =
+                            self.compute_quantization_params(weights_slice, bit_width);
+                        let quantized_data = self.quantize_simple(weights_slice, scale, zero_point);
+
+                        (vec![scale], vec![zero_point], quantized_data)
                     };
-                    
-                    // Convert slice to 2D ndarray for orchestrator
-                    let weights_2d = ndarray::Array2::from_shape_vec(
-                        (rows, cols),
-                        weights_slice.to_vec(),
-                    ).map_err(|e| {
-                        QuantizationError::new_err(
-                            format!("Failed to reshape array for layer '{}': {}", layer_name, e)
-                        )
-                    })?;
-
-                    // Quantize using orchestrator
-                    let (scales, zero_points) = orchestrator
-                        .quantize_layer_internal(&weights_2d, bit_width, group_size)
-                        .map_err(convert_error)?;
-
-                    // Quantize data using scales and zero points
-                    let quantized_data = self.quantize_with_params(
-                        weights_slice,
-                        &scales,
-                        &zero_points,
-                        group_size,
-                    )?;
-
-                    (scales, zero_points, quantized_data)
-                } else {
-                    // Fallback: simple per-tensor quantization
-                    let (scale, zero_point) = self.compute_quantization_params(weights_slice, bit_width);
-                    let quantized_data = self.quantize_simple(weights_slice, scale, zero_point);
-                    
-                    (vec![scale], vec![zero_point], quantized_data)
-                };
 
                 // Append results to builders
                 result_layer_names.append_value(layer_name);
                 result_quantized_data.append_value(&quantized_data);
-                
+
                 // Append scales as list
                 for scale in &scales {
                     result_scales.values().append_value(*scale);
                 }
                 result_scales.append(true);
-                
+
                 // Append zero_points as list
                 for zp in &zero_points {
                     result_zero_points.values().append_value(*zp);
                 }
                 result_zero_points.append(true);
-                
+
                 // Append shape as list
                 for dim in &shape {
                     result_shapes.values().append_value(*dim);
                 }
                 result_shapes.append(true);
-                
+
                 result_bit_widths.append_value(bit_width);
             }
 
@@ -1786,19 +1790,21 @@ impl ArrowQuantV2 {
             // Convert arrays to Python lists
             use pyo3::types::PyDict;
             let result_dict = PyDict::new_bound(py);
-            
+
             // layer_name column
-            let layer_names_list = result_layer_names_array.iter()
+            let layer_names_list = result_layer_names_array
+                .iter()
                 .map(|v| v.map(|s| s.to_string()))
                 .collect::<Vec<_>>();
             result_dict.set_item("layer_name", layer_names_list)?;
-            
+
             // quantized_data column (binary)
-            let quantized_data_list = result_quantized_data_array.iter()
+            let quantized_data_list = result_quantized_data_array
+                .iter()
                 .map(|v| v.map(|bytes| bytes.to_vec()))
                 .collect::<Vec<_>>();
             result_dict.set_item("quantized_data", quantized_data_list)?;
-            
+
             // scales column (list of float32)
             let scales_list: Vec<Vec<f32>> = (0..result_scales_array.len())
                 .map(|i| {
@@ -1808,7 +1814,7 @@ impl ArrowQuantV2 {
                 })
                 .collect();
             result_dict.set_item("scales", scales_list)?;
-            
+
             // zero_points column (list of float32)
             let zero_points_list: Vec<Vec<f32>> = (0..result_zero_points_array.len())
                 .map(|i| {
@@ -1818,17 +1824,20 @@ impl ArrowQuantV2 {
                 })
                 .collect();
             result_dict.set_item("zero_points", zero_points_list)?;
-            
+
             // shape column (list of int64)
             let shapes_list: Vec<Vec<i64>> = (0..result_shapes_array.len())
                 .map(|i| {
                     let list_array = result_shapes_array.value(i);
-                    let int_array = list_array.as_any().downcast_ref::<arrow::array::Int64Array>().unwrap();
+                    let int_array = list_array
+                        .as_any()
+                        .downcast_ref::<arrow::array::Int64Array>()
+                        .unwrap();
                     int_array.values().to_vec()
                 })
                 .collect();
             result_dict.set_item("shape", shapes_list)?;
-            
+
             // bit_width column
             let bit_widths_list = result_bit_widths_array.values().to_vec();
             result_dict.set_item("bit_width", bit_widths_list)?;
@@ -1915,15 +1924,16 @@ impl ArrowQuantV2 {
         continue_on_error: Option<bool>,
     ) -> PyResult<HashMap<String, PyObject>> {
         use rayon::prelude::*;
-        
+
         let bit_width = bit_width.unwrap_or(4);
         let continue_on_error = continue_on_error.unwrap_or(false);
 
         // Validate bit width
         if ![2, 4, 8].contains(&bit_width) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid bit_width: {}. Must be 2, 4, or 8", bit_width)
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid bit_width: {}. Must be 2, 4, or 8",
+                bit_width
+            )));
         }
 
         // Check for empty dictionary
@@ -1934,10 +1944,10 @@ impl ArrowQuantV2 {
         // Step 1: Extract all numpy arrays to owned data (must be done with GIL)
         // This allows us to release GIL during parallel processing
         let mut layer_data: Vec<(String, Vec<f32>, Vec<usize>)> = Vec::new();
-        
+
         for (key, value) in weights_dict.iter() {
             let layer_name: String = key.extract()?;
-            
+
             // Extract and validate numpy array
             let (weights_slice, shape) = match self.extract_numpy_array(&value, &layer_name) {
                 Ok(data) => data,
@@ -1947,13 +1957,14 @@ impl ArrowQuantV2 {
                         eprintln!("Warning: Skipping layer '{}': {}", layer_name, e);
                         continue;
                     } else {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            format!("Error processing layer '{}': {}", layer_name, e)
-                        ));
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "Error processing layer '{}': {}",
+                            layer_name, e
+                        )));
                     }
                 }
             };
-            
+
             // Clone data to owned Vec for parallel processing
             layer_data.push((layer_name, weights_slice.to_vec(), shape));
         }
@@ -1969,39 +1980,49 @@ impl ArrowQuantV2 {
             .par_iter()
             .map(|(layer_name, weights_vec, shape)| {
                 let weights_slice = weights_vec.as_slice();
-                
+
                 // Perform quantization
-                let (scales, zero_points, quantized_data) = if let Some(ref orchestrator) = self.orchestrator {
+                let (scales, zero_points, quantized_data) = if let Some(ref orchestrator) =
+                    self.orchestrator
+                {
                     // Use orchestrator's quantization with proper group size
                     let group_size = orchestrator.get_group_size();
-                    
+
                     // Determine 2D shape for orchestrator
                     let (rows, cols) = if shape.len() == 2 {
                         (shape[0], shape[1])
                     } else {
                         (1, weights_slice.len())
                     };
-                    
+
                     // Convert slice to 2D ndarray for orchestrator
-                    let weights_2d = match ndarray::Array2::from_shape_vec(
-                        (rows, cols),
-                        weights_slice.to_vec(),
-                    ) {
-                        Ok(arr) => arr,
-                        Err(e) => {
-                            let error_msg = format!("Failed to reshape array for layer '{}': {}", layer_name, e);
-                            errors.lock().unwrap().push(error_msg.clone());
-                            return Err(error_msg);
-                        }
-                    };
+                    let weights_2d =
+                        match ndarray::Array2::from_shape_vec((rows, cols), weights_slice.to_vec())
+                        {
+                            Ok(arr) => arr,
+                            Err(e) => {
+                                let error_msg = format!(
+                                    "Failed to reshape array for layer '{}': {}",
+                                    layer_name, e
+                                );
+                                errors.lock().unwrap().push(error_msg.clone());
+                                return Err(error_msg);
+                            }
+                        };
 
                     // Quantize using orchestrator
-                    let (scales, zero_points) = match orchestrator
-                        .quantize_layer_internal(&weights_2d, bit_width, group_size)
-                    {
+                    let (scales, zero_points) = match orchestrator.quantize_layer_internal(
+                        &weights_2d,
+                        bit_width,
+                        group_size,
+                    ) {
                         Ok(result) => result,
                         Err(e) => {
-                            let error_msg = format!("Quantization failed for layer '{}': {}", layer_name, convert_error(e));
+                            let error_msg = format!(
+                                "Quantization failed for layer '{}': {}",
+                                layer_name,
+                                convert_error(e)
+                            );
                             errors.lock().unwrap().push(error_msg.clone());
                             return Err(error_msg);
                         }
@@ -2016,7 +2037,8 @@ impl ArrowQuantV2 {
                     ) {
                         Ok(data) => data,
                         Err(e) => {
-                            let error_msg = format!("Failed to quantize layer '{}': {}", layer_name, e);
+                            let error_msg =
+                                format!("Failed to quantize layer '{}': {}", layer_name, e);
                             errors.lock().unwrap().push(error_msg.clone());
                             return Err(error_msg);
                         }
@@ -2025,14 +2047,21 @@ impl ArrowQuantV2 {
                     (scales, zero_points, quantized_data)
                 } else {
                     // Fallback: simple per-tensor quantization
-                    let (scale, zero_point) = self.compute_quantization_params(weights_slice, bit_width);
+                    let (scale, zero_point) =
+                        self.compute_quantization_params(weights_slice, bit_width);
                     let quantized_data = self.quantize_simple(weights_slice, scale, zero_point);
-                    
+
                     (vec![scale], vec![zero_point], quantized_data)
                 };
 
                 // Return intermediate result
-                Ok((layer_name.clone(), scales, zero_points, quantized_data, shape.clone()))
+                Ok((
+                    layer_name.clone(),
+                    scales,
+                    zero_points,
+                    quantized_data,
+                    shape.clone(),
+                ))
             })
             .collect();
 
@@ -2040,7 +2069,7 @@ impl ArrowQuantV2 {
         let collected_errors = errors.lock().unwrap();
         if !collected_errors.is_empty() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                collected_errors.join("\n")
+                collected_errors.join("\n"),
             ));
         }
         drop(collected_errors);
@@ -2053,20 +2082,23 @@ impl ArrowQuantV2 {
                     Ok((layer_name, scales, zero_points, quantized_data, shape)) => {
                         // Build result dictionary for this layer
                         let layer_result = pyo3::types::PyDict::new_bound(py);
-                        
+
                         // Add quantized_data as bytes
-                        layer_result.set_item("quantized_data", pyo3::types::PyBytes::new_bound(py, &quantized_data))?;
-                        
+                        layer_result.set_item(
+                            "quantized_data",
+                            pyo3::types::PyBytes::new_bound(py, &quantized_data),
+                        )?;
+
                         // Add scales as list
                         layer_result.set_item("scales", scales.to_object(py))?;
-                        
+
                         // Add zero_points as list
                         layer_result.set_item("zero_points", zero_points.to_object(py))?;
-                        
+
                         // Add shape as list
                         let shape_i64: Vec<i64> = shape.iter().map(|&x| x as i64).collect();
                         layer_result.set_item("shape", shape_i64.to_object(py))?;
-                        
+
                         // Add bit_width
                         layer_result.set_item("bit_width", bit_width)?;
 
@@ -2173,15 +2205,16 @@ impl ArrowQuantV2 {
         continue_on_error: Option<bool>,
     ) -> PyResult<HashMap<String, PyObject>> {
         use rayon::prelude::*;
-        
+
         let bit_width = bit_width.unwrap_or(4);
         let continue_on_error = continue_on_error.unwrap_or(false);
 
         // Validate bit width
         if ![2, 4, 8].contains(&bit_width) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid bit_width: {}. Must be 2, 4, or 8", bit_width)
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid bit_width: {}. Must be 2, 4, or 8",
+                bit_width
+            )));
         }
 
         // Check for empty dictionary
@@ -2195,10 +2228,10 @@ impl ArrowQuantV2 {
         // Step 1: Extract all numpy arrays to owned data (must be done with GIL)
         // This allows us to release GIL during parallel processing
         let mut layer_data: Vec<(String, Vec<f32>, Vec<usize>)> = Vec::new();
-        
+
         for (key, value) in weights_dict.iter() {
             let layer_name: String = key.extract()?;
-            
+
             // Extract and validate numpy array
             let (weights_slice, shape) = match self.extract_numpy_array(&value, &layer_name) {
                 Ok(data) => data,
@@ -2208,13 +2241,14 @@ impl ArrowQuantV2 {
                         eprintln!("Warning: Skipping layer '{}': {}", layer_name, e);
                         continue;
                     } else {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            format!("Error processing layer '{}': {}", layer_name, e)
-                        ));
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "Error processing layer '{}': {}",
+                            layer_name, e
+                        )));
                     }
                 }
             };
-            
+
             // Clone data to owned Vec for parallel processing
             layer_data.push((layer_name, weights_slice.to_vec(), shape));
         }
@@ -2227,7 +2261,7 @@ impl ArrowQuantV2 {
         // Step 2: Process layers in parallel (no GIL needed)
         // Thread-safe error collection
         let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-        
+
         // Thread-safe progress tracking
         let completed_count: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
 
@@ -2235,39 +2269,49 @@ impl ArrowQuantV2 {
             .par_iter()
             .map(|(layer_name, weights_vec, shape)| {
                 let weights_slice = weights_vec.as_slice();
-                
+
                 // Perform quantization
-                let (scales, zero_points, quantized_data) = if let Some(ref orchestrator) = self.orchestrator {
+                let (scales, zero_points, quantized_data) = if let Some(ref orchestrator) =
+                    self.orchestrator
+                {
                     // Use orchestrator's quantization with proper group size
                     let group_size = orchestrator.get_group_size();
-                    
+
                     // Determine 2D shape for orchestrator
                     let (rows, cols) = if shape.len() == 2 {
                         (shape[0], shape[1])
                     } else {
                         (1, weights_slice.len())
                     };
-                    
+
                     // Convert slice to 2D ndarray for orchestrator
-                    let weights_2d = match ndarray::Array2::from_shape_vec(
-                        (rows, cols),
-                        weights_slice.to_vec(),
-                    ) {
-                        Ok(arr) => arr,
-                        Err(e) => {
-                            let error_msg = format!("Failed to reshape array for layer '{}': {}", layer_name, e);
-                            errors.lock().unwrap().push(error_msg.clone());
-                            return Err(error_msg);
-                        }
-                    };
+                    let weights_2d =
+                        match ndarray::Array2::from_shape_vec((rows, cols), weights_slice.to_vec())
+                        {
+                            Ok(arr) => arr,
+                            Err(e) => {
+                                let error_msg = format!(
+                                    "Failed to reshape array for layer '{}': {}",
+                                    layer_name, e
+                                );
+                                errors.lock().unwrap().push(error_msg.clone());
+                                return Err(error_msg);
+                            }
+                        };
 
                     // Quantize using orchestrator
-                    let (scales, zero_points) = match orchestrator
-                        .quantize_layer_internal(&weights_2d, bit_width, group_size)
-                    {
+                    let (scales, zero_points) = match orchestrator.quantize_layer_internal(
+                        &weights_2d,
+                        bit_width,
+                        group_size,
+                    ) {
                         Ok(result) => result,
                         Err(e) => {
-                            let error_msg = format!("Quantization failed for layer '{}': {}", layer_name, convert_error(e));
+                            let error_msg = format!(
+                                "Quantization failed for layer '{}': {}",
+                                layer_name,
+                                convert_error(e)
+                            );
                             errors.lock().unwrap().push(error_msg.clone());
                             return Err(error_msg);
                         }
@@ -2282,7 +2326,8 @@ impl ArrowQuantV2 {
                     ) {
                         Ok(data) => data,
                         Err(e) => {
-                            let error_msg = format!("Failed to quantize layer '{}': {}", layer_name, e);
+                            let error_msg =
+                                format!("Failed to quantize layer '{}': {}", layer_name, e);
                             errors.lock().unwrap().push(error_msg.clone());
                             return Err(error_msg);
                         }
@@ -2291,9 +2336,10 @@ impl ArrowQuantV2 {
                     (scales, zero_points, quantized_data)
                 } else {
                     // Fallback: simple per-tensor quantization
-                    let (scale, zero_point) = self.compute_quantization_params(weights_slice, bit_width);
+                    let (scale, zero_point) =
+                        self.compute_quantization_params(weights_slice, bit_width);
                     let quantized_data = self.quantize_simple(weights_slice, scale, zero_point);
-                    
+
                     (vec![scale], vec![zero_point], quantized_data)
                 };
 
@@ -2303,13 +2349,19 @@ impl ArrowQuantV2 {
                     let mut count = completed_count.lock().unwrap();
                     *count += 1;
                     let progress = *count as f32 / total_layers as f32;
-                    
+
                     // Report progress (errors are handled gracefully inside)
                     progress_reporter.report(layer_name, progress);
                 }
 
                 // Return intermediate result
-                Ok((layer_name.clone(), scales, zero_points, quantized_data, shape.clone()))
+                Ok((
+                    layer_name.clone(),
+                    scales,
+                    zero_points,
+                    quantized_data,
+                    shape.clone(),
+                ))
             })
             .collect();
 
@@ -2324,7 +2376,7 @@ impl ArrowQuantV2 {
             } else {
                 // Fail fast mode: return all errors
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    collected_errors.join("\n")
+                    collected_errors.join("\n"),
                 ));
             }
         }
@@ -2338,20 +2390,23 @@ impl ArrowQuantV2 {
                     Ok((layer_name, scales, zero_points, quantized_data, shape)) => {
                         // Build result dictionary for this layer
                         let layer_result = pyo3::types::PyDict::new_bound(py);
-                        
+
                         // Add quantized_data as bytes
-                        layer_result.set_item("quantized_data", pyo3::types::PyBytes::new_bound(py, &quantized_data))?;
-                        
+                        layer_result.set_item(
+                            "quantized_data",
+                            pyo3::types::PyBytes::new_bound(py, &quantized_data),
+                        )?;
+
                         // Add scales as list
                         layer_result.set_item("scales", scales.to_object(py))?;
-                        
+
                         // Add zero_points as list
                         layer_result.set_item("zero_points", zero_points.to_object(py))?;
-                        
+
                         // Add shape as list
                         let shape_i64: Vec<i64> = shape.iter().map(|&x| x as i64).collect();
                         layer_result.set_item("shape", shape_i64.to_object(py))?;
-                        
+
                         // Add bit_width
                         layer_result.set_item("bit_width", bit_width)?;
 
@@ -2467,15 +2522,16 @@ impl ArrowQuantV2 {
         bit_width: Option<u8>,
         continue_on_error: Option<bool>,
     ) -> PyResult<PyObject> {
-        use arrow::array::{Float32Array, Int64Array, ListArray, LargeListArray, StringArray};
+        use arrow::array::{Float32Array, Int64Array, LargeListArray, ListArray, StringArray};
         use arrow::datatypes::DataType;
-        
+
         // Validate bit_width parameter
         let bit_width = bit_width.unwrap_or(4);
         if ![2, 4, 8].contains(&bit_width) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid bit_width: {}. Must be 2, 4, or 8", bit_width)
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid bit_width: {}. Must be 2, 4, or 8",
+                bit_width
+            )));
         }
 
         // Handle continue_on_error parameter
@@ -2484,14 +2540,14 @@ impl ArrowQuantV2 {
         // ========================================================================
         // Task 2.2: Data Extraction Phase (holding GIL)
         // ========================================================================
-        
+
         // Step 1: Import Arrow Table using C Data Interface (zero-copy)
-        let record_batch = arrow_ffi_helpers::import_pyarrow_table(weights_table)
-            .map_err(|e| {
-                pyo3::exceptions::PyValueError::new_err(
-                    format!("Failed to import PyArrow Table: {}", e)
-                )
-            })?;
+        let record_batch = arrow_ffi_helpers::import_pyarrow_table(weights_table).map_err(|e| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Failed to import PyArrow Table: {}",
+                e
+            ))
+        })?;
 
         // Step 2: Validate schema
         arrow_ffi_helpers::validate_quantization_schema(record_batch.schema().as_ref())?;
@@ -2500,25 +2556,17 @@ impl ArrowQuantV2 {
         let layer_names = record_batch
             .column_by_name("layer_name")
             .ok_or_else(|| {
-                pyo3::exceptions::PyValueError::new_err(
-                    "Missing required column 'layer_name'"
-                )
+                pyo3::exceptions::PyValueError::new_err("Missing required column 'layer_name'")
             })?
             .as_any()
             .downcast_ref::<StringArray>()
             .ok_or_else(|| {
-                pyo3::exceptions::PyValueError::new_err(
-                    "Column 'layer_name' must be string type"
-                )
+                pyo3::exceptions::PyValueError::new_err("Column 'layer_name' must be string type")
             })?;
 
-        let weights_list = record_batch
-            .column_by_name("weights")
-            .ok_or_else(|| {
-                pyo3::exceptions::PyValueError::new_err(
-                    "Missing required column 'weights'"
-                )
-            })?;
+        let weights_list = record_batch.column_by_name("weights").ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("Missing required column 'weights'")
+        })?;
 
         // Get optional shape column
         let shapes_list = record_batch.column_by_name("shape");
@@ -2530,7 +2578,7 @@ impl ArrowQuantV2 {
         for row_idx in 0..num_rows {
             // Extract layer name
             let layer_name = layer_names.value(row_idx).to_string();
-            
+
             // Extract weights array from list column
             let weights_array = match weights_list.data_type() {
                 DataType::List(_) => {
@@ -2539,10 +2587,10 @@ impl ArrowQuantV2 {
                         .downcast_ref::<ListArray>()
                         .ok_or_else(|| {
                             pyo3::exceptions::PyValueError::new_err(
-                                "Failed to downcast weights column to ListArray"
+                                "Failed to downcast weights column to ListArray",
                             )
                         })?;
-                    
+
                     list_array.value(row_idx)
                 }
                 DataType::LargeList(_) => {
@@ -2551,16 +2599,17 @@ impl ArrowQuantV2 {
                         .downcast_ref::<LargeListArray>()
                         .ok_or_else(|| {
                             pyo3::exceptions::PyValueError::new_err(
-                                "Failed to downcast weights column to LargeListArray"
+                                "Failed to downcast weights column to LargeListArray",
                             )
                         })?;
-                    
+
                     list_array.value(row_idx)
                 }
                 _ => {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        format!("Unsupported weights column type: {:?}", weights_list.data_type())
-                    ));
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Unsupported weights column type: {:?}",
+                        weights_list.data_type()
+                    )));
                 }
             };
 
@@ -2570,7 +2619,7 @@ impl ArrowQuantV2 {
                 .downcast_ref::<Float32Array>()
                 .ok_or_else(|| {
                     pyo3::exceptions::PyValueError::new_err(
-                        "Weights array must contain float32 values"
+                        "Weights array must contain float32 values",
                     )
                 })?;
 
@@ -2604,36 +2653,37 @@ impl ArrowQuantV2 {
                             .downcast_ref::<ListArray>()
                             .ok_or_else(|| {
                                 pyo3::exceptions::PyValueError::new_err(
-                                    "Failed to downcast shape column to ListArray"
+                                    "Failed to downcast shape column to ListArray",
                                 )
                             })?;
-                        
+
                         let shape_array = list_array.value(row_idx);
                         let shape_i64 = shape_array
                             .as_any()
                             .downcast_ref::<Int64Array>()
                             .ok_or_else(|| {
                                 pyo3::exceptions::PyValueError::new_err(
-                                    "Shape array must contain int64 values"
+                                    "Shape array must contain int64 values",
                                 )
                             })?;
-                        
+
                         let shape_vec = shape_i64.values().to_vec();
-                        
+
                         // Validate shape matches weights length
                         let shape_product: usize = shape_vec.iter().map(|&x| x as usize).product();
                         if shape_product != weights_vec.len() {
-                            return Err(pyo3::exceptions::PyValueError::new_err(
-                                format!(
-                                    "Error: Shape mismatch in layer '{}'\n\
+                            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                                "Error: Shape mismatch in layer '{}'\n\
                                     Shape product: {} (shape={:?})\n\
                                     Weights length: {}\n\
                                     Fix: Ensure shape matches the flattened weights length",
-                                    layer_name, shape_product, shape_vec, weights_vec.len()
-                                )
-                            ));
+                                layer_name,
+                                shape_product,
+                                shape_vec,
+                                weights_vec.len()
+                            )));
                         }
-                        
+
                         shape_vec
                     }
                     DataType::LargeList(_) => {
@@ -2642,36 +2692,37 @@ impl ArrowQuantV2 {
                             .downcast_ref::<LargeListArray>()
                             .ok_or_else(|| {
                                 pyo3::exceptions::PyValueError::new_err(
-                                    "Failed to downcast shape column to LargeListArray"
+                                    "Failed to downcast shape column to LargeListArray",
                                 )
                             })?;
-                        
+
                         let shape_array = list_array.value(row_idx);
                         let shape_i64 = shape_array
                             .as_any()
                             .downcast_ref::<Int64Array>()
                             .ok_or_else(|| {
                                 pyo3::exceptions::PyValueError::new_err(
-                                    "Shape array must contain int64 values"
+                                    "Shape array must contain int64 values",
                                 )
                             })?;
-                        
+
                         let shape_vec = shape_i64.values().to_vec();
-                        
+
                         // Validate shape matches weights length
                         let shape_product: usize = shape_vec.iter().map(|&x| x as usize).product();
                         if shape_product != weights_vec.len() {
-                            return Err(pyo3::exceptions::PyValueError::new_err(
-                                format!(
-                                    "Error: Shape mismatch in layer '{}'\n\
+                            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                                "Error: Shape mismatch in layer '{}'\n\
                                     Shape product: {} (shape={:?})\n\
                                     Weights length: {}\n\
                                     Fix: Ensure shape matches the flattened weights length",
-                                    layer_name, shape_product, shape_vec, weights_vec.len()
-                                )
-                            ));
+                                layer_name,
+                                shape_product,
+                                shape_vec,
+                                weights_vec.len()
+                            )));
                         }
-                        
+
                         shape_vec
                     }
                     _ => vec![weights_vec.len() as i64],
@@ -2689,16 +2740,16 @@ impl ArrowQuantV2 {
         // ========================================================================
         // Task 2.3: Parallel Processing Phase (releasing GIL)
         // ========================================================================
-        
-        use rayon::prelude::*;
+
         use crate::spatial::SpatialQuantizer;
-        
+        use rayon::prelude::*;
+
         // Thread-safe error collection
         let errors: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let continue_on_error = continue_on_error.unwrap_or(false);
-        
+
         // Release GIL and process layers in parallel
-        let layer_results: Vec<Result<(String, Vec<f32>, Vec<f32>, Vec<u8>, Vec<i64>), String>> = 
+        let layer_results: Vec<Result<(String, Vec<f32>, Vec<f32>, Vec<u8>, Vec<i64>), String>> =
             Python::with_gil(|py| {
                 py.allow_threads(|| {
                     layer_data
@@ -2711,39 +2762,46 @@ impl ArrowQuantV2 {
                                 let rows = shape[0] as usize;
                                 let cols = shape[1] as usize;
                                 ndarray::Array2::from_shape_vec((rows, cols), weights_vec.clone())
-                                    .map_err(|e| format!("Failed to reshape layer '{}': {}", layer_name, e))?
+                                    .map_err(|e| {
+                                    format!("Failed to reshape layer '{}': {}", layer_name, e)
+                                })?
                             } else {
                                 // Treat as single row for 1D or other shapes
                                 let cols = weights_vec.len();
                                 ndarray::Array2::from_shape_vec((1, cols), weights_vec.clone())
-                                    .map_err(|e| format!("Failed to create array for layer '{}': {}", layer_name, e))?
+                                    .map_err(|e| {
+                                        format!(
+                                            "Failed to create array for layer '{}': {}",
+                                            layer_name, e
+                                        )
+                                    })?
                             };
-                            
+
                             // Perform quantization
                             let result = if let Some(ref orchestrator) = self.orchestrator {
                                 // Use orchestrator's group size
                                 let group_size = orchestrator.get_group_size();
                                 let quantizer = SpatialQuantizer::new(group_size);
-                                quantizer.per_group_quantize(&array)
-                                    .map_err(|e| format!("Quantization failed for layer '{}': {}", layer_name, e))
+                                quantizer.per_group_quantize(&array).map_err(|e| {
+                                    format!("Quantization failed for layer '{}': {}", layer_name, e)
+                                })
                             } else {
                                 // Fallback: use default group size
                                 let group_size = 128;
                                 let quantizer = SpatialQuantizer::new(group_size);
-                                quantizer.per_group_quantize(&array)
-                                    .map_err(|e| format!("Quantization failed for layer '{}': {}", layer_name, e))
+                                quantizer.per_group_quantize(&array).map_err(|e| {
+                                    format!("Quantization failed for layer '{}': {}", layer_name, e)
+                                })
                             };
-                            
+
                             match result {
-                                Ok(quantized) => {
-                                    Ok((
-                                        layer_name.clone(),
-                                        quantized.scales,
-                                        quantized.zero_points,
-                                        quantized.data,
-                                        shape.clone(),
-                                    ))
-                                }
+                                Ok(quantized) => Ok((
+                                    layer_name.clone(),
+                                    quantized.scales,
+                                    quantized.zero_points,
+                                    quantized.data,
+                                    shape.clone(),
+                                )),
                                 Err(e) => {
                                     // Collect error in thread-safe manner
                                     if let Ok(mut error_vec) = errors.lock() {
@@ -2756,18 +2814,17 @@ impl ArrowQuantV2 {
                         .collect()
                 })
             });
-        
+
         // Check for errors
         let collected_errors = errors.lock().unwrap();
         if !collected_errors.is_empty() {
             if !continue_on_error {
                 // Fail-fast mode: return all errors
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Quantization failed for {} layer(s):\n{}", 
-                        collected_errors.len(),
-                        collected_errors.join("\n")
-                    )
-                ));
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Quantization failed for {} layer(s):\n{}",
+                    collected_errors.len(),
+                    collected_errors.join("\n")
+                )));
             }
             // Continue-on-error mode: log warnings
             for error in collected_errors.iter() {
@@ -2775,18 +2832,18 @@ impl ArrowQuantV2 {
             }
         }
         drop(collected_errors); // Release lock
-        
+
         // ========================================================================
         // Task 2.4: Result Building Phase (holding GIL)
         // ========================================================================
-        
+
         Python::with_gil(|py| {
             use arrow::array::{
-                BinaryBuilder, Float32Builder, Int64Builder, ListBuilder, 
-                StringBuilder, UInt8Builder
+                BinaryBuilder, Float32Builder, Int64Builder, ListBuilder, StringBuilder,
+                UInt8Builder,
             };
             use arrow::datatypes::{Field, Schema};
-            
+
             // Create builders for each column
             let mut result_layer_names = StringBuilder::new();
             let mut result_quantized_data = BinaryBuilder::new();
@@ -2794,35 +2851,35 @@ impl ArrowQuantV2 {
             let mut result_zero_points = ListBuilder::new(Float32Builder::new());
             let mut result_shapes = ListBuilder::new(Int64Builder::new());
             let mut result_bit_widths = UInt8Builder::new();
-            
+
             // Build result columns from layer results
             for result in layer_results {
                 match result {
                     Ok((layer_name, scales, zero_points, quantized_data, shape)) => {
                         // Append layer name
                         result_layer_names.append_value(&layer_name);
-                        
+
                         // Append quantized data as binary
                         result_quantized_data.append_value(&quantized_data);
-                        
+
                         // Append scales as list
                         for scale in &scales {
                             result_scales.values().append_value(*scale);
                         }
                         result_scales.append(true);
-                        
+
                         // Append zero_points as list
                         for zp in &zero_points {
                             result_zero_points.values().append_value(*zp);
                         }
                         result_zero_points.append(true);
-                        
+
                         // Append shape as list
                         for dim in &shape {
                             result_shapes.values().append_value(*dim);
                         }
                         result_shapes.append(true);
-                        
+
                         // Append bit_width
                         result_bit_widths.append_value(bit_width);
                     }
@@ -2835,7 +2892,7 @@ impl ArrowQuantV2 {
                     }
                 }
             }
-            
+
             // Finish builders to get arrays
             let layer_names_array = Arc::new(result_layer_names.finish());
             let quantized_data_array = Arc::new(result_quantized_data.finish());
@@ -2843,18 +2900,22 @@ impl ArrowQuantV2 {
             let zero_points_array = Arc::new(result_zero_points.finish());
             let shapes_array = Arc::new(result_shapes.finish());
             let bit_widths_array = Arc::new(result_bit_widths.finish());
-            
+
             // Create result schema based on actual array types
             // This ensures schema matches the actual data types from builders
             let result_schema = Schema::new(vec![
                 Field::new("layer_name", layer_names_array.data_type().clone(), false),
-                Field::new("quantized_data", quantized_data_array.data_type().clone(), false),
+                Field::new(
+                    "quantized_data",
+                    quantized_data_array.data_type().clone(),
+                    false,
+                ),
                 Field::new("scales", scales_array.data_type().clone(), false),
                 Field::new("zero_points", zero_points_array.data_type().clone(), false),
                 Field::new("shape", shapes_array.data_type().clone(), false),
                 Field::new("bit_width", bit_widths_array.data_type().clone(), false),
             ]);
-            
+
             // Create RecordBatch from built columns
             let result_batch = RecordBatch::try_new(
                 Arc::new(result_schema),
@@ -2866,12 +2927,14 @@ impl ArrowQuantV2 {
                     shapes_array,
                     bit_widths_array,
                 ],
-            ).map_err(|e| {
-                pyo3::exceptions::PyRuntimeError::new_err(
-                    format!("Failed to create result RecordBatch: {}", e)
-                )
+            )
+            .map_err(|e| {
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "Failed to create result RecordBatch: {}",
+                    e
+                ))
             })?;
-            
+
             // Export to PyArrow Table (zero-copy)
             arrow_ffi_helpers::export_recordbatch_to_pyarrow(py, &result_batch)
         })
@@ -2944,7 +3007,7 @@ impl ArrowQuantV2 {
         progress_callback: Option<PyObject>,
     ) -> PyResult<PyArrowQuantizedLayer> {
         use crate::time_aware::TimeAwareQuantizer;
-        
+
         let config = match config {
             Some(c) => c.inner,
             None => DiffusionQuantConfig::default(),
@@ -2965,13 +3028,13 @@ impl ArrowQuantV2 {
         // For demonstration, we'll create a simple quantized layer
         // In a real implementation, this would process the actual model
         // TODO: Integrate with actual model loading and quantization pipeline
-        
+
         // Create time-aware quantizer
         let mut quantizer = TimeAwareQuantizer::new(config.num_time_groups);
-        
+
         // Group timesteps (assuming 1000 timesteps for diffusion models)
         quantizer.group_timesteps(1000);
-        
+
         // Create dummy activation stats for demonstration
         // In real implementation, this would come from calibration
         let stats = crate::time_aware::ActivationStats {
@@ -2980,27 +3043,25 @@ impl ArrowQuantV2 {
             min: vec![-3.0; 1000],
             max: vec![3.0; 1000],
         };
-        
+
         // Compute time group parameters
         let time_group_params = quantizer.compute_params_per_group(&stats);
-        
+
         // Create dummy weights for demonstration
         // In real implementation, this would come from the model
         let weights = vec![0.0f32; 10000];
-        
+
         progress_reporter.report("Quantizing with Arrow format...", 0.5);
-        
+
         // Quantize using Arrow format
         let arrow_layer = quantizer
             .quantize_layer_arrow(&weights, &time_group_params)
             .map_err(convert_error)?;
-        
+
         progress_reporter.report("Arrow quantization complete", 1.0);
-        
+
         // Wrap in Python class
-        Ok(PyArrowQuantizedLayer {
-            inner: arrow_layer,
-        })
+        Ok(PyArrowQuantizedLayer { inner: arrow_layer })
     }
 }
 
@@ -3029,11 +3090,8 @@ impl ArrowQuantV2 {
         let parquet_path = temp_dir.path().to_path_buf();
 
         // Convert SafeTensors → Parquet
-        let modality = convert_safetensors_to_parquet(
-            safetensors_path,
-            &parquet_path,
-            config.modality,
-        )?;
+        let modality =
+            convert_safetensors_to_parquet(safetensors_path, &parquet_path, config.modality)?;
 
         progress_reporter.report("SafeTensors conversion complete", 0.40);
 
@@ -3132,7 +3190,7 @@ impl ArrowQuantV2 {
         group_size: usize,
     ) -> PyResult<Vec<u8>> {
         use crate::simd::quantize_simd;
-        
+
         let mut result = Vec::with_capacity(data.len());
         let num_groups = (data.len() + group_size - 1) / group_size;
 
@@ -3187,14 +3245,12 @@ impl ArrowQuantV2 {
 
         // Check if it's a numpy array
         if !py_array.is_instance(&ndarray_type)? {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!(
-                    "Expected numpy array for layer '{}', got {}. \
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Expected numpy array for layer '{}', got {}. \
                     Please pass numpy arrays with dtype=float32.",
-                    layer_name,
-                    py_array.get_type().name()?
-                )
-            ));
+                layer_name,
+                py_array.get_type().name()?
+            )));
         }
 
         // Get dtype
@@ -3202,13 +3258,11 @@ impl ArrowQuantV2 {
         let dtype_name: String = dtype.getattr("name")?.extract()?;
 
         if dtype_name != "float32" {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!(
-                    "Array for layer '{}' has dtype '{}', expected 'float32'. \
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Array for layer '{}' has dtype '{}', expected 'float32'. \
                     Use arr.astype(np.float32) to convert.",
-                    layer_name, dtype_name
-                )
-            ));
+                layer_name, dtype_name
+            )));
         }
 
         // Check if contiguous
@@ -3216,13 +3270,11 @@ impl ArrowQuantV2 {
         let is_c_contiguous: bool = flags.getattr("c_contiguous")?.extract()?;
 
         if !is_c_contiguous {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!(
-                    "Array for layer '{}' is not contiguous (C-order). \
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Array for layer '{}' is not contiguous (C-order). \
                     Use np.ascontiguousarray(arr) to fix.",
-                    layer_name
-                )
-            ));
+                layer_name
+            )));
         }
 
         // Get shape
@@ -3231,7 +3283,8 @@ impl ArrowQuantV2 {
         let shape: Vec<usize> = shape_tuple.extract()?;
 
         // Get data pointer and create slice
-        let data_ptr = py_array.getattr("__array_interface__")?
+        let data_ptr = py_array
+            .getattr("__array_interface__")?
             .get_item("data")?
             .get_item(0)?
             .extract::<usize>()?;
@@ -3240,19 +3293,16 @@ impl ArrowQuantV2 {
         let total_size: usize = shape.iter().product();
 
         // Create slice from raw pointer (zero-copy)
-        let weights_slice = unsafe {
-            std::slice::from_raw_parts(data_ptr as *const f32, total_size)
-        };
+        let weights_slice =
+            unsafe { std::slice::from_raw_parts(data_ptr as *const f32, total_size) };
 
         // Validate for NaN/Inf values
         if let Some(idx) = weights_slice.iter().position(|&x| !x.is_finite()) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!(
-                    "Array for layer '{}' contains NaN or Inf at index {}. \
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Array for layer '{}' contains NaN or Inf at index {}. \
                     Please clean your data before quantization.",
-                    layer_name, idx
-                )
-            ));
+                layer_name, idx
+            )));
         }
 
         Ok((weights_slice, shape))
@@ -3503,11 +3553,13 @@ impl PyShardedSafeTensorsLoader {
     ///
     /// **Validates: Requirements REQ-2.5.2** - Python API integration
     fn new(index_path: String) -> PyResult<Self> {
-        use crate::sharded_safetensors::{find_index_file, is_sharded_model, ShardedSafeTensorsAdapter};
+        use crate::sharded_safetensors::{
+            find_index_file, is_sharded_model, ShardedSafeTensorsAdapter,
+        };
         use std::path::Path;
-        
+
         let path = Path::new(&index_path);
-        
+
         // Auto-detect if it's a directory or index file
         let actual_index_path = if path.is_dir() {
             find_index_file(path).map_err(convert_error)?
@@ -3515,16 +3567,15 @@ impl PyShardedSafeTensorsLoader {
             path.to_path_buf()
         } else {
             return Err(pyo3::exceptions::PyIOError::new_err(
-                "Path must be a .safetensors.index.json file or directory containing one"
+                "Path must be a .safetensors.index.json file or directory containing one",
             ));
         };
-        
-        let adapter = ShardedSafeTensorsAdapter::load(&actual_index_path)
-            .map_err(convert_error)?;
-        
+
+        let adapter = ShardedSafeTensorsAdapter::load(&actual_index_path).map_err(convert_error)?;
+
         Ok(Self { adapter })
     }
-    
+
     /// Get list of all tensor names across all shards.
     ///
     /// Returns:
@@ -3532,7 +3583,7 @@ impl PyShardedSafeTensorsLoader {
     fn tensor_names(&self) -> Vec<String> {
         self.adapter.tensor_names()
     }
-    
+
     /// Get shard file name for a specific tensor.
     ///
     /// Args:
@@ -3541,9 +3592,11 @@ impl PyShardedSafeTensorsLoader {
     /// Returns:
     ///     Shard file name or None if tensor not found
     fn get_shard_for_tensor(&self, tensor_name: &str) -> Option<String> {
-        self.adapter.get_shard_for_tensor(tensor_name).map(|s| s.to_string())
+        self.adapter
+            .get_shard_for_tensor(tensor_name)
+            .map(|s| s.to_string())
     }
-    
+
     /// Extract a single tensor as numpy array.
     ///
     /// Args:
@@ -3557,24 +3610,21 @@ impl PyShardedSafeTensorsLoader {
     ///     RuntimeError: If extraction fails
     fn get_tensor(&mut self, name: &str) -> PyResult<PyObject> {
         let array = self.adapter.get_tensor_f32(name).map_err(convert_error)?;
-        
+
         Python::with_gil(|py| {
             // Convert to numpy array
             let shape: Vec<usize> = array.shape().to_vec();
             let data = array.into_raw_vec();
-            
+
             // Create numpy array
             let numpy = py.import_bound("numpy")?;
-            let np_array = numpy.call_method1(
-                "array",
-                (data,)
-            )?;
+            let np_array = numpy.call_method1("array", (data,))?;
             let np_array = np_array.call_method1("reshape", (shape,))?;
-            
+
             Ok(np_array.to_object(py))
         })
     }
-    
+
     /// Extract all tensors as dictionary.
     ///
     /// Returns:
@@ -3584,20 +3634,20 @@ impl PyShardedSafeTensorsLoader {
     ///     RuntimeError: If extraction fails
     fn get_all_tensors(&mut self) -> PyResult<HashMap<String, PyObject>> {
         let tensors = self.adapter.get_all_tensors_f32().map_err(convert_error)?;
-        
+
         Python::with_gil(|py| {
             let mut result = HashMap::new();
             let numpy = py.import_bound("numpy")?;
-            
+
             for (name, data) in tensors {
                 let np_array = numpy.call_method1("array", (data,))?;
                 result.insert(name, np_array.to_object(py));
             }
-            
+
             Ok(result)
         })
     }
-    
+
     /// Detect model modality from metadata.
     ///
     /// Returns:
@@ -3605,7 +3655,7 @@ impl PyShardedSafeTensorsLoader {
     fn detect_modality(&self) -> Option<String> {
         self.adapter.detect_modality()
     }
-    
+
     /// Get total model size in bytes.
     ///
     /// Returns:
@@ -3613,7 +3663,7 @@ impl PyShardedSafeTensorsLoader {
     fn get_total_size(&self) -> Option<u64> {
         self.adapter.get_total_size()
     }
-    
+
     /// Get number of shards.
     ///
     /// Returns:
@@ -3621,7 +3671,7 @@ impl PyShardedSafeTensorsLoader {
     fn num_shards(&self) -> usize {
         self.adapter.num_shards()
     }
-    
+
     /// Get list of all shard file names.
     ///
     /// Returns:
@@ -3629,12 +3679,12 @@ impl PyShardedSafeTensorsLoader {
     fn shard_files(&self) -> Vec<String> {
         self.adapter.shard_files()
     }
-    
+
     /// Clear shard cache to free memory.
     fn clear_cache(&mut self) {
         self.adapter.clear_cache();
     }
-    
+
     /// Get approximate memory usage of cached shards.
     ///
     /// Returns:
@@ -3725,9 +3775,7 @@ impl PyArrowQuantizedLayer {
     ///     print(f"Group 0 has {len(group_0)} elements")
     ///     ```
     fn dequantize_group(&self, group_id: usize) -> PyResult<Vec<f32>> {
-        self.inner
-            .dequantize_group(group_id)
-            .map_err(convert_error)
+        self.inner.dequantize_group(group_id).map_err(convert_error)
     }
 
     /// Dequantize all time groups in parallel
@@ -3769,7 +3817,7 @@ impl PyArrowQuantizedLayer {
     ///     ```
     fn get_time_group_params(&self, py: Python) -> PyResult<Vec<PyObject>> {
         use pyo3::types::PyDict;
-        
+
         self.inner
             .time_group_params
             .iter()
@@ -3895,5 +3943,12 @@ pub fn quantize_diffusion_model(
     use_arrow: Option<bool>,
 ) -> PyResult<PyObject> {
     let mut quantizer = ArrowQuantV2::new("diffusion")?;
-    quantizer.quantize_diffusion_model(py, model_path, output_path, config, progress_callback, use_arrow)
+    quantizer.quantize_diffusion_model(
+        py,
+        model_path,
+        output_path,
+        config,
+        progress_callback,
+        use_arrow,
+    )
 }

@@ -2,7 +2,7 @@
 //!
 //! Simplified benchmark for faster execution while measuring key metrics
 
-use arrow_quant_v2::simd::{quantize_simd, dequantize_simd, cosine_similarity_simd};
+use arrow_quant_v2::simd::{cosine_similarity_simd, dequantize_simd, quantize_simd};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 fn bench_quantize_quick(c: &mut Criterion) {
@@ -28,9 +28,7 @@ fn bench_quantize_quick(c: &mut Criterion) {
             b.iter(|| {
                 let result: Vec<u8> = data
                     .iter()
-                    .map(|&value| {
-                        ((value / scale) + zero_point).round().clamp(0.0, 255.0) as u8
-                    })
+                    .map(|&value| ((value / scale) + zero_point).round().clamp(0.0, 255.0) as u8)
                     .collect();
                 black_box(result);
             });

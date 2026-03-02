@@ -4,9 +4,7 @@
 //! - Text/Code → R2Q + TimeAware
 //! - Image/Audio → GPTQ + Spatial
 
-use arrow_quant_v2::{
-    DiffusionOrchestrator, DiffusionQuantConfig, Modality, QuantMethod,
-};
+use arrow_quant_v2::{DiffusionOrchestrator, DiffusionQuantConfig, Modality, QuantMethod};
 use std::fs;
 use tempfile::TempDir;
 
@@ -24,11 +22,7 @@ fn test_text_model_strategy_selection() {
     let model_path = temp_dir.path();
 
     // Create metadata.json with text modality
-    fs::write(
-        model_path.join("metadata.json"),
-        r#"{"modality": "text"}"#,
-    )
-    .unwrap();
+    fs::write(model_path.join("metadata.json"), r#"{"modality": "text"}"#).unwrap();
 
     // Detect modality
     let modality = orchestrator.detect_modality(model_path).unwrap();
@@ -71,11 +65,7 @@ fn test_code_model_strategy_selection() {
     let model_path = temp_dir.path();
 
     // Create metadata.json with code modality
-    fs::write(
-        model_path.join("metadata.json"),
-        r#"{"modality": "code"}"#,
-    )
-    .unwrap();
+    fs::write(model_path.join("metadata.json"), r#"{"modality": "code"}"#).unwrap();
 
     // Detect modality
     let modality = orchestrator.detect_modality(model_path).unwrap();
@@ -118,11 +108,7 @@ fn test_image_model_strategy_selection() {
     let model_path = temp_dir.path();
 
     // Create metadata.json with image modality
-    fs::write(
-        model_path.join("metadata.json"),
-        r#"{"modality": "image"}"#,
-    )
-    .unwrap();
+    fs::write(model_path.join("metadata.json"), r#"{"modality": "image"}"#).unwrap();
 
     // Detect modality
     let modality = orchestrator.detect_modality(model_path).unwrap();
@@ -165,11 +151,7 @@ fn test_audio_model_strategy_selection() {
     let model_path = temp_dir.path();
 
     // Create metadata.json with audio modality
-    fs::write(
-        model_path.join("metadata.json"),
-        r#"{"modality": "audio"}"#,
-    )
-    .unwrap();
+    fs::write(model_path.join("metadata.json"), r#"{"modality": "audio"}"#).unwrap();
 
     // Detect modality
     let modality = orchestrator.detect_modality(model_path).unwrap();
@@ -344,12 +326,7 @@ fn test_all_modalities_default_config() {
         // Verify strategy is valid
         match modality {
             Modality::Text | Modality::Code => {
-                assert_eq!(
-                    strategy.method,
-                    QuantMethod::R2Q,
-                    "{} should use R2Q",
-                    name
-                );
+                assert_eq!(strategy.method, QuantMethod::R2Q, "{} should use R2Q", name);
             }
             Modality::Image | Modality::Audio => {
                 assert_eq!(

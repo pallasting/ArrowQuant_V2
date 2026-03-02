@@ -83,7 +83,7 @@ fn test_automatic_head_detection() {
     // Case insensitive
     assert!(orchestrator.is_sensitive_layer("LM_HEAD.weight"));
     assert!(orchestrator.is_sensitive_layer("MODEL.Output.WEIGHT"));
-    
+
     // Should NOT match "ahead" or similar
     assert!(!orchestrator.is_sensitive_layer("model.ahead_layer.weight"));
 }
@@ -137,8 +137,8 @@ fn test_regex_pattern_matching() {
     let config = DiffusionQuantConfig {
         skip_sensitive_layers: true,
         sensitive_layer_patterns: vec![
-            r".*attention.*".to_string(),      // All attention layers
-            r".*mlp\.gate.*".to_string(),      // All MLP gate projections
+            r".*attention.*".to_string(),            // All attention layers
+            r".*mlp\.gate.*".to_string(),            // All MLP gate projections
             r"model\.layers\.[0-2]\..*".to_string(), // First 3 layers only
         ],
         ..Default::default()
@@ -200,8 +200,8 @@ fn test_invalid_regex_pattern_graceful_handling() {
     let config = DiffusionQuantConfig {
         skip_sensitive_layers: true,
         sensitive_layer_patterns: vec![
-            r"[invalid(regex".to_string(), // Invalid regex
-            r"^valid_prefix\..*".to_string(),       // Valid regex - must start with "valid_prefix."
+            r"[invalid(regex".to_string(),    // Invalid regex
+            r"^valid_prefix\..*".to_string(), // Valid regex - must start with "valid_prefix."
         ],
         ..Default::default()
     };
@@ -266,7 +266,7 @@ fn test_partial_matches_in_layer_names() {
     assert!(orchestrator.is_sensitive_layer("prefix.lm_head.suffix"));
     assert!(orchestrator.is_sensitive_layer("prefix.head.suffix")); // .head. pattern
     assert!(orchestrator.is_sensitive_layer("prefix.output.suffix"));
-    
+
     // Should NOT match "ahead"
     assert!(!orchestrator.is_sensitive_layer("prefix.ahead.suffix"));
 }

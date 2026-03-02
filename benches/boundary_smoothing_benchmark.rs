@@ -8,7 +8,6 @@
 ///
 /// Task 11.2: Write benchmark tests for Phase 2 boundary smoothing
 /// Requirements: REQ-2.1.1, REQ-2.2.1, REQ-2.2.2, REQ-3.1.3
-
 use arrow_quant_v2::config::{
     BoundarySmoothingConfig, DiffusionQuantConfig, InterpolationMethod, ThermodynamicConfig,
     TransitionOptimizationConfig, ValidationConfig,
@@ -25,19 +24,19 @@ fn create_stats_with_jumps(num_timesteps: usize, jump_magnitude: f32) -> Activat
 
     // Create jumps at time group boundaries (assuming 4 groups)
     let group_size = num_timesteps / 4;
-    
+
     // Jump at boundary 1 (25%)
     for i in group_size..(group_size * 2) {
         min_vals[i] = -jump_magnitude;
         max_vals[i] = jump_magnitude;
     }
-    
+
     // Jump at boundary 2 (50%)
     for i in (group_size * 2)..(group_size * 3) {
         min_vals[i] = -jump_magnitude * 1.5;
         max_vals[i] = jump_magnitude * 1.5;
     }
-    
+
     // Jump at boundary 3 (75%)
     for i in (group_size * 3)..num_timesteps {
         min_vals[i] = -jump_magnitude * 0.5;
@@ -56,12 +55,11 @@ fn create_stats_with_jumps(num_timesteps: usize, jump_magnitude: f32) -> Activat
 /// Target: <10% overhead (REQ-2.1.1)
 fn bench_smoothing_overhead(c: &mut Criterion) {
     let mut group = c.benchmark_group("smoothing_overhead");
-    
+
     let num_timesteps = 1000;
     let stats = create_stats_with_jumps(num_timesteps, 5.0);
-    let weights = Array2::from_shape_fn((1000, 1000), |(i, j)| {
-        ((i * j) as f32 / 1000.0).sin() * 0.5
-    });
+    let weights =
+        Array2::from_shape_fn((1000, 1000), |(i, j)| ((i * j) as f32 / 1000.0).sin() * 0.5);
 
     // Baseline: No smoothing
     group.bench_function("baseline_no_smoothing", |b| {
@@ -80,10 +78,11 @@ fn bench_smoothing_overhead(c: &mut Criterion) {
                 transition_optimization: TransitionOptimizationConfig::default(),
             };
 
-            let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+            let mut quantizer =
+                TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
             quantizer.group_timesteps(num_timesteps);
             let params = quantizer.compute_params_per_group(&stats);
-            
+
             let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
         });
     });
@@ -105,10 +104,11 @@ fn bench_smoothing_overhead(c: &mut Criterion) {
                 transition_optimization: TransitionOptimizationConfig::default(),
             };
 
-            let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+            let mut quantizer =
+                TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
             quantizer.group_timesteps(num_timesteps);
             let params = quantizer.compute_params_per_group(&stats);
-            
+
             let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
         });
     });
@@ -120,12 +120,11 @@ fn bench_smoothing_overhead(c: &mut Criterion) {
 /// Compare linear, cubic, and sigmoid interpolation methods
 fn bench_interpolation_methods(c: &mut Criterion) {
     let mut group = c.benchmark_group("interpolation_methods");
-    
+
     let num_timesteps = 1000;
     let stats = create_stats_with_jumps(num_timesteps, 5.0);
-    let weights = Array2::from_shape_fn((1000, 1000), |(i, j)| {
-        ((i * j) as f32 / 1000.0).sin() * 0.5
-    });
+    let weights =
+        Array2::from_shape_fn((1000, 1000), |(i, j)| ((i * j) as f32 / 1000.0).sin() * 0.5);
 
     for method in &[
         InterpolationMethod::Linear,
@@ -151,11 +150,13 @@ fn bench_interpolation_methods(c: &mut Criterion) {
                         transition_optimization: TransitionOptimizationConfig::default(),
                     };
 
-                    let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+                    let mut quantizer =
+                        TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
                     quantizer.group_timesteps(num_timesteps);
                     let params = quantizer.compute_params_per_group(&stats);
-                    
-                    let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
+
+                    let _ =
+                        black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
                 });
             },
         );
@@ -168,12 +169,11 @@ fn bench_interpolation_methods(c: &mut Criterion) {
 /// Test different smoothing window sizes (1-20)
 fn bench_window_size_impact(c: &mut Criterion) {
     let mut group = c.benchmark_group("window_size_impact");
-    
+
     let num_timesteps = 1000;
     let stats = create_stats_with_jumps(num_timesteps, 5.0);
-    let weights = Array2::from_shape_fn((1000, 1000), |(i, j)| {
-        ((i * j) as f32 / 1000.0).sin() * 0.5
-    });
+    let weights =
+        Array2::from_shape_fn((1000, 1000), |(i, j)| ((i * j) as f32 / 1000.0).sin() * 0.5);
 
     for window_size in [1, 3, 5, 7, 10, 15, 20].iter() {
         group.bench_with_input(
@@ -195,11 +195,13 @@ fn bench_window_size_impact(c: &mut Criterion) {
                         transition_optimization: TransitionOptimizationConfig::default(),
                     };
 
-                    let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+                    let mut quantizer =
+                        TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
                     quantizer.group_timesteps(num_timesteps);
                     let params = quantizer.compute_params_per_group(&stats);
-                    
-                    let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
+
+                    let _ =
+                        black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
                 });
             },
         );
@@ -213,7 +215,7 @@ fn bench_window_size_impact(c: &mut Criterion) {
 /// Target: 0.82+ with smoothing (REQ-2.2.2)
 fn bench_markov_score_improvement(c: &mut Criterion) {
     let mut group = c.benchmark_group("markov_score_improvement");
-    
+
     let num_timesteps = 1000;
     let stats = create_stats_with_jumps(num_timesteps, 5.0);
 
@@ -234,13 +236,14 @@ fn bench_markov_score_improvement(c: &mut Criterion) {
                 transition_optimization: TransitionOptimizationConfig::default(),
             };
 
-            let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+            let mut quantizer =
+                TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
             quantizer.group_timesteps(num_timesteps);
             let params = quantizer.compute_params_per_group(&stats);
-            
+
             let validator = MarkovValidator::new(thermodynamic_config.validation);
             let result = black_box(validator.validate(&params));
-            
+
             // Verify score is computed
             assert!(result.smoothness_score >= 0.0 && result.smoothness_score <= 1.0);
         });
@@ -263,13 +266,14 @@ fn bench_markov_score_improvement(c: &mut Criterion) {
                 transition_optimization: TransitionOptimizationConfig::default(),
             };
 
-            let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+            let mut quantizer =
+                TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
             quantizer.group_timesteps(num_timesteps);
             let params = quantizer.compute_params_per_group(&stats);
-            
+
             let validator = MarkovValidator::new(thermodynamic_config.validation);
             let result = black_box(validator.validate(&params));
-            
+
             // Verify score is computed and improved
             assert!(result.smoothness_score >= 0.0 && result.smoothness_score <= 1.0);
         });
@@ -283,12 +287,11 @@ fn bench_markov_score_improvement(c: &mut Criterion) {
 /// Target: <10% total overhead (REQ-2.1.1)
 fn bench_combined_overhead(c: &mut Criterion) {
     let mut group = c.benchmark_group("combined_overhead");
-    
+
     let num_timesteps = 1000;
     let stats = create_stats_with_jumps(num_timesteps, 5.0);
-    let weights = Array2::from_shape_fn((1000, 1000), |(i, j)| {
-        ((i * j) as f32 / 1000.0).sin() * 0.5
-    });
+    let weights =
+        Array2::from_shape_fn((1000, 1000), |(i, j)| ((i * j) as f32 / 1000.0).sin() * 0.5);
 
     // Baseline: No thermodynamic features
     group.bench_function("baseline_no_features", |b| {
@@ -296,7 +299,7 @@ fn bench_combined_overhead(c: &mut Criterion) {
             let mut quantizer = TimeAwareQuantizer::new(4);
             quantizer.group_timesteps(num_timesteps);
             let params = quantizer.compute_params_per_group(&stats);
-            
+
             let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
         });
     });
@@ -318,10 +321,11 @@ fn bench_combined_overhead(c: &mut Criterion) {
                 transition_optimization: TransitionOptimizationConfig::default(),
             };
 
-            let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+            let mut quantizer =
+                TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
             quantizer.group_timesteps(num_timesteps);
             let params = quantizer.compute_params_per_group(&stats);
-            
+
             let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
         });
     });
@@ -343,10 +347,11 @@ fn bench_combined_overhead(c: &mut Criterion) {
                 transition_optimization: TransitionOptimizationConfig::default(),
             };
 
-            let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+            let mut quantizer =
+                TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
             quantizer.group_timesteps(num_timesteps);
             let params = quantizer.compute_params_per_group(&stats);
-            
+
             let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
         });
     });
@@ -368,10 +373,11 @@ fn bench_combined_overhead(c: &mut Criterion) {
                 transition_optimization: TransitionOptimizationConfig::default(),
             };
 
-            let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+            let mut quantizer =
+                TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
             quantizer.group_timesteps(num_timesteps);
             let params = quantizer.compute_params_per_group(&stats);
-            
+
             let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
         });
     });
@@ -383,7 +389,7 @@ fn bench_combined_overhead(c: &mut Criterion) {
 /// Test smoothing overhead on different layer sizes
 fn bench_scalability(c: &mut Criterion) {
     let mut group = c.benchmark_group("scalability");
-    
+
     let num_timesteps = 1000;
     let stats = create_stats_with_jumps(num_timesteps, 5.0);
 
@@ -411,11 +417,13 @@ fn bench_scalability(c: &mut Criterion) {
                         transition_optimization: TransitionOptimizationConfig::default(),
                     };
 
-                    let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
+                    let mut quantizer =
+                        TimeAwareQuantizer::with_thermodynamic_config(4, thermodynamic_config);
                     quantizer.group_timesteps(num_timesteps);
                     let params = quantizer.compute_params_per_group(&stats);
-                    
-                    let _ = black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
+
+                    let _ =
+                        black_box(quantizer.quantize_layer(weights.as_slice().unwrap(), &params));
                 });
             },
         );

@@ -1,5 +1,5 @@
 //! Unit tests for validate_quantization_schema function
-//! 
+//!
 //! These tests verify the schema validation logic in isolation without
 //! requiring Python bindings or PyArrow integration.
 
@@ -14,26 +14,29 @@ mod tests {
     /// Simplified version of validate_quantization_schema for unit testing
     fn validate_quantization_schema(schema: &Schema) -> PyResult<()> {
         // Check for required fields
-        let layer_name_field = schema.field_with_name("layer_name")
-            .map_err(|_| {
-                "Missing required field 'layer_name' in Arrow schema. \
-                Expected schema: {layer_name: string, weights: list<float32>, shape: list<int64>}".to_string()
-            })?;
-        
-        let weights_field = schema.field_with_name("weights")
-            .map_err(|_| {
-                "Missing required field 'weights' in Arrow schema. \
-                Expected schema: {layer_name: string, weights: list<float32>, shape: list<int64>}".to_string()
-            })?;
-        
+        let layer_name_field = schema.field_with_name("layer_name").map_err(|_| {
+            "Missing required field 'layer_name' in Arrow schema. \
+                Expected schema: {layer_name: string, weights: list<float32>, shape: list<int64>}"
+                .to_string()
+        })?;
+
+        let weights_field = schema.field_with_name("weights").map_err(|_| {
+            "Missing required field 'weights' in Arrow schema. \
+                Expected schema: {layer_name: string, weights: list<float32>, shape: list<int64>}"
+                .to_string()
+        })?;
+
         // Validate field types
-        if !matches!(layer_name_field.data_type(), DataType::Utf8 | DataType::LargeUtf8) {
+        if !matches!(
+            layer_name_field.data_type(),
+            DataType::Utf8 | DataType::LargeUtf8
+        ) {
             return Err(format!(
                 "Invalid type for 'layer_name' field: {:?}. Expected string type.",
                 layer_name_field.data_type()
             ));
         }
-        
+
         // Validate weights field is a list of float32
         match weights_field.data_type() {
             DataType::List(inner) | DataType::LargeList(inner) => {
@@ -51,7 +54,7 @@ mod tests {
                 ));
             }
         }
-        
+
         // Validate optional shape field if present
         if let Ok(shape_field) = schema.field_with_name("shape") {
             match shape_field.data_type() {
@@ -71,7 +74,7 @@ mod tests {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -79,8 +82,16 @@ mod tests {
     fn test_valid_schema_with_all_fields() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::Utf8, false),
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
-            Field::new("shape", DataType::List(Arc::new(Field::new("item", DataType::Int64, true))), false),
+            Field::new(
+                "weights",
+                DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
+            Field::new(
+                "shape",
+                DataType::List(Arc::new(Field::new("item", DataType::Int64, true))),
+                false,
+            ),
         ]);
 
         assert!(validate_quantization_schema(&schema).is_ok());
@@ -90,7 +101,11 @@ mod tests {
     fn test_valid_schema_without_optional_shape() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::Utf8, false),
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
+            Field::new(
+                "weights",
+                DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
         ]);
 
         assert!(validate_quantization_schema(&schema).is_ok());
@@ -98,9 +113,11 @@ mod tests {
 
     #[test]
     fn test_missing_layer_name() {
-        let schema = Schema::new(vec![
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
-        ]);
+        let schema = Schema::new(vec![Field::new(
+            "weights",
+            DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+            false,
+        )]);
 
         let result = validate_quantization_schema(&schema);
         assert!(result.is_err());
@@ -111,9 +128,7 @@ mod tests {
 
     #[test]
     fn test_missing_weights() {
-        let schema = Schema::new(vec![
-            Field::new("layer_name", DataType::Utf8, false),
-        ]);
+        let schema = Schema::new(vec![Field::new("layer_name", DataType::Utf8, false)]);
 
         let result = validate_quantization_schema(&schema);
         assert!(result.is_err());
@@ -126,7 +141,11 @@ mod tests {
     fn test_wrong_layer_name_type() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::Int32, false),
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
+            Field::new(
+                "weights",
+                DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
         ]);
 
         let result = validate_quantization_schema(&schema);
@@ -140,7 +159,11 @@ mod tests {
     fn test_wrong_weights_inner_type() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::Utf8, false),
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Int64, true))), false),
+            Field::new(
+                "weights",
+                DataType::List(Arc::new(Field::new("item", DataType::Int64, true))),
+                false,
+            ),
         ]);
 
         let result = validate_quantization_schema(&schema);
@@ -154,8 +177,16 @@ mod tests {
     fn test_wrong_shape_inner_type() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::Utf8, false),
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
-            Field::new("shape", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
+            Field::new(
+                "weights",
+                DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
+            Field::new(
+                "shape",
+                DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
         ]);
 
         let result = validate_quantization_schema(&schema);
@@ -169,7 +200,11 @@ mod tests {
     fn test_large_utf8_accepted() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::LargeUtf8, false),
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
+            Field::new(
+                "weights",
+                DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
         ]);
 
         assert!(validate_quantization_schema(&schema).is_ok());
@@ -179,8 +214,16 @@ mod tests {
     fn test_large_list_accepted() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::Utf8, false),
-            Field::new("weights", DataType::LargeList(Arc::new(Field::new("item", DataType::Float32, true))), false),
-            Field::new("shape", DataType::LargeList(Arc::new(Field::new("item", DataType::Int64, true))), false),
+            Field::new(
+                "weights",
+                DataType::LargeList(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
+            Field::new(
+                "shape",
+                DataType::LargeList(Arc::new(Field::new("item", DataType::Int64, true))),
+                false,
+            ),
         ]);
 
         assert!(validate_quantization_schema(&schema).is_ok());
@@ -190,7 +233,11 @@ mod tests {
     fn test_extra_columns_allowed() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::Utf8, false),
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
+            Field::new(
+                "weights",
+                DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
             Field::new("extra_field", DataType::Utf8, false),
             Field::new("another_field", DataType::Int32, false),
         ]);
@@ -216,7 +263,11 @@ mod tests {
     fn test_shape_not_list() {
         let schema = Schema::new(vec![
             Field::new("layer_name", DataType::Utf8, false),
-            Field::new("weights", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
+            Field::new(
+                "weights",
+                DataType::List(Arc::new(Field::new("item", DataType::Float32, true))),
+                false,
+            ),
             Field::new("shape", DataType::Int64, false),
         ]);
 

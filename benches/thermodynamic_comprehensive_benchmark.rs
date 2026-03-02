@@ -8,7 +8,6 @@
 ///
 /// Task 18.2: Comprehensive benchmark tests
 /// Requirements: REQ-2.2.3, REQ-3.1.3
-
 use arrow_quant_v2::config::{
     BetaSchedule, BoundarySmoothingConfig, InterpolationMethod, ThermodynamicConfig,
     TransitionOptimizationConfig, ValidationConfig,
@@ -30,7 +29,7 @@ fn create_realistic_stats(num_timesteps: usize, with_jumps: bool) -> ActivationS
         for i in 0..4 {
             let start = i * group_size;
             let end = (i + 1) * group_size;
-            
+
             // Each group has different ranges (creates jumps at boundaries)
             let scale = 1.0 + (i as f32) * 0.5;
             for j in start..end.min(num_timesteps) {
@@ -63,39 +62,35 @@ fn create_realistic_weights(size: usize) -> Vec<f32> {
 /// Benchmark baseline (no thermodynamic enhancements)
 fn bench_baseline(c: &mut Criterion) {
     let mut group = c.benchmark_group("thermodynamic_baseline");
-    
+
     let sizes = vec![1024, 4096, 16384]; // Small, medium, large layers
-    
+
     for size in sizes {
-        group.bench_with_input(
-            BenchmarkId::new("baseline", size),
-            &size,
-            |b, &size| {
-                let stats = create_realistic_stats(100, true);
-                let weights = create_realistic_weights(size);
-                
-                b.iter(|| {
-                    // Baseline: No thermodynamic config
-                    let mut quantizer = TimeAwareQuantizer::new(4);
-                    quantizer.group_timesteps(100);
-                    let params = quantizer.compute_params_per_group(&stats);
-                    
-                    let result = quantizer.quantize_layer(black_box(&weights), &params);
-                    black_box(result)
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("baseline", size), &size, |b, &size| {
+            let stats = create_realistic_stats(100, true);
+            let weights = create_realistic_weights(size);
+
+            b.iter(|| {
+                // Baseline: No thermodynamic config
+                let mut quantizer = TimeAwareQuantizer::new(4);
+                quantizer.group_timesteps(100);
+                let params = quantizer.compute_params_per_group(&stats);
+
+                let result = quantizer.quantize_layer(black_box(&weights), &params);
+                black_box(result)
+            });
+        });
     }
-    
+
     group.finish();
 }
 
 /// Benchmark Phase 1: Markov Validation only
 fn bench_phase1_validation(c: &mut Criterion) {
     let mut group = c.benchmark_group("thermodynamic_phase1");
-    
+
     let sizes = vec![1024, 4096, 16384];
-    
+
     for size in sizes {
         group.bench_with_input(
             BenchmarkId::new("validation_only", size),
@@ -103,7 +98,7 @@ fn bench_phase1_validation(c: &mut Criterion) {
             |b, &size| {
                 let stats = create_realistic_stats(100, true);
                 let weights = create_realistic_weights(size);
-                
+
                 let config = ThermodynamicConfig {
                     validation: ValidationConfig {
                         enabled: true,
@@ -113,33 +108,34 @@ fn bench_phase1_validation(c: &mut Criterion) {
                     boundary_smoothing: BoundarySmoothingConfig::default(),
                     transition_optimization: TransitionOptimizationConfig::default(),
                 };
-                
+
                 b.iter(|| {
-                    let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
+                    let mut quantizer =
+                        TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
                     quantizer.group_timesteps(100);
                     let params = quantizer.compute_params_per_group(&stats);
-                    
+
                     let result = quantizer.quantize_layer(black_box(&weights), &params);
                     black_box(result)
                 });
             },
         );
     }
-    
+
     group.finish();
 }
 
 /// Benchmark Phase 2: Validation + Boundary Smoothing
 fn bench_phase2_smoothing(c: &mut Criterion) {
     let mut group = c.benchmark_group("thermodynamic_phase2");
-    
+
     let sizes = vec![1024, 4096, 16384];
     let methods = vec![
         ("linear", InterpolationMethod::Linear),
         ("cubic", InterpolationMethod::Cubic),
         ("sigmoid", InterpolationMethod::Sigmoid),
     ];
-    
+
     for size in sizes {
         for (method_name, method) in &methods {
             group.bench_with_input(
@@ -148,7 +144,7 @@ fn bench_phase2_smoothing(c: &mut Criterion) {
                 |b, &size| {
                     let stats = create_realistic_stats(100, true);
                     let weights = create_realistic_weights(size);
-                    
+
                     let config = ThermodynamicConfig {
                         validation: ValidationConfig {
                             enabled: true,
@@ -162,12 +158,13 @@ fn bench_phase2_smoothing(c: &mut Criterion) {
                         },
                         transition_optimization: TransitionOptimizationConfig::default(),
                     };
-                    
+
                     b.iter(|| {
-                        let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
+                        let mut quantizer =
+                            TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
                         quantizer.group_timesteps(100);
                         let params = quantizer.compute_params_per_group(&stats);
-                        
+
                         let result = quantizer.quantize_layer(black_box(&weights), &params);
                         black_box(result)
                     });
@@ -175,20 +172,20 @@ fn bench_phase2_smoothing(c: &mut Criterion) {
             );
         }
     }
-    
+
     group.finish();
 }
 
 /// Benchmark Phase 3: Full pipeline (Validation + Smoothing + Optimization)
 fn bench_phase3_full_pipeline(c: &mut Criterion) {
     let mut group = c.benchmark_group("thermodynamic_phase3");
-    
+
     let sizes = vec![1024, 4096, 16384];
     let beta_schedules = vec![
         ("linear", BetaSchedule::Linear),
         ("cosine", BetaSchedule::Cosine),
     ];
-    
+
     for size in sizes {
         for (schedule_name, schedule) in &beta_schedules {
             group.bench_with_input(
@@ -197,7 +194,7 @@ fn bench_phase3_full_pipeline(c: &mut Criterion) {
                 |b, &size| {
                     let stats = create_realistic_stats(100, true);
                     let weights = create_realistic_weights(size);
-                    
+
                     let config = ThermodynamicConfig {
                         validation: ValidationConfig {
                             enabled: true,
@@ -219,12 +216,13 @@ fn bench_phase3_full_pipeline(c: &mut Criterion) {
                             beta_schedule: *schedule,
                         },
                     };
-                    
+
                     b.iter(|| {
-                        let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
+                        let mut quantizer =
+                            TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
                         quantizer.group_timesteps(100);
                         let params = quantizer.compute_params_per_group(&stats);
-                        
+
                         let result = quantizer.quantize_layer(black_box(&weights), &params);
                         black_box(result)
                     });
@@ -232,18 +230,18 @@ fn bench_phase3_full_pipeline(c: &mut Criterion) {
             );
         }
     }
-    
+
     group.finish();
 }
 
 /// Benchmark overhead comparison: Baseline vs Phase 1 vs Phase 2 vs Phase 3
 fn bench_overhead_comparison(c: &mut Criterion) {
     let mut group = c.benchmark_group("thermodynamic_overhead");
-    
+
     let size = 4096; // Medium layer size
     let stats = create_realistic_stats(100, true);
     let weights = create_realistic_weights(size);
-    
+
     // Baseline
     group.bench_function("baseline", |b| {
         b.iter(|| {
@@ -254,7 +252,7 @@ fn bench_overhead_comparison(c: &mut Criterion) {
             black_box(result)
         });
     });
-    
+
     // Phase 1: Validation only (target: <1% overhead)
     group.bench_function("phase1_validation", |b| {
         let config = ThermodynamicConfig {
@@ -265,7 +263,7 @@ fn bench_overhead_comparison(c: &mut Criterion) {
             },
             ..Default::default()
         };
-        
+
         b.iter(|| {
             let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
             quantizer.group_timesteps(100);
@@ -274,7 +272,7 @@ fn bench_overhead_comparison(c: &mut Criterion) {
             black_box(result)
         });
     });
-    
+
     // Phase 2: Validation + Smoothing (target: <10% overhead)
     group.bench_function("phase2_smoothing", |b| {
         let config = ThermodynamicConfig {
@@ -290,7 +288,7 @@ fn bench_overhead_comparison(c: &mut Criterion) {
             },
             ..Default::default()
         };
-        
+
         b.iter(|| {
             let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
             quantizer.group_timesteps(100);
@@ -299,7 +297,7 @@ fn bench_overhead_comparison(c: &mut Criterion) {
             black_box(result)
         });
     });
-    
+
     // Phase 3: Full pipeline (target: <25% total overhead)
     group.bench_function("phase3_full", |b| {
         let config = ThermodynamicConfig {
@@ -323,7 +321,7 @@ fn bench_overhead_comparison(c: &mut Criterion) {
                 beta_schedule: BetaSchedule::Linear,
             },
         };
-        
+
         b.iter(|| {
             let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, config.clone());
             quantizer.group_timesteps(100);
@@ -332,27 +330,27 @@ fn bench_overhead_comparison(c: &mut Criterion) {
             black_box(result)
         });
     });
-    
+
     group.finish();
 }
 
 /// Benchmark quantization quality (measures how well parameters are optimized)
 fn bench_quantization_quality(c: &mut Criterion) {
     let mut group = c.benchmark_group("thermodynamic_quantization_quality");
-    
+
     let size = 4096;
     let stats = create_realistic_stats(100, true);
     let weights = create_realistic_weights(size);
-    
+
     // Helper function to measure quantization quality via loss
     let measure_quality = |config: ThermodynamicConfig| -> f32 {
         let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, config);
         quantizer.group_timesteps(100);
         let params = quantizer.compute_params_per_group(&stats);
-        
+
         // Quantize
         let _ = quantizer.quantize_layer(&weights, &params).unwrap();
-        
+
         // Get final loss from metrics (lower is better)
         if let Some(metrics) = quantizer.get_thermodynamic_metrics() {
             metrics.final_loss
@@ -360,7 +358,7 @@ fn bench_quantization_quality(c: &mut Criterion) {
             f32::MAX // No optimization, return high loss
         }
     };
-    
+
     // Baseline quality
     group.bench_function("baseline_quality", |b| {
         b.iter(|| {
@@ -368,7 +366,7 @@ fn bench_quantization_quality(c: &mut Criterion) {
             black_box(measure_quality(config))
         });
     });
-    
+
     // Phase 2 quality (should have lower loss due to smoothing)
     group.bench_function("phase2_quality", |b| {
         let config = ThermodynamicConfig {
@@ -384,10 +382,10 @@ fn bench_quantization_quality(c: &mut Criterion) {
             },
             ..Default::default()
         };
-        
+
         b.iter(|| black_box(measure_quality(config.clone())));
     });
-    
+
     // Phase 3 quality (should have lowest loss due to optimization)
     group.bench_function("phase3_quality", |b| {
         let config = ThermodynamicConfig {
@@ -411,36 +409,36 @@ fn bench_quantization_quality(c: &mut Criterion) {
                 beta_schedule: BetaSchedule::Linear,
             },
         };
-        
+
         b.iter(|| black_box(measure_quality(config.clone())));
     });
-    
+
     group.finish();
 }
 
 /// Benchmark Markov smoothness score improvement
 fn bench_markov_smoothness(c: &mut Criterion) {
     let mut group = c.benchmark_group("thermodynamic_markov_smoothness");
-    
+
     let size = 4096;
     let stats = create_realistic_stats(100, true);
     let weights = create_realistic_weights(size);
-    
+
     // Helper function to get Markov score
     let get_markov_score = |config: ThermodynamicConfig| -> f32 {
         let mut quantizer = TimeAwareQuantizer::with_thermodynamic_config(4, config);
         quantizer.group_timesteps(100);
         let params = quantizer.compute_params_per_group(&stats);
-        
+
         let _ = quantizer.quantize_layer(&weights, &params);
-        
+
         if let Some(metrics) = quantizer.get_thermodynamic_metrics() {
             metrics.smoothness_score
         } else {
             0.0
         }
     };
-    
+
     // Baseline (expected: ~0.65-0.78)
     group.bench_function("baseline_score", |b| {
         let config = ThermodynamicConfig {
@@ -451,10 +449,10 @@ fn bench_markov_smoothness(c: &mut Criterion) {
             },
             ..Default::default()
         };
-        
+
         b.iter(|| black_box(get_markov_score(config.clone())));
     });
-    
+
     // Phase 2 (target: 0.82+)
     group.bench_function("phase2_score", |b| {
         let config = ThermodynamicConfig {
@@ -470,10 +468,10 @@ fn bench_markov_smoothness(c: &mut Criterion) {
             },
             ..Default::default()
         };
-        
+
         b.iter(|| black_box(get_markov_score(config.clone())));
     });
-    
+
     // Phase 3 (target: 0.90+)
     group.bench_function("phase3_score", |b| {
         let config = ThermodynamicConfig {
@@ -497,10 +495,10 @@ fn bench_markov_smoothness(c: &mut Criterion) {
                 beta_schedule: BetaSchedule::Linear,
             },
         };
-        
+
         b.iter(|| black_box(get_markov_score(config.clone())));
     });
-    
+
     group.finish();
 }
 

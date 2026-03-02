@@ -521,7 +521,7 @@ impl TransitionOptimizationConfig {
         }
         if self.max_iterations == 0 {
             return Err(QuantError::ConfigurationError(
-                "max_iterations must be greater than 0".to_string()
+                "max_iterations must be greater than 0".to_string(),
             ));
         }
         if self.convergence_threshold <= 0.0 {
@@ -795,8 +795,8 @@ impl DiffusionQuantConfig {
                 calibration_samples: 128,
                 deployment_profile: profile,
                 fail_fast: false,
-                num_threads: 0,          // Auto-detect
-                enable_streaming: true,  // Streaming mode to prevent OOM
+                num_threads: 0,         // Auto-detect
+                enable_streaming: true, // Streaming mode to prevent OOM
                 skip_sensitive_layers: false,
                 sensitive_layer_names: Vec::new(),
                 sensitive_layer_patterns: Vec::new(),
@@ -913,7 +913,8 @@ impl DiffusionQuantConfig {
     /// config.set_layer_bit_width("model.embed_tokens", 16);
     /// ```
     pub fn set_layer_bit_width(&mut self, layer_name: &str, bit_width: u8) {
-        self.layer_bit_widths.insert(layer_name.to_string(), bit_width);
+        self.layer_bit_widths
+            .insert(layer_name.to_string(), bit_width);
     }
 
     /// Get bit-width for a specific layer
@@ -1033,8 +1034,17 @@ impl DiffusionQuantConfig {
     /// Helper method to check if a layer name matches sensitive patterns
     fn is_sensitive_layer_name(&self, layer_lower: &str) -> bool {
         let sensitive_patterns = [
-            "embed", "embedding", ".wte.", ".wpe.", "norm", "ln_", "layernorm", "lm_head",
-            ".head.", "output", "pooler",
+            "embed",
+            "embedding",
+            ".wte.",
+            ".wpe.",
+            "norm",
+            "ln_",
+            "layernorm",
+            "lm_head",
+            ".head.",
+            "output",
+            "pooler",
         ];
 
         sensitive_patterns
@@ -1097,8 +1107,7 @@ impl DiffusionQuantConfig {
                     _ => continue, // Already at minimum
                 };
 
-                let size_saved =
-                    (layer_size * (current_bit_width - new_bit_width) as usize) / 16;
+                let size_saved = (layer_size * (current_bit_width - new_bit_width) as usize) / 16;
                 self.set_layer_bit_width(&layer_name, new_bit_width);
                 current_size -= size_saved;
             }

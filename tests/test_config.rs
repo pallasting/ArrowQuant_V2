@@ -637,7 +637,10 @@ fn test_thermodynamic_config_roundtrip() {
     );
     assert_eq!(
         loaded_config.thermodynamic.validation.smoothness_threshold,
-        original_config.thermodynamic.validation.smoothness_threshold
+        original_config
+            .thermodynamic
+            .validation
+            .smoothness_threshold
     );
     assert_eq!(
         loaded_config.thermodynamic.validation.log_violations,
@@ -811,12 +814,10 @@ thermodynamic:
 
         fs::write(&config_path, yaml_content).unwrap();
 
-        let config =
-            DiffusionQuantConfig::from_yaml(&config_path).expect("Failed to load config");
+        let config = DiffusionQuantConfig::from_yaml(&config_path).expect("Failed to load config");
 
         assert_eq!(
-            config.thermodynamic.boundary_smoothing.interpolation,
-            expected_method,
+            config.thermodynamic.boundary_smoothing.interpolation, expected_method,
             "Failed for method: {}",
             method_str
         );
@@ -1070,7 +1071,10 @@ thermodynamic:
         75
     );
     assert_eq!(
-        config.thermodynamic.transition_optimization.convergence_threshold,
+        config
+            .thermodynamic
+            .transition_optimization
+            .convergence_threshold,
         0.0002
     );
     assert_eq!(
@@ -1118,12 +1122,10 @@ thermodynamic:
 
         fs::write(&config_path, yaml_content).unwrap();
 
-        let config =
-            DiffusionQuantConfig::from_yaml(&config_path).expect("Failed to load config");
+        let config = DiffusionQuantConfig::from_yaml(&config_path).expect("Failed to load config");
 
         assert_eq!(
-            config.thermodynamic.transition_optimization.beta_schedule,
-            expected_schedule,
+            config.thermodynamic.transition_optimization.beta_schedule, expected_schedule,
             "Failed for schedule: {}",
             schedule_str
         );
@@ -1197,7 +1199,10 @@ thermodynamic:
         60
     );
     assert_eq!(
-        config.thermodynamic.transition_optimization.convergence_threshold,
+        config
+            .thermodynamic
+            .transition_optimization
+            .convergence_threshold,
         0.00015
     );
     assert_eq!(
@@ -1314,7 +1319,10 @@ fn test_thermodynamic_config_full_roundtrip() {
     );
     assert_eq!(
         loaded_config.thermodynamic.validation.smoothness_threshold,
-        original_config.thermodynamic.validation.smoothness_threshold
+        original_config
+            .thermodynamic
+            .validation
+            .smoothness_threshold
     );
     assert_eq!(
         loaded_config.thermodynamic.validation.log_violations,
@@ -1331,35 +1339,77 @@ fn test_thermodynamic_config_full_roundtrip() {
     );
     assert_eq!(
         loaded_config.thermodynamic.boundary_smoothing.interpolation,
-        original_config.thermodynamic.boundary_smoothing.interpolation
+        original_config
+            .thermodynamic
+            .boundary_smoothing
+            .interpolation
     );
 
     assert_eq!(
         loaded_config.thermodynamic.transition_optimization.enabled,
-        original_config.thermodynamic.transition_optimization.enabled
+        original_config
+            .thermodynamic
+            .transition_optimization
+            .enabled
     );
     assert_eq!(
-        loaded_config.thermodynamic.transition_optimization.markov_weight,
-        original_config.thermodynamic.transition_optimization.markov_weight
+        loaded_config
+            .thermodynamic
+            .transition_optimization
+            .markov_weight,
+        original_config
+            .thermodynamic
+            .transition_optimization
+            .markov_weight
     );
     assert_eq!(
-        loaded_config.thermodynamic.transition_optimization.entropy_weight,
-        original_config.thermodynamic.transition_optimization.entropy_weight
+        loaded_config
+            .thermodynamic
+            .transition_optimization
+            .entropy_weight,
+        original_config
+            .thermodynamic
+            .transition_optimization
+            .entropy_weight
     );
     assert_eq!(
-        loaded_config.thermodynamic.transition_optimization.learning_rate,
-        original_config.thermodynamic.transition_optimization.learning_rate
+        loaded_config
+            .thermodynamic
+            .transition_optimization
+            .learning_rate,
+        original_config
+            .thermodynamic
+            .transition_optimization
+            .learning_rate
     );
     assert_eq!(
-        loaded_config.thermodynamic.transition_optimization.max_iterations,
-        original_config.thermodynamic.transition_optimization.max_iterations
+        loaded_config
+            .thermodynamic
+            .transition_optimization
+            .max_iterations,
+        original_config
+            .thermodynamic
+            .transition_optimization
+            .max_iterations
     );
     assert_eq!(
-        loaded_config.thermodynamic.transition_optimization.convergence_threshold,
-        original_config.thermodynamic.transition_optimization.convergence_threshold
+        loaded_config
+            .thermodynamic
+            .transition_optimization
+            .convergence_threshold,
+        original_config
+            .thermodynamic
+            .transition_optimization
+            .convergence_threshold
     );
     assert_eq!(
-        loaded_config.thermodynamic.transition_optimization.beta_schedule,
-        original_config.thermodynamic.transition_optimization.beta_schedule
+        loaded_config
+            .thermodynamic
+            .transition_optimization
+            .beta_schedule,
+        original_config
+            .thermodynamic
+            .transition_optimization
+            .beta_schedule
     );
 }

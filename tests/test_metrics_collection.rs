@@ -1,6 +1,8 @@
 //! Tests for thermodynamic metrics collection
 
-use arrow_quant_v2::config::{ThermodynamicConfig, ValidationConfig, BoundarySmoothingConfig, TransitionOptimizationConfig};
+use arrow_quant_v2::config::{
+    BoundarySmoothingConfig, ThermodynamicConfig, TransitionOptimizationConfig, ValidationConfig,
+};
 use arrow_quant_v2::time_aware::{TimeAwareQuantizer, TimeGroupParams};
 
 #[test]
@@ -43,10 +45,21 @@ fn test_metrics_collection_enabled() {
     assert!(metrics.is_some(), "Metrics should be available");
 
     let metrics = metrics.unwrap();
-    assert!(metrics.smoothness_score < 1.0, "Should detect non-perfect smoothness");
+    assert!(
+        metrics.smoothness_score < 1.0,
+        "Should detect non-perfect smoothness"
+    );
     assert_eq!(metrics.violation_count, 1, "Should detect 1 violation");
-    assert_eq!(metrics.violations.len(), 1, "Should have 1 violation in list");
-    assert_eq!(metrics.boundary_scores.len(), 1, "Should have 1 boundary score");
+    assert_eq!(
+        metrics.violations.len(),
+        1,
+        "Should have 1 violation in list"
+    );
+    assert_eq!(
+        metrics.boundary_scores.len(),
+        1,
+        "Should have 1 boundary score"
+    );
     assert!(!metrics.is_valid(), "Should not be valid with violations");
 }
 
@@ -75,7 +88,10 @@ fn test_metrics_collection_disabled() {
 
     // Metrics should not be available when validation is disabled
     let metrics = quantizer.get_thermodynamic_metrics();
-    assert!(metrics.is_none(), "Metrics should not be available when validation disabled");
+    assert!(
+        metrics.is_none(),
+        "Metrics should not be available when validation disabled"
+    );
 }
 
 #[test]
@@ -113,7 +129,10 @@ fn test_metrics_perfect_smoothness() {
     let _result = quantizer.quantize_layer(&weights, &params);
 
     let metrics = quantizer.get_thermodynamic_metrics().unwrap();
-    assert!(metrics.smoothness_score > 0.99, "Should have near-perfect smoothness");
+    assert!(
+        metrics.smoothness_score > 0.99,
+        "Should have near-perfect smoothness"
+    );
     assert_eq!(metrics.violation_count, 0, "Should have no violations");
     assert!(metrics.is_valid(), "Should be valid with no violations");
 }
@@ -158,10 +177,17 @@ fn test_metrics_boundary_scores() {
     let _result = quantizer.quantize_layer(&weights, &params);
 
     let metrics = quantizer.get_thermodynamic_metrics().unwrap();
-    assert_eq!(metrics.boundary_scores.len(), 2, "Should have 2 boundary scores for 3 groups");
-    
+    assert_eq!(
+        metrics.boundary_scores.len(),
+        2,
+        "Should have 2 boundary scores for 3 groups"
+    );
+
     // All boundary scores should be between 0 and 1
     for score in &metrics.boundary_scores {
-        assert!(*score >= 0.0 && *score <= 1.0, "Boundary score should be in [0, 1]");
+        assert!(
+            *score >= 0.0 && *score <= 1.0,
+            "Boundary score should be in [0, 1]"
+        );
     }
 }

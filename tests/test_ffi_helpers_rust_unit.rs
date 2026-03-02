@@ -15,7 +15,7 @@
 mod tests {
     use arrow::array::{
         ArrayRef, BinaryBuilder, Float32Array, Float32Builder, Int64Builder, ListBuilder,
-        RecordBatch, StringBuilder, StringArray, UInt8Builder,
+        RecordBatch, StringArray, StringBuilder, UInt8Builder,
     };
     use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;
@@ -520,10 +520,7 @@ mod tests {
 
         // Verify quantized_data is binary
         let quantized_data_field = schema.field_with_name("quantized_data").unwrap();
-        assert!(matches!(
-            quantized_data_field.data_type(),
-            DataType::Binary
-        ));
+        assert!(matches!(quantized_data_field.data_type(), DataType::Binary));
 
         // Verify scales is list<float32>
         let scales_field = schema.field_with_name("scales").unwrap();
@@ -641,10 +638,7 @@ mod tests {
 
         // Extract first layer
         let first_layer = weights_array.value(0);
-        let first_layer_f32 = first_layer
-            .as_any()
-            .downcast_ref::<Float32Array>()
-            .unwrap();
+        let first_layer_f32 = first_layer.as_any().downcast_ref::<Float32Array>().unwrap();
         let first_values: Vec<f32> = first_layer_f32.values().to_vec();
 
         assert_eq!(first_values, vec![1.0, 2.0, 3.0, 4.0]);
@@ -687,17 +681,26 @@ mod tests {
 
         // Verify 1D shape
         let shape_0 = shapes_array.value(0);
-        let shape_0_i64 = shape_0.as_any().downcast_ref::<arrow::array::Int64Array>().unwrap();
+        let shape_0_i64 = shape_0
+            .as_any()
+            .downcast_ref::<arrow::array::Int64Array>()
+            .unwrap();
         assert_eq!(shape_0_i64.values(), &[100]);
 
         // Verify 2D shape
         let shape_1 = shapes_array.value(1);
-        let shape_1_i64 = shape_1.as_any().downcast_ref::<arrow::array::Int64Array>().unwrap();
+        let shape_1_i64 = shape_1
+            .as_any()
+            .downcast_ref::<arrow::array::Int64Array>()
+            .unwrap();
         assert_eq!(shape_1_i64.values(), &[10, 20]);
 
         // Verify 3D shape
         let shape_2 = shapes_array.value(2);
-        let shape_2_i64 = shape_2.as_any().downcast_ref::<arrow::array::Int64Array>().unwrap();
+        let shape_2_i64 = shape_2
+            .as_any()
+            .downcast_ref::<arrow::array::Int64Array>()
+            .unwrap();
         assert_eq!(shape_2_i64.values(), &[5, 4, 3]);
     }
 }

@@ -1,1068 +1,550 @@
-# Migration Guide: Base ArrowQuant → ArrowQuant V2 for Diffusion
+# Arrow 零拷贝迁移指南
 
-This guide helps you migrate from the base ArrowQuant quantization system to ArrowQuant V2 for Diffusion, which adds diffusion model-specific optimizations while maintaining backward compatibility.
+从 Legacy 实现迁移到 Arrow 零拷贝实现的完整指南。
 
-## Table of Contents
+## 目录
 
-1. [Overview](#overview)
-2. [What's New in V2](#whats-new-in-v2)
-3. [Breaking Changes](#breaking-changes)
-4. [Migration Checklist](#migration-checklist)
-5. [Code Migration Examples](#code-migration-examples)
-6. [Feature Adoption Guide](#feature-adoption-guide)
-7. [Troubleshooting](#troubleshooting)
-8. [FAQ](#faq)
-
----
-
-## Overview
-
-### Why Migrate?
-
-ArrowQuant V2 for Diffusion provides significant improvements for diffusion models:
-
-- **10-50% better accuracy** for diffusion models through time-aware and spatial quantization
-- **Automatic modality detection** and strategy selection
-- **Graceful degradation** with automatic fallback (INT2 → INT4 → INT8)
-- **Deployment profiles** for edge, local, and cloud environments
-- **Extended Parquet V2 schema** with diffusion-specific metadata
-- **Backward compatible** with base ArrowQuant models
-
-### Migration Effort
-
-| Scenario | Effort | Time Estimate |
-|----------|--------|---------------|
-| **Simple quantization scripts** | Low | 15-30 minutes |
-| **Custom configuration** | Medium | 1-2 hours |
-| **Advanced workflows** | Medium-High | 2-4 hours |
-| **Production deployment** | High | 1-2 days |
-
-### Compatibility
-
-✅ **Fully Compatible**:
-- Existing Parquet V2 models can be loaded by V2
-- Base quantization mode (`mode="base"`) works identically
-- All existing APIs are preserved
-
-⚠️ **Requires Updates**:
-- Configuration format (YAML structure changed)
-- Python import paths (new module name)
-- Some parameter names (see Breaking Changes)
+- [为什么要迁移](#为什么要迁移)
+- [迁移前准备](#迁移前准备)
+- [Rust 代码迁移](#rust-代码迁移)
+- [Python 代码迁移](#python-代码迁移)
+- [性能对比](#性能对比)
+- [常见问题](#常见问题)
+- [迁移检查清单](#迁移检查清单)
 
 ---
 
-## What's New in V2
+## 为什么要迁移
 
-### 1. Diffusion-Specific Optimizations
+### Arrow 实现的优势
 
-**Time-Aware Quantization**:
-- Groups similar timesteps together
-- Adaptive quantization parameters per time group
-- Handles temporal variance in diffusion models
+1. **内存效率**：节省 44-90% 内存
+2. **零拷贝**：与 Python/Pandas/PyArrow 无缝集成
+3. **并行处理**：支持 Rayon 并行反量化
+4. **标准化**：基于 Apache Arrow 标准格式
+5. **未来兼容**：后续功能将优先支持 Arrow
 
-**Spatial Quantization**:
-- Channel equalization (DiTAS technique)
-- Activation smoothing
-- Per-group quantization for spatial variance
+### 性能对比
 
-### 2. Automatic Modality Detection
+| 指标 | Legacy | Arrow | 改进 |
+|------|--------|-------|------|
+| 内存使用 | 9 MB/1M | 5 MB/1M | -44% |
+| 量化速度 | 100ms | 100ms | 持平 |
+| 反量化速度 | 50ms | 50ms | 持平 |
+| Python 导出 | 需复制 | 零拷贝 | 10x+ |
+| 并行支持 | ❌ | ✅ | 新增 |
 
-V2 automatically detects model modality (text, code, image, audio) and selects optimal quantization strategies:
+---
 
-```python
-# V2: Automatic detection
-result = quantizer.quantize_diffusion_model(
-    model_path="dream-7b/",
-    output_path="dream-7b-int2/"
-)
-# Automatically detects "text" modality and uses R2Q + TimeAware
+## 迁移前准备
 
-# V1: Manual strategy selection required
-result = quantizer.quantize(
-    model_path="dream-7b/",
-    output_path="dream-7b-int2/",
-    strategy="r2q"  # Had to specify manually
-)
+### 1. 检查依赖版本
+
+```toml
+# Cargo.toml
+[dependencies]
+arrow = "53.0"
+pyo3 = "0.22"
 ```
 
-### 3. Deployment Profiles
+```bash
+# Python
+pip install pyarrow>=14.0.0
+```
 
-Pre-configured profiles for different deployment scenarios:
+### 2. 备份现有代码
 
-```python
-# V2: Use deployment profile
-config = DiffusionQuantConfig.from_profile("edge")  # or "local", "cloud"
+```bash
+# 创建备份分支
+git checkout -b legacy-backup
 
-# V1: Manual configuration
-config = {
-    "bit_width": 2,
-    "group_size": 256,
-    "calibration_samples": 32,
-    # ... many more parameters
+# 或创建备份目录
+cp -r src src_legacy_backup
+```
+
+### 3. 运行现有测试
+
+```bash
+# 确保所有测试通过
+cargo test --lib
+python -m pytest tests/
+```
+
+---
+
+## Rust 代码迁移
+
+### 步骤 1：更新量化调用
+
+#### Before (Legacy)
+
+```rust
+use arrow_quant_v2::time_aware::{TimeAwareQuantizer, TimeGroupParams};
+
+let quantizer = TimeAwareQuantizer::new(10);
+let weights = vec![1.0, 2.0, 3.0, 4.0];
+let params = vec![/* ... */];
+
+// Legacy 实现
+let quantized = quantizer.quantize_layer(&weights, &params)?;
+
+// 访问数据需要模式匹配
+match quantized {
+    QuantizedLayer::Legacy { data, scales, zero_points, .. } => {
+        // 处理 Legacy 格式
+        println!("Data: {:?}", data);
+    }
+    _ => {}
 }
 ```
 
-### 4. Graceful Degradation
+#### After (Arrow)
 
-Automatic fallback when quantization fails:
+```rust
+use arrow_quant_v2::time_aware::{TimeAwareQuantizer, TimeGroupParams};
 
-```python
-# V2: Automatic fallback
-result = quantizer.quantize_diffusion_model(
-    model_path="model/",
-    output_path="quantized/",
-    config=DiffusionQuantConfig(bit_width=2, min_accuracy=0.70)
-)
-# If INT2 fails, automatically tries INT4, then INT8
+let quantizer = TimeAwareQuantizer::new(10);
+let weights = vec![1.0, 2.0, 3.0, 4.0];
+let params = vec![/* ... */];
 
-# V1: Manual retry logic required
-try:
-    result = quantizer.quantize(model_path, output_path, bit_width=2)
-except QuantizationError:
-    result = quantizer.quantize(model_path, output_path, bit_width=4)
+// Arrow 实现
+let quantized = quantizer.quantize_layer_arrow(&weights, &params)?;
+
+// 零拷贝访问
+let data = quantized.quantized_data();
+let group_ids = quantized.time_group_ids();
+println!("Data: {:?}", data);
 ```
 
-### 5. Extended Parquet V2 Schema
+### 步骤 2：更新反量化调用
 
-New metadata fields for diffusion models:
+#### Before (Legacy)
+
+```rust
+// Legacy 反量化
+let dequantized = match &quantized {
+    QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+        // 手动反量化逻辑
+        let mut result = Vec::new();
+        for (i, &q) in data.iter().enumerate() {
+            let group_id = i / time_group_params[0].group_size;
+            let scale = scales[group_id];
+            let zero_point = zero_points[group_id];
+            result.push((q as f32 - zero_point) * scale);
+        }
+        result
+    }
+    _ => vec![]
+};
+```
+
+#### After (Arrow)
+
+```rust
+// Arrow 反量化（单组）
+let dequantized = quantized.dequantize_group(0)?;
+
+// 或并行反量化所有组
+let all_groups = quantized.dequantize_all_groups_parallel()?;
+```
+
+### 步骤 3：更新数据访问
+
+#### Before (Legacy)
+
+```rust
+// 需要模式匹配和复制
+let (data, scales, zero_points) = match quantized {
+    QuantizedLayer::Legacy { data, scales, zero_points, .. } => {
+        (data.clone(), scales.clone(), zero_points.clone())
+    }
+    _ => (vec![], vec![], vec![])
+};
+```
+
+#### After (Arrow)
+
+```rust
+// 零拷贝引用
+let data = quantized.quantized_data(); // &[u8]
+let group_ids = quantized.time_group_ids(); // &[u32]
+
+// 无需复制，直接使用
+for (i, &q) in data.iter().enumerate() {
+    let group_id = group_ids[i];
+    // 处理数据
+}
+```
+
+### 步骤 4：更新并行处理
+
+#### Before (Legacy)
+
+```rust
+// Legacy 不支持并行反量化
+let mut all_groups = Vec::new();
+for group_id in 0..num_groups {
+    let group_data = dequantize_group_legacy(&quantized, group_id)?;
+    all_groups.push(group_data);
+}
+```
+
+#### After (Arrow)
+
+```rust
+// Arrow 支持并行反量化
+let all_groups = quantized.dequantize_all_groups_parallel()?;
+```
+
+---
+
+## Python 代码迁移
+
+### 步骤 1：更新量化调用
+
+#### Before (Legacy)
 
 ```python
-# V2: Rich metadata
-{
-    "is_diffusion_model": true,
-    "modality": "text",
-    "time_aware_quant": {
-        "enabled": true,
-        "num_time_groups": 10,
-        "time_group_params": [...]
-    },
-    "spatial_quant": {
-        "enabled": true,
-        "channel_equalization": true,
-        "equalization_scales": [...]
+import arrow_quant_v2 as aq
+
+quantizer = aq.ArrowQuantV2()
+
+# Legacy 实现
+result = quantizer.quantize_diffusion_model(
+    model_path="models/stable_diffusion",
+    output_path="models/stable_diffusion_int8",
+    bit_width=8,
+    num_time_groups=10,
+    use_arrow=False  # Legacy
+)
+
+# 结果是字典，需要手动处理
+for layer_name, layer_data in result.items():
+    # layer_data 是普通字典
+    data = layer_data['data']
+    scales = layer_data['scales']
+    # ...
+```
+
+#### After (Arrow)
+
+```python
+import arrow_quant_v2 as aq
+
+quantizer = aq.ArrowQuantV2()
+
+# Arrow 实现
+layers = quantizer.quantize_diffusion_model_arrow(
+    model_path="models/stable_diffusion",
+    output_path="models/stable_diffusion_int8",
+    bit_width=8,
+    num_time_groups=10
+)
+
+# 结果是 PyArrowQuantizedLayer 对象
+for layer_name, quantized_layer in layers.items():
+    # 零拷贝导出
+    table = quantized_layer.to_pyarrow()
+    df = table.to_pandas(zero_copy_only=True)
+```
+
+### 步骤 2：更新数据访问
+
+#### Before (Legacy)
+
+```python
+# Legacy 需要复制数据
+data = result['layer1']['data'].copy()
+scales = result['layer1']['scales'].copy()
+zero_points = result['layer1']['zero_points'].copy()
+
+# 手动反量化
+dequantized = []
+for i, q in enumerate(data):
+    group_id = i // group_size
+    scale = scales[group_id]
+    zero_point = zero_points[group_id]
+    dequantized.append((q - zero_point) * scale)
+```
+
+#### After (Arrow)
+
+```python
+# Arrow 零拷贝访问
+quantized_layer = layers['layer1']
+
+# 直接反量化
+dequantized = quantized_layer.dequantize_group(0)
+
+# 或并行反量化所有组
+all_groups = quantized_layer.dequantize_all_groups()
+```
+
+### 步骤 3：更新 Pandas 集成
+
+#### Before (Legacy)
+
+```python
+import pandas as pd
+
+# Legacy 需要手动构建 DataFrame
+data = result['layer1']['data']
+df = pd.DataFrame({
+    'quantized_data': data,
+    'scale': [scales[i // group_size] for i in range(len(data))],
+    'zero_point': [zero_points[i // group_size] for i in range(len(data))]
+})
+```
+
+#### After (Arrow)
+
+```python
+import pandas as pd
+import pyarrow as pa
+
+# Arrow 零拷贝转换
+quantized_layer = layers['layer1']
+table = quantized_layer.to_pyarrow()
+
+# 零拷贝转换为 Pandas
+df = table.to_pandas(zero_copy_only=True)
+
+# 或保存为 Parquet
+pa.parquet.write_table(table, "layer1.parquet")
+```
+
+---
+
+## 渐进式迁移策略
+
+### 策略 1：统一接口（推荐）
+
+使用 `QuantizedLayer` 枚举保持向后兼容：
+
+```rust
+// 支持两种格式
+fn process_layer(quantized: QuantizedLayer) -> Result<Vec<f32>> {
+    // 统一的反量化接口
+    quantized.dequantize_group(0)
+}
+
+// 可以传入 Legacy 或 Arrow 格式
+let legacy = quantizer.quantize_layer(&weights, &params)?;
+let arrow = quantizer.quantize_layer_arrow(&weights, &params)?;
+
+process_layer(legacy)?;
+process_layer(QuantizedLayer::Arrow(arrow))?;
+```
+
+### 策略 2：逐层迁移
+
+```rust
+// 先迁移关键层
+let critical_layers = vec!["attention", "mlp"];
+
+for layer_name in &all_layers {
+    let quantized = if critical_layers.contains(&layer_name.as_str()) {
+        // 使用 Arrow
+        QuantizedLayer::Arrow(
+            quantizer.quantize_layer_arrow(&weights, &params)?
+        )
+    } else {
+        // 保持 Legacy
+        quantizer.quantize_layer(&weights, &params)?
+    };
+    
+    save_layer(layer_name, quantized)?;
+}
+```
+
+### 策略 3：特性开关
+
+```rust
+// 使用配置控制
+struct QuantConfig {
+    use_arrow: bool,
+    // ...
+}
+
+fn quantize_with_config(
+    weights: &[f32],
+    params: &[TimeGroupParams],
+    config: &QuantConfig,
+) -> Result<QuantizedLayer> {
+    if config.use_arrow {
+        Ok(QuantizedLayer::Arrow(
+            quantizer.quantize_layer_arrow(weights, params)?
+        ))
+    } else {
+        quantizer.quantize_layer(weights, params)
     }
 }
-
-# V1: Basic metadata only
-{
-    "quant_type": "int2",
-    "scales": [...],
-    "zero_points": [...]
-}
-```
-
-### 6. Progress Callbacks
-
-Monitor long-running quantization:
-
-```python
-# V2: Progress callback support
-def progress(message, progress_pct):
-    print(f"[{progress_pct:.0%}] {message}")
-
-result = quantizer.quantize_diffusion_model(
-    model_path="model/",
-    output_path="quantized/",
-    progress_callback=progress
-)
-
-# V1: No progress reporting
-result = quantizer.quantize(model_path, output_path)  # Silent
 ```
 
 ---
 
-## Breaking Changes
+## 性能对比测试
 
-### 1. Module Name Change
+### 测试脚本
 
-**Before (V1)**:
-```python
-from arrow_quant import ArrowQuant
-```
+```rust
+use std::time::Instant;
 
-**After (V2)**:
-```python
-from arrow_quant_v2 import ArrowQuantV2
-```
-
-### 2. Constructor Parameter
-
-**Before (V1)**:
-```python
-quantizer = ArrowQuant()  # No mode parameter
-```
-
-**After (V2)**:
-```python
-quantizer = ArrowQuantV2(mode="diffusion")  # or mode="base"
-```
-
-### 3. Configuration Structure
-
-**Before (V1)**:
-```python
-config = {
-    "bits": 4,  # Old name
-    "group_size": 128,
-    "samples": 128,  # Old name
-}
-```
-
-**After (V2)**:
-```python
-config = DiffusionQuantConfig(
-    bit_width=4,  # New name
-    group_size=128,
-    calibration_samples=128,  # New name
-)
-```
-
-### 4. Method Names
-
-**Before (V1)**:
-```python
-result = quantizer.quantize(model_path, output_path, config)
-```
-
-**After (V2)**:
-```python
-# For diffusion models
-result = quantizer.quantize_diffusion_model(model_path, output_path, config)
-
-# For base quantization (backward compatible)
-result = quantizer.quantize(weights, bit_width=4)
-```
-
-### 5. Return Value Structure
-
-**Before (V1)**:
-```python
-result = {
-    "path": "quantized/model/",
-    "compression": 16.0,
-    "accuracy": 0.73,
-    "size": 32.5
-}
-```
-
-**After (V2)**:
-```python
-result = {
-    "quantized_path": "quantized/model/",  # Renamed
-    "compression_ratio": 16.0,  # Renamed
-    "cosine_similarity": 0.73,  # Renamed
-    "model_size_mb": 32.5,  # Renamed
-    "modality": "text",  # New
-    "bit_width": 2,  # New
-    "quantization_time_s": 120.5  # New
-}
-```
-
-### 6. Environment Variables
-
-**Before (V1)**:
-```bash
-export ARROW_QUANT_BITS=4
-export ARROW_QUANT_SAMPLES=128
-```
-
-**After (V2)**:
-```bash
-export ARROW_QUANT_BIT_WIDTH=4  # Renamed
-export ARROW_QUANT_CALIBRATION_SAMPLES=128  # Renamed
-```
-
----
-
-## Migration Checklist
-
-### Phase 1: Preparation (15 minutes)
-
-- [ ] **Backup existing code and models**
-  ```bash
-  cp -r quantization_scripts/ quantization_scripts.backup/
-  cp -r models/ models.backup/
-  ```
-
-- [ ] **Install ArrowQuant V2**
-  ```bash
-  pip install arrow-quant-v2
-  # or
-  pip install -e ai_os_diffusion/arrow_quant_v2/
-  ```
-
-- [ ] **Review breaking changes** (see section above)
-
-- [ ] **Identify affected code**
-  ```bash
-  grep -r "from arrow_quant import" .
-  grep -r "ArrowQuant(" .
-  ```
-
-### Phase 2: Code Updates (30-60 minutes)
-
-- [ ] **Update imports**
-  ```python
-  # Old
-  from arrow_quant import ArrowQuant
-  
-  # New
-  from arrow_quant_v2 import ArrowQuantV2, DiffusionQuantConfig
-  ```
-
-- [ ] **Update constructor calls**
-  ```python
-  # Old
-  quantizer = ArrowQuant()
-  
-  # New
-  quantizer = ArrowQuantV2(mode="diffusion")
-  ```
-
-- [ ] **Update method calls**
-  ```python
-  # Old
-  result = quantizer.quantize(model_path, output_path, config)
-  
-  # New
-  result = quantizer.quantize_diffusion_model(model_path, output_path, config)
-  ```
-
-- [ ] **Update configuration**
-  ```python
-  # Old
-  config = {"bits": 4, "samples": 128}
-  
-  # New
-  config = DiffusionQuantConfig(bit_width=4, calibration_samples=128)
-  # or use profile
-  config = DiffusionQuantConfig.from_profile("local")
-  ```
-
-- [ ] **Update result handling**
-  ```python
-  # Old
-  print(f"Size: {result['size']}MB")
-  
-  # New
-  print(f"Size: {result['model_size_mb']}MB")
-  ```
-
-### Phase 3: Testing (30-60 minutes)
-
-- [ ] **Test basic quantization**
-  ```python
-  quantizer = ArrowQuantV2(mode="diffusion")
-  result = quantizer.quantize_diffusion_model(
-      model_path="test_model/",
-      output_path="test_output/"
-  )
-  assert result["cosine_similarity"] >= 0.70
-  ```
-
-- [ ] **Test with custom configuration**
-  ```python
-  config = DiffusionQuantConfig(
-      bit_width=4,
-      num_time_groups=10,
-      min_accuracy=0.85
-  )
-  result = quantizer.quantize_diffusion_model(
-      model_path="test_model/",
-      output_path="test_output/",
-      config=config
-  )
-  ```
-
-- [ ] **Test backward compatibility** (if using base mode)
-  ```python
-  quantizer = ArrowQuantV2(mode="base")
-  result = quantizer.quantize(weights, bit_width=4)
-  ```
-
-- [ ] **Validate output models**
-  ```python
-  validation = quantizer.validate_quality(
-      original_path="test_model/",
-      quantized_path="test_output/"
-  )
-  assert validation["passed"]
-  ```
-
-### Phase 4: Deployment (varies)
-
-- [ ] **Update CI/CD pipelines**
-  - Update Docker images
-  - Update environment variables
-  - Update deployment scripts
-
-- [ ] **Update documentation**
-  - Update README files
-  - Update API documentation
-  - Update deployment guides
-
-- [ ] **Monitor production**
-  - Check quantization quality metrics
-  - Monitor memory usage
-  - Monitor quantization time
-
----
-
-## Code Migration Examples
-
-### Example 1: Simple Quantization Script
-
-**Before (V1)**:
-```python
-from arrow_quant import ArrowQuant
-
-quantizer = ArrowQuant()
-
-result = quantizer.quantize(
-    model_path="dream-7b/",
-    output_path="dream-7b-int2/",
-    config={"bits": 2, "samples": 128}
-)
-
-print(f"Compressed to {result['size']}MB")
-print(f"Accuracy: {result['accuracy']:.3f}")
-```
-
-**After (V2)**:
-```python
-from arrow_quant_v2 import ArrowQuantV2, DiffusionQuantConfig
-
-quantizer = ArrowQuantV2(mode="diffusion")
-
-result = quantizer.quantize_diffusion_model(
-    model_path="dream-7b/",
-    output_path="dream-7b-int2/",
-    config=DiffusionQuantConfig(bit_width=2, calibration_samples=128)
-)
-
-print(f"Compressed to {result['model_size_mb']}MB")
-print(f"Accuracy: {result['cosine_similarity']:.3f}")
-```
-
-### Example 2: Batch Quantization
-
-**Before (V1)**:
-```python
-from arrow_quant import ArrowQuant
-
-quantizer = ArrowQuant()
-
-models = ["model1", "model2", "model3"]
-configs = [
-    {"bits": 2, "samples": 32},
-    {"bits": 4, "samples": 128},
-    {"bits": 8, "samples": 512}
-]
-
-for model, config in zip(models, configs):
-    result = quantizer.quantize(
-        model_path=f"models/{model}/",
-        output_path=f"quantized/{model}/",
-        config=config
-    )
-    print(f"{model}: {result['compression']}x compression")
-```
-
-**After (V2)**:
-```python
-from arrow_quant_v2 import ArrowQuantV2, DiffusionQuantConfig
-
-quantizer = ArrowQuantV2(mode="diffusion")
-
-models = ["model1", "model2", "model3"]
-profiles = ["edge", "local", "cloud"]
-
-for model, profile in zip(models, profiles):
-    config = DiffusionQuantConfig.from_profile(profile)
+fn benchmark_legacy_vs_arrow() {
+    let weights: Vec<f32> = (0..1_000_000).map(|i| i as f32 * 0.001).collect();
+    let params = create_params(10, weights.len());
     
-    result = quantizer.quantize_diffusion_model(
-        model_path=f"models/{model}/",
-        output_path=f"quantized/{model}/",
-        config=config
-    )
-    print(f"{model}: {result['compression_ratio']}x compression")
-```
-
-### Example 3: Custom Configuration
-
-**Before (V1)**:
-```python
-from arrow_quant import ArrowQuant
-
-config = {
-    "bits": 4,
-    "group_size": 128,
-    "samples": 256,
-    "min_acc": 0.85,
-    "threads": 8
+    // Legacy
+    let start = Instant::now();
+    let legacy = quantizer.quantize_layer(&weights, &params).unwrap();
+    let legacy_time = start.elapsed();
+    
+    // Arrow
+    let start = Instant::now();
+    let arrow = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
+    let arrow_time = start.elapsed();
+    
+    println!("Legacy: {:?}", legacy_time);
+    println!("Arrow: {:?}", arrow_time);
+    println!("Speedup: {:.2}x", legacy_time.as_secs_f64() / arrow_time.as_secs_f64());
 }
-
-quantizer = ArrowQuant()
-result = quantizer.quantize(
-    model_path="model/",
-    output_path="quantized/",
-    config=config
-)
 ```
 
-**After (V2)**:
-```python
-from arrow_quant_v2 import ArrowQuantV2, DiffusionQuantConfig
+### 预期结果
 
-config = DiffusionQuantConfig(
-    bit_width=4,
-    group_size=128,
-    calibration_samples=256,
-    min_accuracy=0.85,
-    num_threads=8,
-    enable_time_aware=True,  # New feature
-    enable_spatial=True  # New feature
-)
-
-quantizer = ArrowQuantV2(mode="diffusion")
-result = quantizer.quantize_diffusion_model(
-    model_path="model/",
-    output_path="quantized/",
-    config=config
-)
 ```
+Legacy: 102ms
+Arrow: 98ms
+Speedup: 1.04x
 
-### Example 4: Error Handling
-
-**Before (V1)**:
-```python
-from arrow_quant import ArrowQuant, QuantizationError
-
-quantizer = ArrowQuant()
-
-try:
-    result = quantizer.quantize(
-        model_path="model/",
-        output_path="quantized/",
-        config={"bits": 2}
-    )
-except QuantizationError as e:
-    print(f"Quantization failed: {e}")
-    # Manual fallback
-    result = quantizer.quantize(
-        model_path="model/",
-        output_path="quantized/",
-        config={"bits": 4}
-    )
-```
-
-**After (V2)**:
-```python
-from arrow_quant_v2 import ArrowQuantV2, DiffusionQuantConfig
-from arrow_quant_v2 import QuantizationError, ConfigurationError
-
-quantizer = ArrowQuantV2(mode="diffusion")
-
-try:
-    # Automatic fallback enabled by default
-    result = quantizer.quantize_diffusion_model(
-        model_path="model/",
-        output_path="quantized/",
-        config=DiffusionQuantConfig(bit_width=2, min_accuracy=0.70)
-    )
-    
-    if result["bit_width"] > 2:
-        print(f"Fallback occurred: using INT{result['bit_width']}")
-    
-except ConfigurationError as e:
-    print(f"Invalid configuration: {e}")
-except QuantizationError as e:
-    print(f"Quantization failed: {e}")
-```
-
-### Example 5: YAML Configuration
-
-**Before (V1)**:
-```yaml
-# config_v1.yaml
-bits: 4
-group_size: 128
-samples: 128
-min_acc: 0.85
-```
-
-```python
-import yaml
-from arrow_quant import ArrowQuant
-
-with open("config_v1.yaml") as f:
-    config = yaml.safe_load(f)
-
-quantizer = ArrowQuant()
-result = quantizer.quantize("model/", "quantized/", config)
-```
-
-**After (V2)**:
-```yaml
-# config_v2.yaml
-bit_width: 4
-num_time_groups: 10
-group_size: 128
-enable_time_aware: true
-enable_spatial: true
-min_accuracy: 0.85
-calibration_samples: 128
-deployment_profile: local
-```
-
-```python
-from arrow_quant_v2 import ArrowQuantV2, DiffusionQuantConfig
-
-# Load config from YAML
-config = DiffusionQuantConfig.from_yaml("config_v2.yaml")
-
-quantizer = ArrowQuantV2(mode="diffusion")
-result = quantizer.quantize_diffusion_model("model/", "quantized/", config)
-```
-
-### Example 6: Progress Monitoring
-
-**Before (V1)**:
-```python
-from arrow_quant import ArrowQuant
-
-quantizer = ArrowQuant()
-
-# No progress reporting
-result = quantizer.quantize("model/", "quantized/", {"bits": 4})
-```
-
-**After (V2)**:
-```python
-from arrow_quant_v2 import ArrowQuantV2, DiffusionQuantConfig
-
-def progress_callback(message, progress):
-    print(f"[{progress:.0%}] {message}")
-
-quantizer = ArrowQuantV2(mode="diffusion")
-
-result = quantizer.quantize_diffusion_model(
-    model_path="model/",
-    output_path="quantized/",
-    config=DiffusionQuantConfig(bit_width=4),
-    progress_callback=progress_callback
-)
+Memory (Legacy): 9 MB
+Memory (Arrow): 5 MB
+Savings: 44%
 ```
 
 ---
 
-## Feature Adoption Guide
+## 常见问题
 
-### 1. Adopting Time-Aware Quantization
+### Q1: 迁移后性能反而下降？
 
-**When to use**: Text and code diffusion models (discrete diffusion)
+**A**: 检查以下几点：
+1. 确保使用 release 模式编译：`cargo build --release`
+2. 检查是否启用了 Arrow 特性：`features = ["arrow"]`
+3. 验证是否真的使用了 Arrow 实现而不是 Legacy
 
-**Benefits**:
-- 10-20% better accuracy for temporal models
-- Handles timestep variance automatically
-- Minimal configuration required
+### Q2: Python 导出失败？
 
-**Migration**:
-```python
-# V1: No time-aware support
-result = quantizer.quantize(model_path, output_path, {"bits": 2})
-
-# V2: Enable time-aware (enabled by default for text/code)
-config = DiffusionQuantConfig(
-    bit_width=2,
-    enable_time_aware=True,  # Default: True
-    num_time_groups=10  # Adjust based on model
-)
-result = quantizer.quantize_diffusion_model(model_path, output_path, config)
-```
-
-**Tuning**:
-- `num_time_groups=5`: Edge devices (faster, less memory)
-- `num_time_groups=10`: Local machines (balanced)
-- `num_time_groups=20`: Cloud servers (best accuracy)
-
-### 2. Adopting Spatial Quantization
-
-**When to use**: Image and audio diffusion models (continuous diffusion)
-
-**Benefits**:
-- 10-15% better accuracy for spatial models
-- Handles channel variance automatically
-- Reduces quantization artifacts
-
-**Migration**:
-```python
-# V1: No spatial support
-result = quantizer.quantize(model_path, output_path, {"bits": 4})
-
-# V2: Enable spatial (enabled by default for image/audio)
-config = DiffusionQuantConfig(
-    bit_width=4,
-    enable_spatial=True,  # Default: True
-    group_size=128  # Adjust based on model
-)
-result = quantizer.quantize_diffusion_model(model_path, output_path, config)
-```
-
-**Tuning**:
-- `group_size=256`: Edge devices (coarser, faster)
-- `group_size=128`: Local machines (balanced)
-- `group_size=64`: Cloud servers (finer, better quality)
-
-### 3. Adopting Deployment Profiles
-
-**When to use**: Standardized deployment scenarios
-
-**Benefits**:
-- Pre-configured optimal settings
-- Consistent across deployments
-- Easy to switch between profiles
-
-**Migration**:
-```python
-# V1: Manual configuration for each deployment
-edge_config = {"bits": 2, "group_size": 256, "samples": 32}
-local_config = {"bits": 4, "group_size": 128, "samples": 128}
-cloud_config = {"bits": 8, "group_size": 64, "samples": 512}
-
-# V2: Use deployment profiles
-edge_config = DiffusionQuantConfig.from_profile("edge")
-local_config = DiffusionQuantConfig.from_profile("local")
-cloud_config = DiffusionQuantConfig.from_profile("cloud")
-
-# Optional: Customize after loading profile
-edge_config.min_accuracy = 0.70  # Adjust threshold
-```
-
-### 4. Adopting Automatic Fallback
-
-**When to use**: Production deployments requiring reliability
-
-**Benefits**:
-- Graceful degradation (INT2 → INT4 → INT8)
-- No manual retry logic needed
-- Guaranteed quantization success
-
-**Migration**:
-```python
-# V1: Manual fallback logic
-try:
-    result = quantizer.quantize(model_path, output_path, {"bits": 2})
-except QuantizationError:
-    try:
-        result = quantizer.quantize(model_path, output_path, {"bits": 4})
-    except QuantizationError:
-        result = quantizer.quantize(model_path, output_path, {"bits": 8})
-
-# V2: Automatic fallback (enabled by default)
-config = DiffusionQuantConfig(
-    bit_width=2,
-    min_accuracy=0.70,
-    fail_fast=False  # Enable fallback (default)
-)
-result = quantizer.quantize_diffusion_model(model_path, output_path, config)
-
-# Check if fallback occurred
-if result["bit_width"] > 2:
-    print(f"Fallback to INT{result['bit_width']}")
-```
-
-### 5. Adopting Modality Detection
-
-**When to use**: Multi-modal systems or unknown model types
-
-**Benefits**:
-- Automatic strategy selection
-- No manual modality specification
-- Optimal quantization per modality
-
-**Migration**:
-```python
-# V1: Manual strategy selection
-if model_type == "text":
-    result = quantizer.quantize(model_path, output_path, {"strategy": "r2q"})
-elif model_type == "image":
-    result = quantizer.quantize(model_path, output_path, {"strategy": "gptq"})
-
-# V2: Automatic modality detection
-result = quantizer.quantize_diffusion_model(
-    model_path=model_path,
-    output_path=output_path
-)
-# Automatically detects modality and selects optimal strategy
-
-# Optional: Override detection
-config = DiffusionQuantConfig(modality="text")  # Force text modality
-result = quantizer.quantize_diffusion_model(model_path, output_path, config)
-```
-
-### 6. Adopting Extended Metadata
-
-**When to use**: Model versioning, debugging, or analysis
-
-**Benefits**:
-- Self-contained quantized models
-- Reproducible quantization
-- Better debugging information
-
-**Migration**:
-```python
-# V1: Limited metadata
-# (metadata stored separately or not at all)
-
-# V2: Rich metadata automatically stored
-result = quantizer.quantize_diffusion_model(model_path, output_path)
-
-# Metadata is automatically saved in Parquet V2 Extended format
-# Includes: modality, time_aware_quant, spatial_quant, activation_stats
-
-# Read metadata later
-import pyarrow.parquet as pq
-table = pq.read_table("quantized/model/weights.parquet")
-metadata = table.schema.metadata
-print(f"Modality: {metadata[b'modality']}")
-print(f"Time-aware: {metadata[b'time_aware_quant']}")
-```
-
----
-
-## Troubleshooting
-
-### Issue 1: Import Error
-
-**Error**:
-```
-ImportError: No module named 'arrow_quant_v2'
-```
-
-**Solution**:
+**A**: 确保 PyArrow 版本正确：
 ```bash
-# Install ArrowQuant V2
-pip install arrow-quant-v2
-
-# Or install from source
-cd ai_os_diffusion/arrow_quant_v2
-pip install -e .
+pip install --upgrade pyarrow>=14.0.0
 ```
 
-### Issue 2: Configuration Error
+### Q3: 内存使用没有减少？
 
-**Error**:
-```
-ConfigurationError: Invalid bit_width: 3. Must be 2, 4, or 8.
-```
+**A**: 检查是否使用了 `quantize_layer_arrow` 而不是 `quantize_layer`：
+```rust
+// 错误：使用了 Legacy
+let quantized = quantizer.quantize_layer(&weights, &params)?;
 
-**Solution**:
-```python
-# V1 used "bits", V2 uses "bit_width"
-# Old
-config = {"bits": 4}
-
-# New
-config = DiffusionQuantConfig(bit_width=4)
+// 正确：使用 Arrow
+let quantized = quantizer.quantize_layer_arrow(&weights, &params)?;
 ```
 
-### Issue 3: Method Not Found
+### Q4: 如何验证迁移成功？
 
-**Error**:
-```
-AttributeError: 'ArrowQuantV2' object has no attribute 'quantize'
-```
-
-**Solution**:
-```python
-# For diffusion models, use quantize_diffusion_model()
-result = quantizer.quantize_diffusion_model(model_path, output_path)
-
-# For base quantization (LoRA/ControlNet), use quantize()
-result = quantizer.quantize(weights, bit_width=4)
-```
-
-### Issue 4: Result Key Error
-
-**Error**:
-```
-KeyError: 'size'
-```
-
-**Solution**:
-```python
-# V1 result keys
-print(result['size'])  # Old
-print(result['accuracy'])  # Old
-print(result['compression'])  # Old
-
-# V2 result keys
-print(result['model_size_mb'])  # New
-print(result['cosine_similarity'])  # New
-print(result['compression_ratio'])  # New
-```
-
-### Issue 5: Environment Variable Not Working
-
-**Error**:
-```
-# Environment variable not applied
-export ARROW_QUANT_BITS=4  # Old name
-```
-
-**Solution**:
+**A**: 运行以下测试：
 ```bash
-# V2 uses different names
-export ARROW_QUANT_BIT_WIDTH=4  # New name
-export ARROW_QUANT_CALIBRATION_SAMPLES=128  # New name
-```
+# Rust 测试
+cargo test --lib test_arrow
 
-### Issue 6: Backward Compatibility
+# Python 测试
+python -m pytest tests/test_arrow_integration.py
 
-**Error**:
-```
-# Need to load V1 quantized models in V2
-```
-
-**Solution**:
-```python
-# V2 can load V1 Parquet V2 models
-from arrow_quant_v2 import ArrowQuantV2
-
-quantizer = ArrowQuantV2(mode="base")
-
-# Load V1 model (automatically detects schema version)
-# No migration needed - V2 is backward compatible
+# 性能测试
+cargo test --test performance_validation --release
 ```
 
 ---
 
-## FAQ
+## 迁移检查清单
 
-### Q1: Do I need to re-quantize existing models?
+### 代码迁移
 
-**A**: No, ArrowQuant V2 can load models quantized with V1. However, re-quantizing with V2 will provide better accuracy for diffusion models due to time-aware and spatial optimizations.
+- [ ] 更新所有 `quantize_layer` 调用为 `quantize_layer_arrow`
+- [ ] 更新所有数据访问代码使用零拷贝引用
+- [ ] 更新反量化代码使用新 API
+- [ ] 移除不必要的数据复制
+- [ ] 更新并行处理代码
 
-### Q2: Can I use V2 for non-diffusion models?
+### 测试验证
 
-**A**: Yes, use `mode="base"` for backward compatibility:
-```python
-quantizer = ArrowQuantV2(mode="base")
-result = quantizer.quantize(weights, bit_width=4)
-```
+- [ ] 所有单元测试通过
+- [ ] 所有集成测试通过
+- [ ] 性能测试达标
+- [ ] 内存使用减少 >40%
+- [ ] Python 集成测试通过
 
-### Q3: What's the performance difference between V1 and V2?
+### 文档更新
 
-**A**: V2 has similar performance to V1 for base quantization, but provides 10-50% better accuracy for diffusion models with minimal overhead (<10% slower due to time-aware/spatial processing).
+- [ ] 更新 API 文档
+- [ ] 更新使用示例
+- [ ] 更新性能指标
+- [ ] 添加迁移说明
 
-### Q4: Can I disable new features?
+### 部署准备
 
-**A**: Yes, disable time-aware and spatial quantization:
-```python
-config = DiffusionQuantConfig(
-    bit_width=4,
-    enable_time_aware=False,
-    enable_spatial=False
-)
-```
-
-### Q5: How do I migrate YAML configs?
-
-**A**: Update field names:
-```yaml
-# V1
-bits: 4
-samples: 128
-min_acc: 0.85
-
-# V2
-bit_width: 4
-calibration_samples: 128
-min_accuracy: 0.85
-```
-
-### Q6: What if my model doesn't have metadata?
-
-**A**: Specify modality explicitly:
-```python
-config = DiffusionQuantConfig(modality="text")
-result = quantizer.quantize_diffusion_model(model_path, output_path, config)
-```
-
-### Q7: Can I use both V1 and V2 in the same project?
-
-**A**: Yes, but not recommended. They have different module names:
-```python
-from arrow_quant import ArrowQuant  # V1
-from arrow_quant_v2 import ArrowQuantV2  # V2
-```
-
-### Q8: How do I test my migration?
-
-**A**: Use the validation system:
-```python
-# Quantize with V2
-result = quantizer.quantize_diffusion_model(model_path, output_path)
-
-# Validate quality
-validation = quantizer.validate_quality(model_path, output_path)
-assert validation["passed"]
-assert validation["cosine_similarity"] >= 0.70
-```
-
-### Q9: What's the recommended migration path?
-
-**A**:
-1. Start with deployment profiles (`from_profile()`)
-2. Test on non-critical models first
-3. Gradually adopt new features (time-aware, spatial)
-4. Update production deployments last
-
-### Q10: Where can I get help?
-
-**A**: See additional resources:
-- [Quickstart Guide](QUICKSTART.md)
-- [API Reference](API_REFERENCE.md)
-- [Configuration Guide](CONFIGURATION_GUIDE.md)
-- [Troubleshooting Guide](TROUBLESHOOTING.md)
+- [ ] 更新依赖版本
+- [ ] 更新 CI/CD 配置
+- [ ] 准备回滚方案
+- [ ] 通知团队成员
 
 ---
 
-## Summary
+## 回滚方案
 
-### Key Takeaways
+如果迁移后出现问题，可以快速回滚：
 
-✅ **Backward Compatible**: V2 can load V1 models and supports base mode
+### 方案 1：使用统一接口
 
-✅ **Easy Migration**: Most changes are import paths and parameter names
+```rust
+// 在配置中切换
+config.use_arrow = false; // 回滚到 Legacy
+```
 
-✅ **Better Accuracy**: 10-50% improvement for diffusion models
+### 方案 2：Git 回滚
 
-✅ **New Features**: Time-aware, spatial, automatic fallback, deployment profiles
+```bash
+# 回滚到迁移前的提交
+git revert <migration-commit>
 
-✅ **Production Ready**: Graceful degradation, progress monitoring, rich metadata
+# 或切换到备份分支
+git checkout legacy-backup
+```
 
-### Next Steps
+### 方案 3：条件编译
 
-1. **Review** this migration guide
-2. **Update** your code using the examples
-3. **Test** with non-critical models
-4. **Validate** quantization quality
-5. **Deploy** to production
+```rust
+#[cfg(feature = "use-arrow")]
+let quantized = quantizer.quantize_layer_arrow(&weights, &params)?;
 
-### Migration Timeline
-
-| Week | Activity |
-|------|----------|
-| Week 1 | Review guide, update development code |
-| Week 2 | Test on staging environment |
-| Week 3 | Validate quality metrics |
-| Week 4 | Deploy to production |
+#[cfg(not(feature = "use-arrow"))]
+let quantized = quantizer.quantize_layer(&weights, &params)?;
+```
 
 ---
 
-**Need Help?** Check the [Troubleshooting Guide](TROUBLESHOOTING.md) or open an issue on GitHub.
+## 获取帮助
 
-**Ready to Start?** See the [Quickstart Guide](QUICKSTART.md) for hands-on examples.
+如果在迁移过程中遇到问题：
+
+1. 查看 [API 文档](./api_documentation.md)
+2. 查看 [使用指南](./arrow_zero_copy_guide.md)
+3. 查看 [示例代码](../tests/test_arrow_integration.py)
+4. 提交 Issue 到 GitHub
+
+---
+
+## 总结
+
+Arrow 零拷贝实现提供了显著的内存和性能优势，迁移过程相对简单。建议采用渐进式迁移策略，先迁移关键层，验证效果后再全面迁移。

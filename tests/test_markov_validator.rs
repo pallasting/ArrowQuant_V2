@@ -49,7 +49,7 @@ fn test_smoothness_score_perfect_smoothness() {
     let params = create_params_with_scales(vec![0.05, 0.05, 0.05, 0.05]);
     let validator = MarkovValidator::new(0.3);
     let score = validator.compute_smoothness_score(&params);
-    
+
     assert!(
         (score - 1.0).abs() < 1e-6,
         "Perfect smoothness should give score ~1.0, got {}",
@@ -63,7 +63,7 @@ fn test_smoothness_score_known_input_small_jumps() {
     let params = create_params_with_scales(vec![0.10, 0.11, 0.121, 0.1331]);
     let validator = MarkovValidator::new(0.3);
     let score = validator.compute_smoothness_score(&params);
-    
+
     // With 10% jumps, total_jump = 3 * (0.1 + 0.0) = 0.3
     // max_possible_jump = 3 * 2.0 = 6.0
     // score = 1.0 - (0.3 / 6.0) = 0.95
@@ -80,7 +80,7 @@ fn test_smoothness_score_known_input_large_jumps() {
     let params = create_params_with_scales(vec![0.05, 0.10, 0.20]);
     let validator = MarkovValidator::new(0.3);
     let score = validator.compute_smoothness_score(&params);
-    
+
     // With 100% jumps, total_jump = 2 * (1.0 + 0.0) = 2.0
     // max_possible_jump = 2 * 2.0 = 4.0
     // score = 1.0 - (2.0 / 4.0) = 0.5
@@ -97,7 +97,7 @@ fn test_smoothness_score_with_zero_point_jumps() {
     let params = create_params_with_zero_points(vec![128.0, 200.0, 50.0]);
     let validator = MarkovValidator::new(0.3);
     let score = validator.compute_smoothness_score(&params);
-    
+
     // Large zero_point jumps should reduce smoothness score
     assert!(
         score < 0.8,
@@ -118,15 +118,15 @@ fn test_smoothness_score_combined_jumps() {
         },
         TimeGroupParams {
             time_range: (25, 50),
-            scale: 0.10, // 100% scale jump
+            scale: 0.10,       // 100% scale jump
             zero_point: 200.0, // ~28% zero_point jump (72/255)
             group_size: 256,
         },
     ];
-    
+
     let validator = MarkovValidator::new(0.3);
     let score = validator.compute_smoothness_score(&params);
-    
+
     // Combined jumps should result in lower score
     assert!(
         score < 0.7,
@@ -145,8 +145,11 @@ fn test_violation_detection_no_violations() {
     let params = create_params_with_scales(vec![0.10, 0.12, 0.14]); // 20%, 16.7% jumps
     let validator = MarkovValidator::new(0.3); // 30% threshold
     let result = validator.validate(&params);
-    
-    assert!(result.is_valid, "Should be valid with jumps below threshold");
+
+    assert!(
+        result.is_valid,
+        "Should be valid with jumps below threshold"
+    );
     assert_eq!(result.violations.len(), 0, "Should have no violations");
 }
 
@@ -156,10 +159,20 @@ fn test_violation_detection_single_violation() {
     let params = create_params_with_scales(vec![0.10, 0.15, 0.16]); // 50%, 6.7% jumps
     let validator = MarkovValidator::new(0.3); // 30% threshold
     let result = validator.validate(&params);
-    
-    assert!(!result.is_valid, "Should be invalid with jump above threshold");
-    assert_eq!(result.violations.len(), 1, "Should have exactly 1 violation");
-    assert_eq!(result.violations[0].boundary_idx, 0, "Violation at first boundary");
+
+    assert!(
+        !result.is_valid,
+        "Should be invalid with jump above threshold"
+    );
+    assert_eq!(
+        result.violations.len(),
+        1,
+        "Should have exactly 1 violation"
+    );
+    assert_eq!(
+        result.violations[0].boundary_idx, 0,
+        "Violation at first boundary"
+    );
 }
 
 #[test]
@@ -168,21 +181,24 @@ fn test_violation_detection_multiple_violations() {
     let params = create_params_with_scales(vec![0.10, 0.15, 0.10, 0.15]); // 50%, -33%, 50% jumps
     let validator = MarkovValidator::new(0.3); // 30% threshold
     let result = validator.validate(&params);
-    
-    assert!(!result.is_valid, "Should be invalid with multiple violations");
+
+    assert!(
+        !result.is_valid,
+        "Should be invalid with multiple violations"
+    );
     assert_eq!(result.violations.len(), 3, "Should have 3 violations");
 }
 
 #[test]
 fn test_violation_detection_different_thresholds() {
     let params = create_params_with_scales(vec![0.10, 0.12]); // 20% jump
-    
+
     // With 10% threshold - should violate
     let validator_strict = MarkovValidator::new(0.1);
     let result_strict = validator_strict.validate(&params);
     assert!(!result_strict.is_valid, "Should violate with 10% threshold");
     assert_eq!(result_strict.violations.len(), 1);
-    
+
     // With 30% threshold - should pass
     let validator_loose = MarkovValidator::new(0.3);
     let result_loose = validator_loose.validate(&params);
@@ -196,7 +212,7 @@ fn test_violation_boundary_index() {
     let params = create_params_with_scales(vec![0.10, 0.11, 0.20, 0.21]); // Small, large, small jumps
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     assert_eq!(result.violations.len(), 1, "Should have 1 violation");
     assert_eq!(
         result.violations[0].boundary_idx, 1,
@@ -209,10 +225,10 @@ fn test_violation_jump_magnitude() {
     let params = create_params_with_scales(vec![0.10, 0.16]); // 60% jump
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     assert_eq!(result.violations.len(), 1);
     let violation = &result.violations[0];
-    
+
     // Check scale_jump is approximately 0.6 (60%)
     assert!(
         (violation.scale_jump - 0.6).abs() < 0.01,
@@ -231,7 +247,7 @@ fn test_severity_low() {
     let params = create_params_with_scales(vec![0.10, 0.12]); // 20% jump
     let validator = MarkovValidator::new(0.15); // Lower threshold to trigger violation
     let result = validator.validate(&params);
-    
+
     assert_eq!(result.violations.len(), 1);
     assert_eq!(
         result.violations[0].severity,
@@ -246,7 +262,7 @@ fn test_severity_medium() {
     let params = create_params_with_scales(vec![0.10, 0.14]); // 40% jump
     let validator = MarkovValidator::new(0.2); // Lower threshold to trigger violation
     let result = validator.validate(&params);
-    
+
     assert_eq!(result.violations.len(), 1);
     assert_eq!(
         result.violations[0].severity,
@@ -261,7 +277,7 @@ fn test_severity_high() {
     let params = create_params_with_scales(vec![0.10, 0.16]); // 60% jump
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     assert_eq!(result.violations.len(), 1);
     assert_eq!(
         result.violations[0].severity,
@@ -277,23 +293,23 @@ fn test_severity_boundary_cases() {
     // - scale_jump <= 0.3: Low
     // - 0.3 < scale_jump <= 0.5: Medium
     // - scale_jump > 0.5: High
-    
+
     // Exactly 30% - should be Low (not > 0.3)
     let params_30 = create_params_with_scales(vec![0.10, 0.13]); // 30% jump
     let validator = MarkovValidator::new(0.2);
     let result_30 = validator.validate(&params_30);
     assert_eq!(result_30.violations[0].severity, ViolationSeverity::Low);
-    
+
     // Around 40% - should be Medium (> 0.3 but not > 0.5)
     let params_40 = create_params_with_scales(vec![0.10, 0.14]); // 40% jump
     let result_40 = validator.validate(&params_40);
     assert_eq!(result_40.violations[0].severity, ViolationSeverity::Medium);
-    
+
     // Over 50% - should be High (> 0.5)
     let params_60 = create_params_with_scales(vec![0.10, 0.16]); // 60% jump
     let result_60 = validator.validate(&params_60);
     assert_eq!(result_60.violations[0].severity, ViolationSeverity::High);
-    
+
     // Just over 30% - should be Medium (> 0.3 but not > 0.5)
     let params_31 = create_params_with_scales(vec![0.10, 0.131]); // 31% jump
     let result_31 = validator.validate(&params_31);
@@ -309,11 +325,22 @@ fn test_edge_case_empty_params() {
     let params: Vec<TimeGroupParams> = vec![];
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     assert!(result.is_valid, "Empty params should be valid");
-    assert_eq!(result.smoothness_score, 1.0, "Empty params should have perfect score");
-    assert_eq!(result.violations.len(), 0, "Empty params should have no violations");
-    assert_eq!(result.boundary_scores.len(), 0, "Empty params should have no boundary scores");
+    assert_eq!(
+        result.smoothness_score, 1.0,
+        "Empty params should have perfect score"
+    );
+    assert_eq!(
+        result.violations.len(),
+        0,
+        "Empty params should have no violations"
+    );
+    assert_eq!(
+        result.boundary_scores.len(),
+        0,
+        "Empty params should have no boundary scores"
+    );
 }
 
 #[test]
@@ -324,14 +351,25 @@ fn test_edge_case_single_group() {
         zero_point: 128.0,
         group_size: 256,
     }];
-    
+
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     assert!(result.is_valid, "Single group should be valid");
-    assert_eq!(result.smoothness_score, 1.0, "Single group should have perfect score");
-    assert_eq!(result.violations.len(), 0, "Single group should have no violations");
-    assert_eq!(result.boundary_scores.len(), 0, "Single group should have no boundary scores");
+    assert_eq!(
+        result.smoothness_score, 1.0,
+        "Single group should have perfect score"
+    );
+    assert_eq!(
+        result.violations.len(),
+        0,
+        "Single group should have no violations"
+    );
+    assert_eq!(
+        result.boundary_scores.len(),
+        0,
+        "Single group should have no boundary scores"
+    );
 }
 
 #[test]
@@ -357,18 +395,26 @@ fn test_edge_case_identical_params() {
             group_size: 256,
         },
     ];
-    
+
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     assert!(result.is_valid, "Identical params should be valid");
     assert!(
         (result.smoothness_score - 1.0).abs() < 1e-6,
         "Identical params should have perfect score"
     );
-    assert_eq!(result.violations.len(), 0, "Identical params should have no violations");
-    assert_eq!(result.boundary_scores.len(), 2, "Should have 2 boundary scores");
-    
+    assert_eq!(
+        result.violations.len(),
+        0,
+        "Identical params should have no violations"
+    );
+    assert_eq!(
+        result.boundary_scores.len(),
+        2,
+        "Should have 2 boundary scores"
+    );
+
     // All boundary scores should be perfect
     for score in &result.boundary_scores {
         assert!(
@@ -385,9 +431,12 @@ fn test_edge_case_very_small_scale() {
     let params = create_params_with_scales(vec![0.001, 0.002]); // 100% jump but small absolute values
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     // Should still detect the 100% relative jump
-    assert!(!result.is_valid, "Should detect large relative jump even with small scales");
+    assert!(
+        !result.is_valid,
+        "Should detect large relative jump even with small scales"
+    );
     assert_eq!(result.violations.len(), 1);
 }
 
@@ -408,11 +457,11 @@ fn test_edge_case_zero_scale() {
             group_size: 256,
         },
     ];
-    
+
     let validator = MarkovValidator::new(0.3);
     // Should not panic - implementation should handle this gracefully
     let result = validator.validate(&params);
-    
+
     // With zero scale, the jump calculation will be infinite or NaN
     // The implementation should handle this case
     assert!(result.violations.len() > 0 || !result.is_valid);
@@ -424,9 +473,12 @@ fn test_edge_case_negative_jump() {
     let params = create_params_with_scales(vec![0.20, 0.10]); // -50% jump (50% decrease)
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     // Should detect violation regardless of jump direction (uses abs())
-    assert!(!result.is_valid, "Should detect large decrease as violation");
+    assert!(
+        !result.is_valid,
+        "Should detect large decrease as violation"
+    );
     assert_eq!(result.violations.len(), 1);
     assert!(
         (result.violations[0].scale_jump - 0.5).abs() < 0.01,
@@ -443,7 +495,7 @@ fn test_boundary_scores_count() {
     let params = create_params_with_scales(vec![0.10, 0.11, 0.12, 0.13]);
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     // With 4 groups, should have 3 boundaries
     assert_eq!(
         result.boundary_scores.len(),
@@ -474,19 +526,19 @@ fn test_boundary_scores_values() {
             group_size: 256,
         },
     ];
-    
+
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     assert_eq!(result.boundary_scores.len(), 2);
-    
+
     // First boundary (no jump) should have high score
     assert!(
         result.boundary_scores[0] > 0.99,
         "Perfect boundary should have score > 0.99, got {}",
         result.boundary_scores[0]
     );
-    
+
     // Second boundary (large jump) should have low score
     assert!(
         result.boundary_scores[1] < 0.6,
@@ -501,7 +553,7 @@ fn test_boundary_scores_range() {
     let params = create_params_with_scales(vec![0.01, 0.10, 0.05, 0.20]); // Various jumps
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     for (i, score) in result.boundary_scores.iter().enumerate() {
         assert!(
             *score >= 0.0 && *score <= 1.0,
@@ -519,23 +571,31 @@ fn test_boundary_scores_range() {
 #[test]
 fn test_default_threshold() {
     let validator = MarkovValidator::default();
-    assert_eq!(validator.threshold(), 0.3, "Default threshold should be 0.3 (30%)");
+    assert_eq!(
+        validator.threshold(),
+        0.3,
+        "Default threshold should be 0.3 (30%)"
+    );
 }
 
 #[test]
 fn test_custom_threshold() {
     let validator = MarkovValidator::new(0.5);
-    assert_eq!(validator.threshold(), 0.5, "Custom threshold should be preserved");
+    assert_eq!(
+        validator.threshold(),
+        0.5,
+        "Custom threshold should be preserved"
+    );
 }
 
 #[test]
 fn test_logging_configuration() {
     let validator = MarkovValidator::new(0.3).with_logging(false);
-    
+
     // Test that validator works with logging disabled
     let params = create_params_with_scales(vec![0.10, 0.20]);
     let result = validator.validate(&params);
-    
+
     // Should still detect violations, just not log them
     assert!(!result.is_valid);
     assert_eq!(result.violations.len(), 1);
@@ -574,10 +634,10 @@ fn test_realistic_time_aware_params() {
             group_size: 256,
         },
     ];
-    
+
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     // These realistic params should have good smoothness
     assert!(result.is_valid, "Realistic params should be valid");
     assert!(
@@ -593,12 +653,16 @@ fn test_worst_case_alternating_params() {
     let params = create_params_with_scales(vec![0.01, 0.10, 0.01, 0.10, 0.01]);
     let validator = MarkovValidator::new(0.3);
     let result = validator.validate(&params);
-    
+
     assert!(!result.is_valid, "Alternating params should be invalid");
     assert!(
         result.smoothness_score < 0.3,
         "Alternating params should have very low smoothness score, got {}",
         result.smoothness_score
     );
-    assert_eq!(result.violations.len(), 4, "Should have violations at all boundaries");
+    assert_eq!(
+        result.violations.len(),
+        4,
+        "Should have violations at all boundaries"
+    );
 }

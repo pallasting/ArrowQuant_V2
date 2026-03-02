@@ -36,9 +36,8 @@ fn create_synthetic_model(num_layers: usize, layer_size: (usize, usize)) -> Temp
         let layer_path = model_path.join(&layer_name);
 
         // Create synthetic weight data (not used in benchmark, just for file creation)
-        let _weights = Array2::from_shape_fn(layer_size, |(i, j)| {
-            ((i * j) as f32 / 1000.0).sin() * 0.5
-        });
+        let _weights =
+            Array2::from_shape_fn(layer_size, |(i, j)| ((i * j) as f32 / 1000.0).sin() * 0.5);
 
         // Write to parquet (simplified - in real implementation would use proper schema)
         // For benchmarking, we just create empty files with correct names
@@ -73,10 +72,8 @@ fn bench_parallel_vs_sequential(c: &mut Criterion) {
                     let orchestrator = DiffusionOrchestrator::new(config).unwrap();
 
                     // Benchmark the quantization
-                    let _ = black_box(orchestrator.quantize_model(
-                        model_dir.path(),
-                        output_dir.path(),
-                    ));
+                    let _ =
+                        black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
                 });
             },
         );
@@ -108,10 +105,7 @@ fn bench_model_sizes(c: &mut Criterion) {
 
                 let orchestrator = DiffusionOrchestrator::new(config).unwrap();
 
-                let _ = black_box(orchestrator.quantize_model(
-                    model_dir.path(),
-                    output_dir.path(),
-                ));
+                let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
             });
         });
     }
@@ -139,10 +133,7 @@ fn bench_streaming_vs_batch(c: &mut Criterion) {
 
                 let orchestrator = DiffusionOrchestrator::new(config).unwrap();
 
-                let _ = black_box(orchestrator.quantize_model(
-                    model_dir.path(),
-                    output_dir.path(),
-                ));
+                let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
             });
         });
     }
@@ -169,10 +160,7 @@ fn bench_speedup_analysis(c: &mut Criterion) {
 
             let orchestrator = DiffusionOrchestrator::new(config).unwrap();
 
-            let _ = black_box(orchestrator.quantize_model(
-                model_dir.path(),
-                output_dir.path(),
-            ));
+            let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
         });
     });
 
@@ -188,10 +176,7 @@ fn bench_speedup_analysis(c: &mut Criterion) {
 
             let orchestrator = DiffusionOrchestrator::new(config).unwrap();
 
-            let _ = black_box(orchestrator.quantize_model(
-                model_dir.path(),
-                output_dir.path(),
-            ));
+            let _ = black_box(orchestrator.quantize_model(model_dir.path(), output_dir.path()));
         });
     });
 
