@@ -82,7 +82,7 @@ impl SafeTensorsDType {
 /// SafeTensors model loader and adapter
 pub struct SafeTensorsAdapter {
     /// Path to SafeTensors file
-    path: std::path::PathBuf,
+    _path: std::path::PathBuf,
 
     /// Parsed header
     header: SafeTensorsHeader,
@@ -143,7 +143,7 @@ impl SafeTensorsAdapter {
         };
 
         Ok(Self {
-            path: path.to_path_buf(),
+            _path: path.to_path_buf(),
             header,
             mmap,
             data_offset: 8 + header_size,

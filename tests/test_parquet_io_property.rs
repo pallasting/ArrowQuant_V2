@@ -269,7 +269,7 @@ mod roundtrip_properties {
             if let (Some(orig_ta), Some(read_ta)) = (&schema.time_aware_quant, &read_schema.time_aware_quant) {
                 prop_assert_eq!(read_ta.enabled, orig_ta.enabled);
                 prop_assert_eq!(read_ta.num_time_groups, orig_ta.num_time_groups);
-                prop_assert_eq!(read_ta.time_group_params.len(), orig_ta.time_group_params.len());
+                prop_assert_eq!(read_ta.time_group_params().len(), orig_ta.time_group_params().len());
             }
         }
     }

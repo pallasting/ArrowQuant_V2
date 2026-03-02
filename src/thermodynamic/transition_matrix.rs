@@ -62,6 +62,7 @@ pub struct CacheStats {
 #[derive(Debug, Clone, Copy)]
 struct CpuFeatures {
     has_avx2: bool,
+    #[allow(dead_code)]
     has_neon: bool,
 }
 
@@ -762,7 +763,7 @@ mod tests {
     fn test_compute_transition_single_element() {
         let mut computer = TransitionComputer::new(10, BetaSchedule::Linear, 0.0001, 0.02);
 
-        let weights = Array2::from_shape_vec((1, 1), vec![3.14]).unwrap();
+        let weights = Array2::from_shape_vec((1, 1), vec![std::f32::consts::PI]).unwrap();
 
         let transition = computer.compute_transition(&weights, 5);
 

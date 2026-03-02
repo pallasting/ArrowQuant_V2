@@ -143,6 +143,10 @@ pub struct DiffusionQuantConfig {
     /// Thermodynamic constraint configuration (Phase 1: Validation)
     #[serde(default)]
     pub thermodynamic: ThermodynamicConfig,
+
+    /// Enable Arrow zero-copy time-aware quantization (recommended for memory efficiency)
+    #[serde(default)]
+    pub use_arrow: bool,
 }
 
 /// Deployment profile presets
@@ -783,6 +787,7 @@ impl DiffusionQuantConfig {
                 enable_memory_aware_scheduling: true,
                 max_memory_limit_mb: None,
                 thermodynamic: ThermodynamicConfig::default(),
+                use_arrow: true, // Enable Arrow zero-copy for memory efficiency
             },
             DeploymentProfile::Local => Self {
                 bit_width: 4,
@@ -807,6 +812,7 @@ impl DiffusionQuantConfig {
                 enable_memory_aware_scheduling: true,
                 max_memory_limit_mb: None,
                 thermodynamic: ThermodynamicConfig::default(),
+                use_arrow: true, // Enable Arrow zero-copy for memory efficiency
             },
             DeploymentProfile::Cloud => Self {
                 bit_width: 8,
@@ -831,6 +837,7 @@ impl DiffusionQuantConfig {
                 enable_memory_aware_scheduling: true,
                 max_memory_limit_mb: None,
                 thermodynamic: ThermodynamicConfig::default(),
+                use_arrow: true, // Enable Arrow zero-copy for memory efficiency
             },
         }
     }
@@ -884,6 +891,7 @@ impl DiffusionQuantConfig {
             enable_memory_aware_scheduling: false,
             max_memory_limit_mb: None,
             thermodynamic: ThermodynamicConfig::default(),
+            use_arrow: false, // Disable Arrow for base mode (legacy compatibility)
         }
     }
 

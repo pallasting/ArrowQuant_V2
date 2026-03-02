@@ -725,6 +725,7 @@ impl DiffusionOrchestrator {
     /// # Returns
     ///
     /// Returns activation statistics (mean, std, min, max) per timestep
+    #[allow(dead_code)]
     fn compute_activation_stats(
         &self,
         dataset: &crate::calibration::CalibrationDataset,
@@ -957,7 +958,17 @@ impl DiffusionOrchestrator {
             ];
             weights.push(f32::from_le_bytes(b));
         }
-        let quantized_layer = quantizer.quantize_layer(&weights, &time_group_params)?;
+        
+        // Use Arrow zero-copy if enabled
+        let quantized_layer = if self.config.use_arrow {
+            // Arrow zero-copy quantization
+            let arrow_layer = quantizer.quantize_layer_arrow(&weights, &time_group_params)?;
+            // Convert to QuantizedLayer enum for compatibility
+            crate::time_aware::QuantizedLayer::Arrow(arrow_layer)
+        } else {
+            // Legacy quantization
+            quantizer.quantize_layer(&weights, &time_group_params)?
+        };
 
         // Update schema with time-aware metadata and bit-width
         Ok(layer_data.with_time_aware_and_bit_width(modality, quantized_layer, bit_width))
@@ -1330,7 +1341,7 @@ impl DiffusionOrchestrator {
     pub fn quantize_layer_internal(
         &self,
         layer: &ndarray::Array2<f32>,
-        bit_width: u8,
+        _bit_width: u8,
         group_size: usize,
     ) -> Result<(Vec<f32>, Vec<f32>)> {
         use crate::spatial::SpatialQuantizer;

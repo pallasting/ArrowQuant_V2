@@ -491,7 +491,7 @@ impl TimeAwareQuantizer {
 
         // Strategy 1: Uniform distribution by position (default)
         // Calculate group size: ceiling division to ensure all elements are covered
-        let group_size = (weights.len() + num_groups - 1) / num_groups;
+        let group_size = weights.len().div_ceil(num_groups);
 
         // Assign each element to a time group based on its position
         let assignments: Vec<u32> = weights
@@ -1731,7 +1731,7 @@ impl QuantizedLayer {
                 let params = &time_group_params[group_id];
                 let total_elements = data.len();
                 let num_groups = time_group_params.len();
-                let group_size = (total_elements + num_groups - 1) / num_groups;
+                let group_size = total_elements.div_ceil(num_groups);
 
                 let start = group_id * group_size;
                 let end = ((group_id + 1) * group_size).min(total_elements);
@@ -1749,6 +1749,38 @@ impl QuantizedLayer {
                 // Delegate to Arrow implementation
                 arrow_layer.dequantize_group(group_id)
             }
+        }
+    }
+
+    /// Accessor for legacy data (for testing and backward compatibility)
+    pub fn data(&self) -> &Vec<u8> {
+        match self {
+            Self::Legacy { data, .. } => data,
+            _ => panic!("data() only available for Legacy variant"),
+        }
+    }
+
+    /// Accessor for legacy scales (for testing and backward compatibility)
+    pub fn scales(&self) -> &Vec<f32> {
+        match self {
+            Self::Legacy { scales, .. } => scales,
+            _ => panic!("scales() only available for Legacy variant"),
+        }
+    }
+
+    /// Accessor for legacy zero_points (for testing and backward compatibility)
+    pub fn zero_points(&self) -> &Vec<f32> {
+        match self {
+            Self::Legacy { zero_points, .. } => zero_points,
+            _ => panic!("zero_points() only available for Legacy variant"),
+        }
+    }
+
+    /// Accessor for legacy time_group_params (for testing and backward compatibility)
+    pub fn time_group_params(&self) -> &Vec<TimeGroupParams> {
+        match self {
+            Self::Legacy { time_group_params, .. } => time_group_params,
+            Self::Arrow(arrow_layer) => &arrow_layer.time_group_params,
         }
     }
 
@@ -1804,7 +1836,7 @@ impl QuantizedLayer {
                 }
 
                 // 1. Reconstruct time group assignments (uniform distribution for legacy)
-                let group_size = (num_elements + num_groups - 1) / num_groups;
+                let group_size = num_elements.div_ceil(num_groups);
                 let time_group_ids: Vec<u32> = (0..num_elements)
                     .map(|i| {
                         let gid = i / group_size;
@@ -2325,9 +2357,9 @@ mod tests {
         for i in 0..10 {
             let start = i * 10;
             let end = (i + 1) * 10;
-            for j in start..end {
+            for (j, &group_id) in assignments.iter().enumerate().take(end).skip(start) {
                 assert_eq!(
-                    assignments[j], i as u32,
+                    group_id, i as u32,
                     "Element {} should be in group {}",
                     j, i
                 );
@@ -2450,7 +2482,7 @@ mod tests {
         }
 
         // Verify all groups are used (at least one element per group)
-        let mut group_counts = vec![0; 7];
+        let mut group_counts = [0; 7];
         for &group_id in &assignments {
             group_counts[group_id as usize] += 1;
         }
@@ -2482,7 +2514,7 @@ mod tests {
         assert_eq!(assignments.len(), 10_000);
 
         // Verify distribution: 500 elements per group
-        let mut group_counts = vec![0; 20];
+        let mut group_counts = [0; 20];
         for &group_id in &assignments {
             group_counts[group_id as usize] += 1;
         }
@@ -2550,7 +2582,7 @@ mod tests {
     #[test]
     fn test_validate_time_aware_schema_valid() {
         let schema = create_time_aware_schema();
-        let result = validate_time_aware_schema(&*schema);
+        let result = validate_time_aware_schema(&schema);
         assert!(result.is_ok());
     }
 
@@ -3678,7 +3710,7 @@ mod tests {
         let params = quantizer.compute_params_per_group(&stats);
         let weights = vec![0.0; 12]; // 4 elements per group
 
-        let mut result = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
+        let result = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
 
         // Index should be built automatically
         assert!(result.group_index.is_some());
@@ -3765,7 +3797,7 @@ mod tests {
         // Last two elements use group 1 params (scale=0.2)
         // All should be in [0, 255] range
         for &q in &result {
-            assert!(q <= 255);
+            // All should be in [0, 255] range
         }
     }
 
@@ -4682,7 +4714,7 @@ fn test_dequantize_group_precision_check() {
     let dequantized = layer.dequantize_group(0).unwrap();
 
     // Expected values: [0.0, 10.0, 20.0, 25.5]
-    let expected = vec![0.0, 10.0, 20.0, 25.5];
+    let expected = [0.0, 10.0, 20.0, 25.5];
 
     assert_eq!(dequantized.len(), expected.len());
     for (i, (&deq, &exp)) in dequantized.iter().zip(expected.iter()).enumerate() {

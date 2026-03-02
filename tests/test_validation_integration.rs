@@ -84,7 +84,7 @@ fn test_validation_with_realistic_diffusion_params() {
     let quantized = result.unwrap();
     assert_eq!(quantized.scales.len(), 10);
     assert_eq!(quantized.zero_points.len(), 10);
-    assert_eq!(quantized.time_group_params.len(), 10);
+    assert_eq!(quantized.time_group_params().len(), 10);
 }
 
 #[test]

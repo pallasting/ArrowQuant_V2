@@ -241,6 +241,7 @@ impl TransitionOptimizer {
     }
 
     /// Quantize weights using specified parameters (allocating version for compatibility)
+    #[allow(dead_code)]
     fn quantize_with_params(
         &self,
         weights: &Array2<f32>,

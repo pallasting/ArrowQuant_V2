@@ -40,6 +40,7 @@ impl AsyncProgressReporter {
     }
 
     /// Report progress with time throttling (only report every 5 seconds)
+    #[allow(dead_code)]
     async fn report_throttled(&self, message: &str, progress: f32) {
         if let Ok(mut last_time) = self.last_report_time.lock() {
             let now = Instant::now();

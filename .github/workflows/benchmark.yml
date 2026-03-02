@@ -31,13 +31,41 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-bench-${{ hashFiles('Cargo.toml') }}
       
-      - name: Run benchmarks
+      - name: Run all benchmarks
         run: cargo bench --no-fail-fast
-        continue-on-error: true
+      
+      - name: Run Arrow-specific benchmarks
+        run: |
+          cargo bench --bench performance_validation -- arrow
+          cargo bench --bench performance_validation -- memory
+          cargo bench --bench performance_validation -- parallel
+      
+      - name: Performance regression check
+        run: |
+          echo "Checking for performance regressions..."
+          cargo bench --bench performance_validation -- --save-baseline main
       
       - name: Upload benchmark results
         uses: actions/upload-artifact@v3
         with:
           name: benchmark-results
           path: target/criterion/
-        continue-on-error: true
+      
+      - name: Comment benchmark results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Read benchmark summary (if exists)
+            const summaryPath = 'target/criterion/report/index.html';
+            if (fs.existsSync(summaryPath)) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '📊 Benchmark results are available in the artifacts.'
+              });
+            }

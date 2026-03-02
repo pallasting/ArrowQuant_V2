@@ -685,7 +685,7 @@ mod tests {
                 );
 
                 // Property 3: Number of groups is correctly computed
-                let expected_num_groups = (num_channels + group_size - 1) / group_size;
+                let expected_num_groups = num_channels.div_ceil(group_size);
                 prop_assert_eq!(
                     quantized.scales.len(),
                     expected_num_groups,
@@ -926,7 +926,7 @@ mod tests {
                     );
 
                     // Correct number of groups
-                    let expected_groups = (num_channels + group_size - 1) / group_size;
+                    let expected_groups = num_channels.div_ceil(group_size);
                     prop_assert_eq!(
                         quantized.scales.len(),
                         expected_groups,

@@ -8,9 +8,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ['3.10', '3.11', '3.12']
     
     steps:
@@ -43,17 +44,34 @@ jobs:
           python -m pip install --upgrade pip
           pip install maturin pytest numpy pyarrow
       
+      - name: Run Rust tests
+        run: cargo test --lib --release
+      
+      - name: Run Arrow-specific tests
+        run: |
+          cargo test --lib --release test_arrow_quantized_layer
+          cargo test --lib --release test_quantize_layer_arrow
+          cargo test --lib --release test_dequantize_group
+          cargo test --lib --release test_parallel_dequantization
+      
+      - name: Run integration tests
+        run: cargo test --lib --release test_apply_time_aware_quantization
+      
       - name: Build extension
         run: maturin develop --release
       
       - name: Run Python tests
         run: pytest tests/ -v
-        continue-on-error: true
+      
+      - name: Run Arrow Python integration tests
+        run: |
+          pytest tests/test_py_arrow_quantized_layer.py -v
+          pytest tests/test_arrow_integration.py -v
       
       - name: Check code formatting
         run: cargo fmt -- --check
-        continue-on-error: true
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
       
       - name: Run clippy
         run: cargo clippy -- -D warnings
-        continue-on-error: true
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'

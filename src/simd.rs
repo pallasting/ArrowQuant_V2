@@ -485,10 +485,12 @@ unsafe fn norm_neon(a: &[f32]) -> f32 {
 }
 
 // Scalar fallback implementations
+#[allow(dead_code)]
 fn dot_product_scalar(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
 }
 
+#[allow(dead_code)]
 fn norm_scalar(a: &[f32]) -> f32 {
     a.iter().map(|x| x * x).sum::<f32>().sqrt()
 }
@@ -497,6 +499,7 @@ fn norm_scalar(a: &[f32]) -> f32 {
 // Scalar Fallback Implementation
 // ============================================================================
 
+#[allow(dead_code)]
 /// Scalar quantization fallback for platforms without SIMD support
 fn quantize_scalar(data: &[f32], scale: f32, zero_point: f32) -> Vec<u8> {
     data.iter()
@@ -504,6 +507,7 @@ fn quantize_scalar(data: &[f32], scale: f32, zero_point: f32) -> Vec<u8> {
         .collect()
 }
 
+#[allow(dead_code)]
 /// Scalar dequantization fallback for platforms without SIMD support
 fn dequantize_scalar(data: &[u8], scale: f32, zero_point: f32) -> Vec<f32> {
     data.iter()

@@ -56,7 +56,7 @@ pub struct Individual {
 impl Individual {
     /// Create a new random individual
     pub fn random(layer_names: &[String], rng: &mut Rng) -> Self {
-        let valid_group_sizes = vec![32, 64, 128, 256];
+        let valid_group_sizes = [32, 64, 128, 256];
         let mut layer_group_sizes = HashMap::new();
 
         for layer_name in layer_names {
@@ -73,7 +73,7 @@ impl Individual {
 
     /// Mutate the individual
     pub fn mutate(&mut self, mutation_rate: f32, rng: &mut Rng) {
-        let valid_group_sizes = vec![32, 64, 128, 256];
+        let valid_group_sizes = [32, 64, 128, 256];
 
         for (_layer_name, group_size) in self.layer_group_sizes.iter_mut() {
             if rng.f32() < mutation_rate {

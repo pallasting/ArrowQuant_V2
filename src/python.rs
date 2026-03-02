@@ -10,7 +10,7 @@ use std::time::Instant;
 
 // Arrow FFI imports for zero-copy PyArrow integration
 use arrow::array::{Array, ArrayRef, Float32Array, RecordBatch, StringArray};
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::datatypes::{DataType, Schema};
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
 use std::sync::Arc as StdArc;
@@ -580,6 +580,7 @@ impl PyDiffusionQuantConfig {
                 enable_memory_aware_scheduling,
                 max_memory_limit_mb,
                 thermodynamic: thermodynamic_config,
+                use_arrow: true, // Enable Arrow zero-copy by default
             },
         })
     }
