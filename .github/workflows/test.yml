@@ -61,8 +61,11 @@ jobs:
         timeout-minutes: 5
       
       - name: Build extension
-        run: maturin develop --release
+        run: |
+          maturin build --release --strip
+          python -m pip install --force-reinstall target/wheels/*.whl
         timeout-minutes: 10
+        shell: bash
       
       - name: Run Python tests
         run: pytest tests/ -v
