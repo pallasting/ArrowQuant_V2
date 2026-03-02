@@ -67,6 +67,7 @@ sysinfo = "0.31"
 
 # LRU cache for transition caching - UPGRADED
 lru = "0.13"
+memmap2 = "0.9.10"
 
 [dev-dependencies]
 criterion = "0.6"

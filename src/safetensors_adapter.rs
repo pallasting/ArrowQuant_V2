@@ -87,8 +87,11 @@ pub struct SafeTensorsAdapter {
     /// Parsed header
     header: SafeTensorsHeader,
     
-    /// Raw data buffer (memory-mapped for zero-copy)
-    data: Vec<u8>,
+    /// Memory-mapped file for zero-copy
+    mmap: memmap2::Mmap,
+    
+    /// Offset to the start of the data section
+    data_offset: usize,
 }
 
 impl SafeTensorsAdapter {
@@ -135,16 +138,18 @@ impl SafeTensorsAdapter {
             QuantError::Storage(format!("Failed to parse SafeTensors header: {}", e))
         })?;
         
-        // Read remaining data
-        let mut data = Vec::new();
-        file.read_to_end(&mut data).map_err(|e| {
-            QuantError::Storage(format!("Failed to read tensor data: {}", e))
-        })?;
+        // Use memmap2 for true zero-copy memory mapping
+        let mmap = unsafe {
+            memmap2::MmapOptions::new().map(&file).map_err(|e| {
+                QuantError::Storage(format!("Failed to memory map file: {}", e))
+            })?
+        };
         
         Ok(Self {
             path: path.to_path_buf(),
             header,
-            data,
+            mmap,
+            data_offset: 8 + header_size,
         })
     }
     
@@ -172,17 +177,19 @@ impl SafeTensorsAdapter {
         })?;
         
         let dtype = SafeTensorsDType::from_str(&info.dtype)?;
-        let (start, end) = info.data_offsets;
+        // SafeTensors offsets are relative to the start of the data section
+        let start = self.data_offset + info.data_offsets.0;
+        let end = self.data_offset + info.data_offsets.1;
         
         // Validate offsets
-        if end > self.data.len() {
+        if end > self.mmap.len() {
             return Err(QuantError::Internal(format!(
-                "Invalid data offset for tensor {}: end={} > data_len={}",
-                name, end, self.data.len()
+                "Invalid data offset for tensor {}: end={} > mmap_len={}",
+                name, end, self.mmap.len()
             )));
         }
         
-        let tensor_data = &self.data[start..end];
+        let tensor_data = &self.mmap[start..end];
         
         // Convert to f32 based on dtype
         let values = match dtype {

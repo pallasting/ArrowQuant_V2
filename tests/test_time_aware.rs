@@ -7,7 +7,7 @@
 //! - Quantization correctness with time-aware params
 //! - Adaptive group size selection
 
-use arrow_quant_v2::time_aware::{ActivationStats, TimeAwareQuantizer};
+use arrow_quant_v2::time_aware::{ActivationStats, TimeAwareQuantizer, QuantizedLayer};
 
 // ============================================================================
 // Test 1: Timestep Grouping with Different Group Counts
@@ -402,12 +402,19 @@ fn test_quantize_layer_basic() {
     let result = quantizer.quantize_layer(&weights, &params).unwrap();
 
     // Verify output structure
-    assert_eq!(result.scales.len(), 2); // 2 time groups
-    assert_eq!(result.zero_points.len(), 2);
-    assert_eq!(result.time_group_params.len(), 2);
-    
-    // Data should be quantized for all groups
-    assert_eq!(result.data.len(), weights.len() * 2);
+    // Note: Legacy implementation uses global quantization (1 scale/zero_point)
+    assert_eq!(result.num_groups(), 2); // 2 time groups in metadata
+    match &result {
+        QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+            assert_eq!(scales.len(), 1); // Global quantization
+            assert_eq!(zero_points.len(), 1); // Global quantization
+            assert_eq!(time_group_params.len(), 2); // 2 time groups in metadata
+            
+            // Data should NOT be replicated (1x size)
+            assert_eq!(data.len(), weights.len());
+        }
+        _ => panic!("Expected Legacy variant"),
+    }
 }
 
 #[test]
@@ -428,15 +435,21 @@ fn test_quantize_layer_stores_params_correctly() {
     let result = quantizer.quantize_layer(&weights, &params).unwrap();
 
     // Verify time_group_params are stored correctly
-    assert_eq!(result.time_group_params.len(), 3);
-    assert_eq!(result.time_group_params[0].time_range, (0, 100));
-    assert_eq!(result.time_group_params[1].time_range, (100, 200));
-    assert_eq!(result.time_group_params[2].time_range, (200, 300));
+    assert_eq!(result.num_groups(), 3);
+    match &result {
+        QuantizedLayer::Legacy { time_group_params, .. } => {
+            assert_eq!(time_group_params.len(), 3);
+            assert_eq!(time_group_params[0].time_range, (0, 100));
+            assert_eq!(time_group_params[1].time_range, (100, 200));
+            assert_eq!(time_group_params[2].time_range, (200, 300));
 
-    // Verify adaptive group sizes
-    assert_eq!(result.time_group_params[0].group_size, 256); // Early
-    assert_eq!(result.time_group_params[1].group_size, 64); // Late
-    assert_eq!(result.time_group_params[2].group_size, 64); // Late
+            // Verify adaptive group sizes
+            assert_eq!(time_group_params[0].group_size, 256); // Early
+            assert_eq!(time_group_params[1].group_size, 64); // Late
+            assert_eq!(time_group_params[2].group_size, 64); // Late
+        }
+        _ => panic!("Expected Legacy variant"),
+    }
 }
 
 #[test]
@@ -461,9 +474,14 @@ fn test_quantize_layer_applies_correct_params() {
     // With min=0, max=10, scale should be 10/255 ≈ 0.0392
     // zero_point should be 0
     // So: 0.0 -> 0, 5.0 -> ~127, 10.0 -> 255
-    assert_eq!(result.data[0], 0);
-    assert!(result.data[1] > 120 && result.data[1] < 135); // ~127
-    assert_eq!(result.data[2], 255);
+    match &result {
+        QuantizedLayer::Legacy { data, .. } => {
+            assert_eq!(data[0], 0);
+            assert!(data[1] > 120 && data[1] < 135); // ~127
+            assert_eq!(data[2], 255);
+        }
+        _ => panic!("Expected Legacy variant"),
+    }
 }
 
 #[test]
@@ -484,9 +502,14 @@ fn test_quantize_layer_with_negative_values() {
     let result = quantizer.quantize_layer(&weights, &params).unwrap();
 
     // Min value should map to ~0, max to ~255, 0 to ~127
-    assert!(result.data[0] < 10); // -5.0 -> near 0
-    assert!(result.data[1] > 120 && result.data[1] < 135); // 0.0 -> near 127
-    assert!(result.data[2] > 245); // 5.0 -> near 255
+    match &result {
+        QuantizedLayer::Legacy { data, .. } => {
+            assert!(data[0] < 10); // -5.0 -> near 0
+            assert!(data[1] > 120 && data[1] < 135); // 0.0 -> near 127
+            assert!(data[2] > 245); // 5.0 -> near 255
+        }
+        _ => panic!("Expected Legacy variant"),
+    }
 }
 
 #[test]
@@ -506,13 +529,19 @@ fn test_quantize_layer_multiple_groups() {
 
     let result = quantizer.quantize_layer(&weights, &params).unwrap();
 
-    // Should have 5 sets of parameters
-    assert_eq!(result.scales.len(), 5);
-    assert_eq!(result.zero_points.len(), 5);
-    assert_eq!(result.time_group_params.len(), 5);
+    // Should have 5 time groups in metadata
+    assert_eq!(result.num_groups(), 5);
+    match &result {
+        QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+            assert_eq!(scales.len(), 1); // Global quantization
+            assert_eq!(zero_points.len(), 1); // Global quantization
+            assert_eq!(time_group_params.len(), 5); // 5 time groups in metadata
 
-    // Data should be quantized for all groups
-    assert_eq!(result.data.len(), weights.len() * 5);
+            // Data should NOT be replicated (1x size)
+            assert_eq!(data.len(), weights.len());
+        }
+        _ => panic!("Expected Legacy variant"),
+    }
 }
 
 #[test]
@@ -535,8 +564,13 @@ fn test_quantize_layer_clamping() {
     let result = quantizer.quantize_layer(&weights, &params).unwrap();
 
     // Extreme values should be clamped to [0, 255]
-    assert_eq!(result.data[0], 255); // 1000.0 clamped to 255
-    assert_eq!(result.data[1], 0); // -1000.0 clamped to 0
+    match &result {
+        QuantizedLayer::Legacy { data, .. } => {
+            assert_eq!(data[0], 255); // 1000.0 clamped to 255
+            assert_eq!(data[1], 0); // -1000.0 clamped to 0
+        }
+        _ => panic!("Expected Legacy variant"),
+    }
 }
 
 #[test]
@@ -559,11 +593,16 @@ fn test_quantize_layer_preserves_relative_ordering() {
     let result = quantizer.quantize_layer(&weights, &params).unwrap();
 
     // Verify ordering is preserved
-    for i in 0..result.data.len() - 1 {
-        assert!(
-            result.data[i] <= result.data[i + 1],
-            "Quantization should preserve ordering"
-        );
+    match &result {
+        QuantizedLayer::Legacy { data, .. } => {
+            for i in 0..data.len() - 1 {
+                assert!(
+                    data[i] <= data[i + 1],
+                    "Quantization should preserve ordering"
+                );
+            }
+        }
+        _ => panic!("Expected Legacy variant"),
     }
 }
 
@@ -585,9 +624,14 @@ fn test_quantize_layer_empty_weights() {
     let result = quantizer.quantize_layer(&weights, &params).unwrap();
 
     // Should handle empty weights gracefully
-    assert_eq!(result.data.len(), 0);
-    assert_eq!(result.scales.len(), 2);
-    assert_eq!(result.zero_points.len(), 2);
+    match &result {
+        QuantizedLayer::Legacy { data, scales, zero_points, .. } => {
+            assert_eq!(data.len(), 0);
+            assert_eq!(scales.len(), 1); // Global quantization
+            assert_eq!(zero_points.len(), 1); // Global quantization
+        }
+        _ => panic!("Expected Legacy variant"),
+    }
 }
 
 // ============================================================================
@@ -621,17 +665,23 @@ fn test_end_to_end_quantization_workflow() {
     let result = quantizer.quantize_layer(&weights, &params).unwrap();
 
     // Verify structure
-    assert_eq!(result.scales.len(), 10);
-    assert_eq!(result.zero_points.len(), 10);
-    assert_eq!(result.time_group_params.len(), 10);
-    assert_eq!(result.data.len(), weights.len() * 10);
+    assert_eq!(result.num_groups(), 10);
+    match &result {
+        QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+            assert_eq!(scales.len(), 1); // Global quantization
+            assert_eq!(zero_points.len(), 1); // Global quantization
+            assert_eq!(time_group_params.len(), 10); // 10 time groups in metadata
+            assert_eq!(data.len(), weights.len()); // No replication
 
-    // Verify adaptive group sizes
-    for i in 0..5 {
-        assert_eq!(result.time_group_params[i].group_size, 256);
-    }
-    for i in 5..10 {
-        assert_eq!(result.time_group_params[i].group_size, 64);
+            // Verify adaptive group sizes
+            for i in 0..5 {
+                assert_eq!(time_group_params[i].group_size, 256);
+            }
+            for i in 5..10 {
+                assert_eq!(time_group_params[i].group_size, 64);
+            }
+        }
+        _ => panic!("Expected Legacy variant"),
     }
 }
 

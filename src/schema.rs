@@ -151,14 +151,25 @@ impl ParquetV2Extended {
     pub fn with_time_aware(mut self, modality: Modality, quantized_layer: QuantizedLayer) -> Self {
         self.is_diffusion_model = true;
         self.modality = Some(modality.to_string());
-        self.data = quantized_layer.data;
-        self.scales = quantized_layer.scales;
-        self.zero_points = quantized_layer.zero_points;
-        self.time_aware_quant = Some(TimeAwareQuantMetadata {
-            enabled: true,
-            num_time_groups: quantized_layer.time_group_params.len(),
-            time_group_params: quantized_layer.time_group_params,
-        });
+        
+        match quantized_layer {
+            QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+                self.data = data;
+                self.scales = scales;
+                self.zero_points = zero_points;
+                self.time_aware_quant = Some(TimeAwareQuantMetadata {
+                    enabled: true,
+                    num_time_groups: time_group_params.len(),
+                    time_group_params,
+                });
+            }
+            QuantizedLayer::Arrow(_arrow_layer) => {
+                // For Arrow variant, we would need to extract the data
+                // For now, this is not implemented
+                panic!("Arrow variant not yet supported in with_time_aware. Use Legacy variant or implement Arrow extraction.");
+            }
+        }
+        
         self
     }
 
@@ -171,15 +182,26 @@ impl ParquetV2Extended {
     ) -> Self {
         self.is_diffusion_model = true;
         self.modality = Some(modality.to_string());
-        self.data = quantized_layer.data;
-        self.scales = quantized_layer.scales;
-        self.zero_points = quantized_layer.zero_points;
         self.quant_type = format!("int{}", bit_width);
-        self.time_aware_quant = Some(TimeAwareQuantMetadata {
-            enabled: true,
-            num_time_groups: quantized_layer.time_group_params.len(),
-            time_group_params: quantized_layer.time_group_params,
-        });
+        
+        match quantized_layer {
+            QuantizedLayer::Legacy { data, scales, zero_points, time_group_params } => {
+                self.data = data;
+                self.scales = scales;
+                self.zero_points = zero_points;
+                self.time_aware_quant = Some(TimeAwareQuantMetadata {
+                    enabled: true,
+                    num_time_groups: time_group_params.len(),
+                    time_group_params,
+                });
+            }
+            QuantizedLayer::Arrow(_arrow_layer) => {
+                // For Arrow variant, we would need to extract the data
+                // For now, this is not implemented
+                panic!("Arrow variant not yet supported in with_time_aware_and_bit_width. Use Legacy variant or implement Arrow extraction.");
+            }
+        }
+        
         self
     }
 
@@ -669,7 +691,7 @@ mod tests {
             Some(128),
         );
 
-        let quantized = QuantizedLayer {
+        let quantized = QuantizedLayer::Legacy {
             data: vec![0u8; 1024],
             scales: vec![1.0, 1.0],
             zero_points: vec![0.0, 0.0],
@@ -750,7 +772,7 @@ mod tests {
             },
         ];
 
-        let quantized = QuantizedLayer {
+        let quantized = QuantizedLayer::Legacy {
             data: vec![0u8; 1024],
             scales: vec![0.5, 0.3],
             zero_points: vec![0.0, 0.0],
@@ -920,7 +942,7 @@ mod tests {
             Some(128),
         );
 
-        let quantized = QuantizedLayer {
+        let quantized = QuantizedLayer::Legacy {
             data: vec![0u8; 1024],
             scales: vec![1.0, 1.0],
             zero_points: vec![0.0, 0.0],
@@ -1013,7 +1035,7 @@ mod tests {
             },
         ];
 
-        let quantized = QuantizedLayer {
+        let quantized = QuantizedLayer::Legacy {
             data: vec![0u8; 1024],
             scales: vec![0.5, 0.3],
             zero_points: vec![0.0, 0.0],
@@ -1276,7 +1298,7 @@ mod tests {
             },
         ];
 
-        let quantized = QuantizedLayer {
+        let quantized = QuantizedLayer::Legacy {
             data: vec![42u8; 2048],
             scales: vec![0.45, 0.35, 0.25],
             zero_points: vec![0.1, 0.05, 0.0],
@@ -1538,7 +1560,7 @@ mod tests {
                 Some(64),
             );
 
-            let quantized = QuantizedLayer {
+            let quantized = QuantizedLayer::Legacy {
                 data: vec![0u8; 256],
                 scales: vec![1.0],
                 zero_points: vec![0.0],

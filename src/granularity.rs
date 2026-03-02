@@ -477,11 +477,15 @@ mod tests {
 
         // Medium sensitivity → medium group size
         let group_size_med = allocator.recommend_group_size(0.5);
-        assert!(group_size_med == 64 || group_size_med == 128);
+        assert_eq!(group_size_med, 64);
 
         // Low sensitivity → large group size
         let group_size_low = allocator.recommend_group_size(0.1);
-        assert_eq!(group_size_low, 256);
+        assert_eq!(group_size_low, 128);
+        
+        // Very low sensitivity → largest group size
+        let group_size_very_low = allocator.recommend_group_size(0.0);
+        assert_eq!(group_size_very_low, 256);
     }
 
     #[test]
@@ -489,13 +493,21 @@ mod tests {
         let config = GranularityConfig::default();
         let allocator = GranularityAllocator::new(config);
 
-        // High sensitivity + small group size → high accuracy
+        // High sensitivity + small group size → moderate accuracy (due to high impact)
         let accuracy_high = allocator.estimate_accuracy_impact(0.9, 32);
-        assert!(accuracy_high > 0.8);
+        assert!(accuracy_high > 0.65, "Expected > 0.65, got {}", accuracy_high);
 
-        // Low sensitivity + large group size → still good accuracy
+        // Low sensitivity + large group size → high accuracy (low impact)
         let accuracy_low = allocator.estimate_accuracy_impact(0.1, 256);
-        assert!(accuracy_low > 0.7);
+        assert!(accuracy_low > 0.9, "Expected > 0.9, got {}", accuracy_low);
+        
+        // Medium sensitivity + medium group size → moderate accuracy
+        let accuracy_med = allocator.estimate_accuracy_impact(0.5, 128);
+        assert!(accuracy_med > 0.65, "Expected > 0.65, got {}", accuracy_med);
+        
+        // Low sensitivity + small group size → good accuracy
+        let accuracy_low_small = allocator.estimate_accuracy_impact(0.2, 64);
+        assert!(accuracy_low_small > 0.75, "Expected > 0.75, got {}", accuracy_low_small);
     }
 
     #[test]

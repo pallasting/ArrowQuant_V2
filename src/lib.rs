@@ -48,6 +48,7 @@ fn arrow_quant_v2(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<python::ArrowQuantV2>()?;
     m.add_class::<python_async::AsyncArrowQuantV2>()?;
     m.add_class::<python::PyShardedSafeTensorsLoader>()?;
+    m.add_class::<python::PyArrowQuantizedLayer>()?;
     
     // Register Python functions
     m.add_function(wrap_pyfunction!(python::quantize_diffusion_model, m)?)?;
