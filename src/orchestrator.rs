@@ -7,10 +7,10 @@ use crate::spatial::SpatialQuantizer;
 use crate::time_aware::{ActivationStats, TimeAwareQuantizer};
 use crate::validation::ValidationSystem;
 use regex::Regex;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use crossbeam_channel::{bounded, Sender, Receiver};
-use log::{info, error, warn, debug};
+use log::debug;
 
 /// Result of quantization operation
 ///
