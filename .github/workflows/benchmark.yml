@@ -33,12 +33,14 @@ jobs:
       
       - name: Run all benchmarks
         run: cargo bench --no-fail-fast
+        timeout-minutes: 15
       
       - name: Run Arrow-specific benchmarks
         run: |
           cargo bench --bench performance_validation -- arrow
           cargo bench --bench performance_validation -- memory
           cargo bench --bench performance_validation -- parallel
+        timeout-minutes: 10
       
       - name: Performance regression check
         run: |
@@ -46,7 +48,7 @@ jobs:
           cargo bench --bench performance_validation -- --save-baseline main
       
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: target/criterion/

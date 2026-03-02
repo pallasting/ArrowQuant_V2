@@ -35,40 +35,47 @@ jobs:
         run: |
           cargo test --lib --release test_create_time_aware_schema
           cargo test --lib --release test_validate_time_aware_schema
+        timeout-minutes: 5
       
       - name: Run Arrow quantization tests
         run: |
           cargo test --lib --release test_arrow_quantized_layer_creation
           cargo test --lib --release test_quantize_layer_arrow
           cargo test --lib --release test_assign_time_groups
+        timeout-minutes: 5
       
       - name: Run Arrow dequantization tests
         run: |
           cargo test --lib --release test_dequantize_group
           cargo test --lib --release test_dequantize_all_groups_parallel
           cargo test --lib --release test_arrow_zero_copy_access
+        timeout-minutes: 5
       
       - name: Run Arrow integration tests
         run: |
           cargo test --lib --release test_apply_time_aware_quantization
           cargo test --lib --release test_orchestrator_arrow_integration
+        timeout-minutes: 5
       
       - name: Verify memory efficiency
         run: |
           echo "Running memory efficiency validation..."
           cargo test --lib --release test_memory_usage_comparison
           cargo test --lib --release test_arrow_memory_savings
+        timeout-minutes: 5
       
       - name: Verify zero-copy behavior
         run: |
           echo "Verifying zero-copy access patterns..."
           cargo test --lib --release test_zero_copy_quantized_data
           cargo test --lib --release test_zero_copy_time_group_ids
+        timeout-minutes: 5
       
       - name: Run performance benchmarks
         run: |
           cargo bench --bench performance_validation -- arrow --test
           cargo bench --bench performance_validation -- memory --test
+        timeout-minutes: 10
       
       - name: Generate validation report
         run: |
@@ -88,7 +95,7 @@ jobs:
           echo "- Parallel efficiency: >80%" >> arrow_validation_report.md
       
       - name: Upload validation report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: arrow-validation-report
           path: arrow_validation_report.md

@@ -45,7 +45,8 @@ jobs:
           pip install maturin pytest numpy pyarrow
       
       - name: Run Rust tests
-        run: cargo test --lib --release
+        run: cargo test --lib --release --verbose
+        timeout-minutes: 10
       
       - name: Run Arrow-specific tests
         run: |
@@ -53,20 +54,25 @@ jobs:
           cargo test --lib --release test_quantize_layer_arrow
           cargo test --lib --release test_dequantize_group
           cargo test --lib --release test_parallel_dequantization
+        timeout-minutes: 5
       
       - name: Run integration tests
         run: cargo test --lib --release test_apply_time_aware_quantization
+        timeout-minutes: 5
       
       - name: Build extension
         run: maturin develop --release
+        timeout-minutes: 10
       
       - name: Run Python tests
         run: pytest tests/ -v
+        timeout-minutes: 5
       
       - name: Run Arrow Python integration tests
         run: |
           pytest tests/test_py_arrow_quantized_layer.py -v
           pytest tests/test_arrow_integration.py -v
+        timeout-minutes: 5
       
       - name: Check code formatting
         run: cargo fmt -- --check
