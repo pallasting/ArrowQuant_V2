@@ -21,12 +21,6 @@ jobs:
             rust: stable
             simd: avx2
           
-          # macOS x86_64 - AVX2 support
-          - os: macos-13
-            arch: x86_64
-            rust: stable
-            simd: avx2
-          
           # macOS ARM64 - NEON support
           - os: macos-latest
             arch: aarch64
@@ -223,7 +217,7 @@ jobs:
           echo "=== Running Property-Based Tests ==="
           cargo test --lib --release --verbose
         timeout-minutes: 20
-        continue-on-error: true
+        continue-on-error: false
         env:
           PROPTEST_CASES: 100
 

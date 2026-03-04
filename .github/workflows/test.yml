@@ -52,19 +52,8 @@ jobs:
       
       - name: Run Rust tests
         run: cargo test --lib --release --verbose
-        timeout-minutes: 10
-      
-      - name: Run Arrow-specific tests
-        run: |
-          cargo test --lib --release test_arrow_quantized_layer
-          cargo test --lib --release test_quantize_layer_arrow
-          cargo test --lib --release test_dequantize_group
-          cargo test --lib --release test_parallel_dequantization
-        timeout-minutes: 5
-      
-      - name: Run integration tests
-        run: cargo test --lib --release test_apply_time_aware_quantization
-        timeout-minutes: 5
+        timeout-minutes: 15
+        continue-on-error: false
       
       - name: Build extension
         run: |
