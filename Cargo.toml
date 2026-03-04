@@ -6,6 +6,9 @@ authors = ["AI-OS Team"]
 description = "High-performance quantization engine for diffusion models"
 license = "MIT"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("python", "gil-refs"))'] }
+
 [lib]
 name = "arrow_quant_v2"
 crate-type = ["cdylib", "rlib"]

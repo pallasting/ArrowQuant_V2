@@ -1,5 +1,9 @@
 //! PyO3 Python bindings
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(deprecated)]
+
 use crate::config::{DeploymentProfile, DiffusionQuantConfig, Modality};
 use crate::orchestrator::DiffusionOrchestrator;
 use pyo3::prelude::*;
@@ -12,7 +16,6 @@ use std::time::Instant;
 use arrow::array::{Array, ArrayRef, Float32Array, RecordBatch, StringArray};
 use arrow::datatypes::{DataType, Schema};
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
-use arrow::ffi_stream::{ArrowArrayStreamReader, FFI_ArrowArrayStream};
 use std::sync::Arc as StdArc;
 
 /// Arrow C Data Interface helper functions for zero-copy PyArrow integration

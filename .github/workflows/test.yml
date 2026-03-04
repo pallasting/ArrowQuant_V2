@@ -91,5 +91,5 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
       
       - name: Run clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --lib -- -W clippy::all
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'

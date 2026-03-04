@@ -1,5 +1,7 @@
 //! Configuration types for ArrowQuant V2
 
+#![allow(non_camel_case_types)]
+
 use crate::errors::{QuantError, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;

@@ -76,7 +76,6 @@ impl QuantError {
     }
 }
 
-#[cfg(feature = "python")]
 impl From<QuantError> for pyo3::PyErr {
     fn from(err: QuantError) -> pyo3::PyErr {
         use pyo3::exceptions::PyRuntimeError;

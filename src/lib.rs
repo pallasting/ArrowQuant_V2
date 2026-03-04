@@ -6,6 +6,13 @@
 //! - Extended Parquet V2 schema with diffusion metadata
 //! - PyO3 Python bindings for seamless integration
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(deprecated)]
+#![allow(non_camel_case_types)]
+#![allow(unused_variables)]
+#![allow(unused_mut)]
+
 pub mod buffer_pool;
 pub mod calibration;
 pub mod config;

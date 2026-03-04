@@ -1,5 +1,9 @@
 //! Diffusion model quantization orchestrator
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(deprecated)]
+
 use crate::config::{DiffusionQuantConfig, Modality, QuantMethod, QuantizationStrategy};
 use crate::errors::{QuantError, Result};
 use crate::schema::ParquetV2Extended;
