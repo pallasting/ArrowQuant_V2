@@ -14,7 +14,7 @@
 #[cfg(test)]
 mod tests {
     use arrow::array::{
-        ArrayRef, BinaryBuilder, Float32Array, Float32Builder, Int64Builder, ListBuilder,
+        Array, ArrayRef, BinaryBuilder, Float32Array, Float32Builder, Int64Builder, ListBuilder,
         RecordBatch, StringArray, StringBuilder, UInt8Builder,
     };
     use arrow::datatypes::{DataType, Field, Schema};
@@ -484,12 +484,12 @@ mod tests {
     #[test]
     fn test_create_output_recordbatch_empty() {
         // Create empty output RecordBatch
-        let layer_names = StringBuilder::new();
-        let quantized_data = BinaryBuilder::new();
-        let scales = ListBuilder::new(Float32Builder::new());
-        let zero_points = ListBuilder::new(Float32Builder::new());
-        let shapes = ListBuilder::new(Int64Builder::new());
-        let bit_widths = UInt8Builder::new();
+        let mut layer_names = StringBuilder::new();
+        let mut quantized_data = BinaryBuilder::new();
+        let mut scales = ListBuilder::new(Float32Builder::new());
+        let mut zero_points = ListBuilder::new(Float32Builder::new());
+        let mut shapes = ListBuilder::new(Int64Builder::new());
+        let mut bit_widths = UInt8Builder::new();
 
         // Create RecordBatch
         let schema = Arc::new(create_valid_output_schema());

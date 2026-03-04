@@ -108,7 +108,7 @@ fn test_get_tensor_f32() {
     let tensor = adapter.get_tensor_f32("layer.weight").unwrap();
     assert_eq!(tensor.shape(), &[2, 3]);
 
-    let values = tensor.into_raw_vec();
+    let values = tensor.into_raw_vec_and_offset().0;
     assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 }
 
@@ -231,7 +231,7 @@ fn test_f16_conversion() {
     let adapter = SafeTensorsAdapter::load(file.path()).unwrap();
     let tensor = adapter.get_tensor_f32("f16_tensor").unwrap();
 
-    let values = tensor.into_raw_vec();
+    let values = tensor.into_raw_vec_and_offset().0;
     assert!((values[0] - 1.0).abs() < 0.001);
     assert!((values[1] - 2.0).abs() < 0.001);
 }
@@ -273,7 +273,7 @@ fn test_bf16_conversion() {
     let adapter = SafeTensorsAdapter::load(file.path()).unwrap();
     let tensor = adapter.get_tensor_f32("bf16_tensor").unwrap();
 
-    let values = tensor.into_raw_vec();
+    let values = tensor.into_raw_vec_and_offset().0;
     assert!((values[0] - 1.0).abs() < 0.01); // BF16 has lower precision
     assert!((values[1] - 2.0).abs() < 0.01);
 }

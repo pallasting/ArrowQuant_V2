@@ -115,7 +115,7 @@ impl BoundarySmoother {
     /// ```
     pub fn new(window_size: usize, interpolation_method: InterpolationMethod) -> Self {
         assert!(
-            window_size >= 1 && window_size <= 20,
+            (1..=20).contains(&window_size),
             "Window size must be in range [1, 20], got {}",
             window_size
         );

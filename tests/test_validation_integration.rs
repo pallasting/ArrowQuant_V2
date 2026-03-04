@@ -82,8 +82,8 @@ fn test_validation_with_realistic_diffusion_params() {
 
     // Verify output structure
     let quantized = result.unwrap();
-    assert_eq!(quantized.scales.len(), 10);
-    assert_eq!(quantized.zero_points.len(), 10);
+    assert_eq!(quantized.scales().len(), 10);
+    assert_eq!(quantized.zero_points().len(), 10);
     assert_eq!(quantized.time_group_params().len(), 10);
 }
 
@@ -278,20 +278,20 @@ fn test_validation_output_identical_to_baseline() {
 
     // Verify outputs are identical
     assert_eq!(
-        result_baseline.data.len(),
-        result_with_validation.data.len(),
+        result_baseline.data().len(),
+        result_with_validation.data().len(),
         "Data length should be identical"
     );
     assert_eq!(
-        result_baseline.data, result_with_validation.data,
+        result_baseline.data(), result_with_validation.data(),
         "Quantized data should be identical"
     );
     assert_eq!(
-        result_baseline.scales, result_with_validation.scales,
+        result_baseline.scales(), result_with_validation.scales(),
         "Scales should be identical"
     );
     assert_eq!(
-        result_baseline.zero_points, result_with_validation.zero_points,
+        result_baseline.zero_points(), result_with_validation.zero_points(),
         "Zero points should be identical"
     );
 }
@@ -349,11 +349,11 @@ fn compute_reconstruction_error(
     let mut count = 0;
 
     for (group_idx, _param) in params.iter().enumerate() {
-        let scale = quantized.scales[group_idx];
-        let zero_point = quantized.zero_points[group_idx];
+        let scale = quantized.scales()[group_idx];
+        let zero_point = quantized.zero_points()[group_idx];
 
         let start_idx = group_idx * original.len();
-        let end_idx = ((group_idx + 1) * original.len()).min(quantized.data.len());
+        let end_idx = ((group_idx + 1) * original.len()).min(quantized.data().len());
 
         for (i, &orig_val) in original.iter().enumerate() {
             let data_idx = start_idx + i;
@@ -361,7 +361,7 @@ fn compute_reconstruction_error(
                 break;
             }
 
-            let quantized_val = quantized.data[data_idx];
+            let quantized_val = quantized.data()[data_idx];
             let reconstructed = (quantized_val as f32 - zero_point) * scale;
             let error = (orig_val - reconstructed).abs();
             total_error += error;

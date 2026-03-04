@@ -89,12 +89,12 @@ fn convert_single_safetensors_to_parquet(
         let tensor_data = adapter.get_tensor_f32(tensor_name)?;
 
         // Write raw bytes to a companion .bin file to bypass Parquet's 2GB limitation
-        let flat_data = tensor_data.clone().into_raw_vec();
+        let flat_data = tensor_data.clone().into_raw_vec_and_offset().0;
         let data_bytes = unsafe {
             std::slice::from_raw_parts(flat_data.as_ptr() as *const u8, flat_data.len() * 4)
                 .to_vec()
         };
-        let bin_file = output_path.join(format!("{}.bin", sanitize_filename(&tensor_name)));
+        let bin_file = output_path.join(format!("{}.bin", sanitize_filename(tensor_name)));
         std::fs::write(&bin_file, data_bytes)?;
 
         // Convert to Parquet V2 Extended (schema only)
@@ -179,7 +179,7 @@ fn convert_sharded_safetensors_to_parquet(
 
             for tensor_name in tensors {
                 let count = progress_counter.fetch_add(1, Ordering::SeqCst);
-                if count % 20 == 0 || count == total_tensors - 1 {
+                if count.is_multiple_of(20) || count == total_tensors - 1 {
                     eprintln!(
                         "Progress: {}/{} tensors converted (Shard: {})",
                         count + 1,
@@ -189,24 +189,24 @@ fn convert_sharded_safetensors_to_parquet(
                 }
 
                 // Extract tensor as f32 array
-                let tensor_data = shard_adapter.get_tensor_f32(&tensor_name)?;
+                let tensor_data = shard_adapter.get_tensor_f32(tensor_name)?;
 
                 // Write raw bytes to a companion .bin file to bypass Parquet's 2GB limitation
-                let flat_data = tensor_data.clone().into_raw_vec();
+                let flat_data = tensor_data.clone().into_raw_vec_and_offset().0;
                 let data_bytes = unsafe {
                     std::slice::from_raw_parts(flat_data.as_ptr() as *const u8, flat_data.len() * 4)
                         .to_vec()
                 };
-                let bin_file = output_path.join(format!("{}.bin", sanitize_filename(&tensor_name)));
+                let bin_file = output_path.join(format!("{}.bin", sanitize_filename(tensor_name)));
                 std::fs::write(&bin_file, data_bytes)?;
 
                 // Convert to Parquet V2 Extended (schema only)
                 let parquet_schema =
-                    convert_tensor_to_parquet_v2(&tensor_name, tensor_data, detected_modality)?;
+                    convert_tensor_to_parquet_v2(tensor_name, tensor_data, detected_modality)?;
 
                 // Write to Parquet file
                 let output_file =
-                    output_path.join(format!("{}.parquet", sanitize_filename(&tensor_name)));
+                    output_path.join(format!("{}.parquet", sanitize_filename(tensor_name)));
                 parquet_schema.write_to_parquet(&output_file)?;
             }
             Ok(())
@@ -264,7 +264,7 @@ fn detect_modality_from_sharded_adapter(adapter: &ShardedSafeTensorsAdapter) -> 
 }
 
 /// Parse modality string to enum
-fn parse_modality(modality_str: &str) -> Result<Modality> {
+pub fn parse_modality(modality_str: &str) -> Result<Modality> {
     match modality_str.to_lowercase().as_str() {
         "text" => Ok(Modality::Text),
         "code" => Ok(Modality::Code),
@@ -321,16 +321,7 @@ fn write_sharded_metadata_file(
 
 /// Sanitize filename for cross-platform compatibility
 pub fn sanitize_filename(name: &str) -> String {
-    name.replace('/', "_")
-        .replace('\\', "_")
-        .replace(':', "_")
-        .replace('*', "_")
-        .replace('?', "_")
-        .replace('"', "_")
-        .replace('<', "_")
-        .replace('>', "_")
-        .replace('|', "_")
-        .replace('.', "_")
+    name.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|', '.'], "_")
 }
 
 #[cfg(test)]

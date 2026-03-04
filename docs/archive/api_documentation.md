@@ -400,34 +400,86 @@ def quantize_diffusion_model(
     self,
     model_path: str,
     output_path: str,
-    bit_width: int = 8,
+    bit_width: int = 4,
     num_time_groups: int = 10,
     use_arrow: bool = False,
+    config: Optional[DiffusionQuantConfig] = None,
+    progress_callback: Optional[Callable[[str, float], None]] = None,
 ) -> Dict[str, Any]
 ```
 
-量化扩散模型。
+量化扩散模型。支持 Legacy 和 Arrow 输出格式。
 
 **参数**：
 - `model_path`: 模型路径
 - `output_path`: 输出路径
-- `bit_width`: 位宽（2, 4, 或 8）
-- `num_time_groups`: 时间组数量
-- `use_arrow`: 是否使用 Arrow 格式（推荐 True）
+- `bit_width`: 位宽（2, 4, 或 8）。默认 4。
+- `num_time_groups`: 时间组数量。默认 10。
+- `use_arrow`: 是否使用 Arrow 格式（推荐 True）。
+- `config`: 可选的 `DiffusionQuantConfig` 实例。
+- `progress_callback`: 可选的进度回调函数。
 
 **返回**：
-- `Dict[str, Any]`: 量化结果字典
+- `Dict[str, Any]`: 量化结果摘要。
 
-**示例**：
+---
+
+#### quantize_layer_auto
+
 ```python
-result = quantizer.quantize_diffusion_model(
-    model_path="models/stable_diffusion",
-    output_path="models/stable_diffusion_int8",
-    bit_width=8,
-    num_time_groups=10,
-    use_arrow=True
-)
+def quantize_layer_auto(
+    self,
+    weights: np.ndarray,
+    params: List[TimeGroupParams],
+    enable_simd: bool = True
+) -> PyArrowQuantizedLayer
 ```
+
+自动选择最优路径（SIMD 或标量）量化单个权重层。
+
+**参数**：
+- `weights`: Numpy 数组 (float32, 连续内存)。
+- `params`: 时间组参数列表。
+- `enable_simd`: 是否允许 SIMD 加速。
+
+**返回**：
+- `PyArrowQuantizedLayer`: 优化的量化层。
+
+---
+
+#### set_simd_config
+
+```python
+def set_simd_config(self, config: SimdQuantConfig) -> None
+```
+
+配置运行时 SIMD 行为。
+
+**参数**：
+- `config`: `SimdQuantConfig` 实例。
+
+---
+
+#### quantize_batch
+
+```python
+def quantize_batch(
+    self,
+    weights_dict: Dict[str, np.ndarray],
+    bit_width: int = 4,
+    continue_on_error: bool = False
+) -> Dict[str, PyArrowQuantizedLayer]
+```
+
+批量并行量化多个层。
+
+**参数**：
+- `weights_dict`: 层名到 Numpy 数组的映射。
+- `bit_width`: 目标位宽。
+- `continue_on_error`: 遇到错误时是否继续处理其他层。
+
+**返回**：
+- `Dict[str, PyArrowQuantizedLayer]`: 量化结果映射。
 
 ---
 

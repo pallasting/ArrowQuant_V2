@@ -46,6 +46,8 @@ pub enum SafeTensorsDType {
     F32,
     F16,
     BF16,
+    F8_E4M3,
+    F8_E5M2,
     I32,
     I64,
     U8,
@@ -58,11 +60,13 @@ impl SafeTensorsDType {
             "F32" => Ok(Self::F32),
             "F16" => Ok(Self::F16),
             "BF16" => Ok(Self::BF16),
+            "F8_E4M3" | "F8E4M3" => Ok(Self::F8_E4M3),
+            "F8_E5M2" | "F8E5M2" => Ok(Self::F8_E5M2),
             "I32" => Ok(Self::I32),
             "I64" => Ok(Self::I64),
             "U8" => Ok(Self::U8),
             _ => Err(QuantError::Internal(format!(
-                "Unsupported SafeTensors dtype: {}. Supported types: F32, F16, BF16, I32, I64, U8",
+                "Unsupported SafeTensors dtype: {}. Supported types: F32, F16, BF16, F8_E4M3, F8_E5M2, I32, I64, U8",
                 s
             ))),
         }
@@ -74,7 +78,7 @@ impl SafeTensorsDType {
             Self::F32 | Self::I32 => 4,
             Self::F16 | Self::BF16 => 2,
             Self::I64 => 8,
-            Self::U8 => 1,
+            Self::F8_E4M3 | Self::F8_E5M2 | Self::U8 => 1,
         }
     }
 }
@@ -206,6 +210,14 @@ impl SafeTensorsAdapter {
                 // Convert bf16 to f32
                 self.read_bf16_to_f32(tensor_data)
             }
+            SafeTensorsDType::F8_E4M3 => {
+                // Convert fp8 (E4M3) to f32
+                self.read_f8_e4m3_to_f32(tensor_data)
+            }
+            SafeTensorsDType::F8_E5M2 => {
+                // Convert fp8 (E5M2) to f32
+                self.read_f8_e5m2_to_f32(tensor_data)
+            }
             SafeTensorsDType::I32 => {
                 // Convert i32 to f32
                 self.read_i32_to_f32(tensor_data)
@@ -237,7 +249,7 @@ impl SafeTensorsAdapter {
 
         for name in self.tensor_names() {
             let array = self.get_tensor_f32(&name)?;
-            let flattened = array.into_raw_vec();
+            let flattened = array.into_raw_vec_and_offset().0;
             tensors.insert(name, flattened);
         }
 
@@ -266,7 +278,7 @@ impl SafeTensorsAdapter {
                 let first_dim = shape[0];
                 let rest: usize = shape[1..].iter().product();
 
-                let flattened = array.into_raw_vec();
+                let flattened = array.into_raw_vec_and_offset().0;
                 Array2::from_shape_vec((first_dim, rest), flattened)
                     .map_err(|e| QuantError::Internal(format!("Failed to reshape to 2D: {}", e)))?
             };
@@ -477,6 +489,59 @@ impl SafeTensorsAdapter {
     fn read_u8_to_f32(&self, data: &[u8]) -> Vec<f32> {
         data.iter().map(|&x| x as f32).collect()
     }
+
+    fn read_f8_e4m3_to_f32(&self, data: &[u8]) -> Vec<f32> {
+        data.iter().map(|&x| {
+            if x == 0x7f || x == 0xff {
+                return f32::NAN;
+            }
+            if (x & 0x7f) == 0 {
+                return if (x & 0x80) != 0 { -0.0 } else { 0.0 };
+            }
+            let sign = ((x as u32) & 0x80) << 24;
+            let exp = ((x as u32) & 0x78) >> 3;
+            let mantissa = (x as u32) & 0x07;
+
+            if exp == 0 {
+                // Subnormal
+                let val = (mantissa as f32) * 0.001953125f32; // 2^(-7-2) = 2^-9
+                if (x & 0x80) != 0 { -val } else { val }
+            } else {
+                // Normal
+                let f32_exp = (exp as i32 - 7 + 127) as u32;
+                let f32_mantissa = mantissa << 20;
+                f32::from_bits(sign | (f32_exp << 23) | f32_mantissa)
+            }
+        }).collect()
+    }
+
+    fn read_f8_e5m2_to_f32(&self, data: &[u8]) -> Vec<f32> {
+        data.iter().map(|&x| {
+            if (x & 0x7f) == 0x7f {
+                return if (x & 0x80) != 0 { f32::NEG_INFINITY } else { f32::INFINITY };
+            }
+            if (x & 0x7f) == 0x7e {
+                return f32::NAN;
+            }
+            if (x & 0x7f) == 0 {
+                return if (x & 0x80) != 0 { -0.0 } else { 0.0 };
+            }
+            let sign = ((x as u32) & 0x80) << 24;
+            let exp = ((x as u32) & 0x7c) >> 2;
+            let mantissa = (x as u32) & 0x03;
+
+            if exp == 0 {
+                // Subnormal
+                let val = (mantissa as f32) * 0.000015258789f32; // 2^(-14-2) = 2^-16
+                if (x & 0x80) != 0 { -val } else { val }
+            } else {
+                // Normal
+                let f32_exp = (exp as i32 - 15 + 127) as u32;
+                let f32_mantissa = mantissa << 21;
+                f32::from_bits(sign | (f32_exp << 23) | f32_mantissa)
+            }
+        }).collect()
+    }
 }
 
 #[cfg(test)]
@@ -545,7 +610,7 @@ mod tests {
         let tensor = adapter.get_tensor_f32("layer.weight").unwrap();
         assert_eq!(tensor.shape(), &[2, 3]);
 
-        let values = tensor.into_raw_vec();
+        let values = tensor.into_raw_vec_and_offset().0;
         assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     }
 

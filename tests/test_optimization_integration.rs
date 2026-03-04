@@ -72,18 +72,13 @@ fn test_end_to_end_quantization_with_optimization() {
 
     // Verify output structure
     assert!(
-        !quantized.data.is_empty(),
+        !quantized.data().is_empty(),
         "Quantized data should not be empty"
     );
     assert_eq!(
-        quantized.scales.len(),
+        quantized.num_groups(),
         params.len(),
-        "Should have scale for each group"
-    );
-    assert_eq!(
-        quantized.zero_points.len(),
-        params.len(),
-        "Should have zero_point for each group"
+        "Should have correct number of groups"
     );
 
     // Verify metrics are collected
@@ -329,26 +324,26 @@ fn test_backward_compatibility_existing_behavior() {
 
     // Verify outputs are identical
     assert_eq!(
-        result_old.data.len(),
-        result_new.data.len(),
+        result_old.data().len(),
+        result_new.data().len(),
         "Output size should be identical"
     );
     assert_eq!(
-        result_old.scales.len(),
-        result_new.scales.len(),
+        result_old.scales().len(),
+        result_new.scales().len(),
         "Number of scales should be identical"
     );
     assert_eq!(
-        result_old.zero_points.len(),
-        result_new.zero_points.len(),
+        result_old.zero_points().len(),
+        result_new.zero_points().len(),
         "Number of zero points should be identical"
     );
 
     // Verify data is identical (or very close due to floating point)
     for (i, (&old, &new)) in result_old
-        .data
+        .data()
         .iter()
-        .zip(result_new.data.iter())
+        .zip(result_new.data().iter())
         .enumerate()
     {
         assert_eq!(old, new, "Data at index {} should be identical", i);

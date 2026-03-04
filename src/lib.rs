@@ -28,8 +28,8 @@ pub mod validation;
 
 // Re-export commonly used types
 pub use config::{
-    BoundarySmoothingConfig, DiffusionQuantConfig, InterpolationMethod, Modality,
-    ThermodynamicConfig, ValidationConfig,
+    BoundarySmoothingConfig, DeploymentProfile, DiffusionQuantConfig, InterpolationMethod,
+    Modality, QuantMethod, ThermodynamicConfig, ValidationConfig,
 };
 pub use errors::{QuantError, Result};
 pub use orchestrator::DiffusionOrchestrator;
@@ -37,6 +37,9 @@ pub use safetensors_adapter::SafeTensorsAdapter;
 pub use schema::{ParquetV2Extended, SchemaVersion};
 pub use sharded_safetensors::ShardedSafeTensorsAdapter;
 pub use thermodynamic::ThermodynamicMetrics;
+pub use buffer_pool::BufferPool;
+pub use evolutionary::{EvolutionarySearch, EvolutionarySearchConfig, Individual};
+pub use granularity::{GranularityAllocator, GranularityConfig};
 
 // PyO3 module definition
 use pyo3::prelude::*;

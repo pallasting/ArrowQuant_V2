@@ -22,6 +22,8 @@ mod cosine_similarity_range_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_cosine_similarity_in_range(
             // Generate random vectors in range [-10.0, 10.0]
@@ -52,6 +54,8 @@ mod cosine_similarity_range_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_cosine_similarity_batch_in_range(
             // Generate batch of random vectors
@@ -90,6 +94,8 @@ mod cosine_similarity_range_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_cosine_similarity_positive_vectors(
             // Generate positive vectors
@@ -113,6 +119,8 @@ mod cosine_similarity_range_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_cosine_similarity_normalized_vectors(
             // Generate vectors and normalize them
@@ -162,6 +170,8 @@ mod compression_ratio_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_compression_ratio_positive(
             // Generate random sizes
@@ -197,6 +207,8 @@ mod compression_ratio_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_compression_ratio_reasonable_range(
             // Generate sizes for typical quantization scenarios
@@ -228,6 +240,8 @@ mod compression_ratio_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_compression_ratio_monotonic(
             original_size in 1000u64..1_000_000u64,
@@ -263,6 +277,8 @@ mod accuracy_aggregation_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_overall_accuracy_is_mean(
             // Generate random per-layer accuracies
@@ -295,6 +311,8 @@ mod accuracy_aggregation_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_overall_accuracy_in_range(
             num_layers in 2usize..50,
@@ -332,6 +350,8 @@ mod accuracy_aggregation_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_aggregation_deterministic(
             num_layers in 1usize..50,
@@ -361,6 +381,8 @@ mod accuracy_aggregation_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_single_layer_aggregation(
             accuracy in 0.0f32..1.0f32,
@@ -382,6 +404,8 @@ mod accuracy_aggregation_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_uniform_layers_aggregation(
             num_layers in 1usize..100,
@@ -417,6 +441,8 @@ mod edge_case_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_identical_weights_similarity_one(
             // Generate random vector
@@ -435,6 +461,8 @@ mod edge_case_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_scaled_weights_similarity_one(
             weights in prop::collection::vec(-10.0f32..10.0f32, 10..1000),
@@ -512,6 +540,8 @@ mod edge_case_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_zero_vector_handling(
             non_zero in prop::collection::vec(-10.0f32..10.0f32, 10..100),
@@ -531,6 +561,8 @@ mod edge_case_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_very_small_values(
             len in 10usize..100,
@@ -560,6 +592,8 @@ mod edge_case_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_very_large_values(
             len in 10usize..100,

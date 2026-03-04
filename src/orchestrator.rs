@@ -116,7 +116,144 @@ impl DiffusionOrchestrator {
         })
     }
 
-    /// Quantize a diffusion model
+    /// Get the time-aware quantizer
+    pub fn time_aware_quantizer(&self) -> &TimeAwareQuantizer {
+        &self.time_aware
+    }
+
+    /// STREAMING DIMENSION A: Direct zero-copy from safetensors to quantized parquet
+    pub fn quantize_model_streaming(
+        &self,
+        safetensors_path: &Path,
+        output_path: &Path,
+    ) -> Result<QuantizationResult> {
+        let start_time = std::time::Instant::now();
+        std::fs::create_dir_all(output_path)?;
+
+        let is_sharded = crate::sharded_safetensors::is_sharded_model(safetensors_path);
+        let modality = if is_sharded {
+            let adapter = crate::sharded_safetensors::ShardedSafeTensorsAdapter::load(
+                &crate::sharded_safetensors::find_index_file(safetensors_path)?
+            )?;
+            adapter.detect_modality().map(|m| crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(Modality::Text)).unwrap_or(Modality::Text)
+        } else {
+            let adapter = crate::safetensors_adapter::SafeTensorsAdapter::load(safetensors_path)?;
+            adapter.detect_modality().map(|m| crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(Modality::Text)).unwrap_or(Modality::Text)
+        };
+
+        let strategy = self.select_strategy(modality);
+        let activation_stats = if strategy.time_aware {
+            // Load from same path or fall back
+            match self.load_calibration_data(safetensors_path) {
+                Ok(stats) => Some(std::sync::Arc::new(stats)),
+                Err(_) => None, // Might fail if no calibration
+            }
+        } else {
+            None
+        };
+
+        // If sharded
+        if is_sharded {
+            let index_file = crate::sharded_safetensors::find_index_file(safetensors_path)?;
+            let adapter = crate::sharded_safetensors::ShardedSafeTensorsAdapter::load(&index_file)?;
+            let base_dir = index_file.parent().unwrap();
+            let mut shard_to_tensors = std::collections::HashMap::new();
+            for name in adapter.tensor_names() {
+                if let Some(shard) = adapter.get_shard_for_tensor(&name) {
+                    shard_to_tensors.entry(shard.to_string()).or_insert_with(Vec::new).push(name);
+                }
+            }
+            
+            for (shard, tensors) in shard_to_tensors {
+                let shard_adapter = crate::safetensors_adapter::SafeTensorsAdapter::load(&base_dir.join(shard))?;
+                for name in tensors {
+                    // Check if file already exists for resumption
+                    let out_file = output_path.join(format!("{}.parquet", crate::safetensors_to_parquet::sanitize_filename(&name)));
+                    if out_file.exists() && out_file.metadata().map_or(false, |m| m.len() > 0) {
+                        continue; // Skip already quantized files
+                    }
+                    let tensor_data = shard_adapter.get_tensor_f32(&name)?;
+                    self.quantize_and_write_streaming(&name, tensor_data, modality, &strategy, activation_stats.as_deref(), output_path)?;
+                }
+            }
+        } else {
+            let adapter = crate::safetensors_adapter::SafeTensorsAdapter::load(safetensors_path)?;
+            for name in adapter.tensor_names() {
+                let out_file = output_path.join(format!("{}.parquet", crate::safetensors_to_parquet::sanitize_filename(&name)));
+                if out_file.exists() && out_file.metadata().map_or(false, |m| m.len() > 0) {
+                    continue; // Skip already quantized files
+                }
+                let tensor_data = adapter.get_tensor_f32(&name)?;
+                self.quantize_and_write_streaming(&name, tensor_data, modality, &strategy, activation_stats.as_deref(), output_path)?;
+            }
+        }
+
+        Ok(QuantizationResult {
+            quantized_path: output_path.to_path_buf(),
+            compression_ratio: Default::default(),
+            cosine_similarity: Default::default(),
+            model_size_mb: Default::default(),
+            modality,
+            bit_width: self.config.bit_width,
+            quantization_time_s: start_time.elapsed().as_secs_f32(),
+        })
+    }
+
+    fn quantize_and_write_streaming(
+        &self,
+        name: &str,
+        tensor_data: ndarray::ArrayD<f32>,
+        modality: Modality,
+        strategy: &QuantizationStrategy,
+        activation_stats: Option<&ActivationStats>,
+        output_path: &Path,
+    ) -> Result<()> {
+        let shape = tensor_data.shape().to_vec();
+        let flat_data_vec = tensor_data.into_raw_vec_and_offset().0;
+        
+        let schema = crate::schema::ParquetV2Extended::new_unquantized(name.to_string(), shape.clone(), modality, Vec::new());
+        let bit_w = self.config.bit_width;
+        
+        // Skip purely 16-bit layers in mixed precision configs (optional validation)
+        // Ensure weights are large enough for time-aware grouping to avoid empty group errors (need at least 1 element per group)
+        let quantized_schema = if strategy.time_aware && flat_data_vec.len() >= self.config.num_time_groups {
+            let mut quantizer = crate::time_aware::TimeAwareQuantizer::new(self.config.num_time_groups);
+            if let Some(stats) = activation_stats {    
+                quantizer.group_timesteps(stats.mean.len());
+                let params = quantizer.compute_params_per_group(stats);
+                let q_layer = if self.config.use_arrow {
+                    crate::time_aware::QuantizedLayer::Arrow(quantizer.quantize_layer_arrow(&flat_data_vec, &params)?)
+                } else {
+                    quantizer.quantize_layer(&flat_data_vec, &params)?
+                };
+                schema.with_time_aware_and_bit_width(modality, q_layer, bit_w)
+            } else {
+                 schema.with_bit_width(bit_w) // Fallback
+            }
+        } else if strategy.spatial {
+            // ... apply spatial using flat_data_vec ...
+            let mut quantizer = crate::spatial::SpatialQuantizer::new(self.config.group_size);
+            let weights = if shape.len() == 2 {
+                ndarray::Array2::from_shape_vec((shape[0], shape[1]), flat_data_vec).unwrap_or_else(|_| ndarray::Array2::zeros((1, 1)))
+            } else if shape.len() > 0 {
+                let first = shape[0];
+                let rest: usize = shape[1..].iter().product();
+                ndarray::Array2::from_shape_vec((first, rest), flat_data_vec).unwrap_or_else(|_| ndarray::Array2::zeros((1, 1)))
+            } else {
+                ndarray::Array2::zeros((1, 1))
+            };
+            let q_layer = quantizer.per_group_quantize(&weights)?;
+            schema.with_spatial_and_bit_width(modality, q_layer, vec![], bit_w)
+        } else {
+            schema.with_bit_width(bit_w)
+        };
+
+        let out_file = output_path.join(format!("{}.parquet", crate::safetensors_to_parquet::sanitize_filename(name)));
+        quantized_schema.write_to_parquet(&out_file)?;
+        Ok(())
+    }
+
+    #[deprecated(since = "0.2.0", note = "Use quantize_model_streaming (Dimension A) instead")]
     pub fn quantize_model(
         &self,
         model_path: &Path,
@@ -623,7 +760,7 @@ impl DiffusionOrchestrator {
     }
 
     /// Discover all layer files in the model directory
-    fn discover_layer_files(&self, model_path: &Path) -> Result<Vec<String>> {
+    pub(crate) fn discover_layer_files(&self, model_path: &Path) -> Result<Vec<String>> {
         let mut layer_files = Vec::new();
 
         // Look for .parquet files in the model directory
@@ -656,7 +793,8 @@ impl DiffusionOrchestrator {
     /// # Returns
     ///
     /// Returns activation statistics computed from calibration data or synthetic samples
-    fn load_calibration_data(&self, model_path: &Path) -> Result<ActivationStats> {
+    /// Load calibration data for time-aware quantization
+    pub(crate) fn load_calibration_data(&self, model_path: &Path) -> Result<ActivationStats> {
         use crate::calibration::CalibrationLoader;
 
         let loader = CalibrationLoader::new(self.config.calibration_samples);
@@ -684,33 +822,16 @@ impl DiffusionOrchestrator {
             }
         }
 
-        // No calibration data found - generate synthetic data
+        // No calibration data found - using Self-Calibration (Original Weights)
         eprintln!(
-            "No calibration data found, generating {} synthetic samples",
-            self.config.calibration_samples
+            "No calibration data found. Entering Self-Calibration mode using weight statistics (Zero-Copy V2)."
         );
 
-        // Generate synthetic noise samples
-        // Default shape for text/code models: [1, 512]
-        // For image models, this would be [4, 64, 64]
-        let sample_shape = vec![1, 512];
-        let num_timesteps = 1000;
-
-        let (_dataset, calib_stats) = loader.generate_synthetic_data(
-            self.config.calibration_samples,
-            sample_shape,
-            num_timesteps,
-        )?;
-
-        // Convert calibration::ActivationStats to time_aware::ActivationStats
-        let stats = ActivationStats {
-            mean: calib_stats.mean,
-            std: calib_stats.std,
-            min: calib_stats.min,
-            max: calib_stats.max,
-        };
-
-        Ok(stats)
+        // We return an error to trigger proper fallback in the orchestrator
+        // This causes it to use weight-based min/max for each layer (Base Quantization path in V2)
+        Err(crate::errors::QuantError::Internal(
+            "Calibration data missing. Defaulting to Self-Calibration.".to_string()
+        ))
     }
 
     /// Compute activation statistics from calibration dataset
@@ -872,19 +993,23 @@ impl DiffusionOrchestrator {
         );
 
         // Step 4: Apply quantization strategy with layer-specific bit-width
-        let quantized_schema = if strategy.time_aware {
+        // Ensure weights are large enough for time-aware grouping to avoid empty group errors
+        let weights_len: usize = layer_data.shape.iter().product();
+        let quantized_schema = if strategy.time_aware && weights_len >= self.config.num_time_groups {
             // Time-aware quantization (for text/code)
-            self.apply_time_aware_quantization(
-                layer_data,
-                modality,
-                layer_bit_width,
-                activation_stats.ok_or_else(|| {
-                    QuantError::Internal(
-                        "Activation stats required for time-aware quantization".to_string(),
-                    )
-                })?,
-                model_path,
-            )?
+            if let Some(stats) = activation_stats {
+                self.apply_time_aware_quantization(
+                    layer_data,
+                    modality,
+                    layer_bit_width,
+                    stats,
+                    model_path,
+                )?
+            } else {
+                // Fallback to base quantization if stats are missing
+                log::warn!("Activation stats missing for time-aware quantization of layer '{}', falling back to base quantization.", layer_name);
+                self.apply_base_quantization(layer_data, modality, layer_bit_width, model_path)?
+            }
         } else if strategy.spatial {
             // Spatial quantization (for image/audio)
             self.apply_spatial_quantization(layer_data, modality, layer_bit_width, model_path)?
@@ -1383,6 +1508,46 @@ impl DiffusionOrchestrator {
     /// Get the configured group size for quantization
     pub fn get_group_size(&self) -> usize {
         self.config.group_size
+    }
+
+    /// Quantize a single layer using Arrow zero-copy format
+    ///
+    /// This is the high-level API for Arrow-based quantization, which performs:
+    /// 1. Timestep grouping based on activation stats
+    /// 2. Quantization parameter computation per group
+    /// 3. Arrow RecordBatch generation using Dictionary encoding
+    ///
+    /// # Arguments
+    ///
+    /// * `weights` - Layer weights as 2D array
+    /// * `activation_stats` - Calibration statistics for time-aware quantization
+    /// * `bit_width` - Target bit width (2, 4, or 8)
+    ///
+    /// # Returns
+    ///
+    /// ArrowQuantizedLayer containing the RecordBatch and metadata
+    pub fn quantize_layer_arrow(
+        &self,
+        weights: &ndarray::Array2<f32>,
+        activation_stats: &crate::time_aware::ActivationStats,
+        _bit_width: u8,
+    ) -> Result<crate::time_aware::ArrowQuantizedLayer> {
+        let mut quantizer = self.time_aware.clone();
+
+        // Step 1: Group timesteps (typically 1000 for diffusion)
+        quantizer.group_timesteps(activation_stats.min.len());
+
+        // Step 2: Compute quantization parameters for each group
+        let params = quantizer.compute_params_per_group(activation_stats);
+
+        // Step 3: Perform Arrow-based quantization
+        // Note: weights is Array2<f32>, need to convert to &[f32]
+        let weights_slice = weights.as_slice().ok_or_else(|| {
+            crate::errors::QuantError::QuantizationFailed(
+                "Failed to convert Array2 to contiguous slice".to_string(),
+            )
+        })?;
+        quantizer.quantize_layer_arrow(weights_slice, &params)
     }
 }
 

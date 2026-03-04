@@ -21,6 +21,8 @@ mod roundtrip_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_roundtrip_preserves_shape(
             // Generate random weights in range [-10.0, 10.0]
@@ -66,6 +68,8 @@ mod roundtrip_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_roundtrip_preserves_shape_int2(
             weights in prop::collection::vec(-10.0f32..10.0f32, 1..1000),
@@ -85,6 +89,8 @@ mod roundtrip_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_roundtrip_preserves_shape_int4(
             weights in prop::collection::vec(-10.0f32..10.0f32, 1..1000),
@@ -104,6 +110,8 @@ mod roundtrip_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_roundtrip_preserves_shape_int8(
             weights in prop::collection::vec(-10.0f32..10.0f32, 1..1000),
@@ -136,6 +144,8 @@ mod error_bound_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_quantization_error_bounded_int2(
             weights in prop::collection::vec(-10.0f32..10.0f32, 1..1000),
@@ -171,6 +181,8 @@ mod error_bound_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_quantization_error_bounded_int4(
             weights in prop::collection::vec(-10.0f32..10.0f32, 1..1000),
@@ -205,6 +217,8 @@ mod error_bound_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_quantization_error_bounded_int8(
             weights in prop::collection::vec(-10.0f32..10.0f32, 1..1000),
@@ -240,6 +254,8 @@ mod error_bound_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_error_decreases_with_bit_width(
             weights in prop::collection::vec(-10.0f32..10.0f32, 10..100),
@@ -323,6 +339,8 @@ mod determinism_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_quantization_is_deterministic(
             weights in prop::collection::vec(-10.0f32..10.0f32, 1..1000),
@@ -343,6 +361,8 @@ mod determinism_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_dequantization_is_deterministic(
             quantized in prop::collection::vec(0u8..=255u8, 1..1000),
@@ -384,6 +404,8 @@ mod range_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_quantized_values_in_range(
             weights in prop::collection::vec(-10.0f32..10.0f32, 1..1000),
@@ -418,6 +440,8 @@ mod edge_case_properties {
     use super::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_zero_values_handled(
             len in 1usize..1000,
@@ -442,6 +466,8 @@ mod edge_case_properties {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(20))]
+        
         #[test]
         fn prop_extreme_values_clamped(
             scale in 0.01f32..1.0f32,

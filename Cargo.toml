@@ -56,8 +56,7 @@ regex = "1.11"
 # Approx for tests
 approx = "0.5"
 
-# Temporary directory support
-tempfile = "3.13"
+
 
 # Concurrency and Pipelining
 crossbeam-channel = "0.5"
@@ -72,6 +71,7 @@ memmap2 = "0.9.10"
 [dev-dependencies]
 criterion = "0.6"
 proptest = "1.5"
+tempfile = "3.13"
 
 [profile.release]
 opt-level = 3
@@ -105,4 +105,14 @@ harness = false
 
 [[bench]]
 name = "quick_simd_benchmark"
+harness = false
+
+[[bench]]
+name = "bench_time_complexity"
+path = "tests/benchmarks/bench_time_complexity.rs"
+harness = false
+
+[[bench]]
+name = "bench_memory_reduction"
+path = "tests/benchmarks/bench_memory_reduction.rs"
 harness = false

@@ -74,6 +74,11 @@ pub struct ActivationStatsMetadata {
 }
 
 impl ParquetV2Extended {
+    /// Check if the layer is already quantized
+    pub fn is_quantized(&self) -> bool {
+        self.quant_type != "float32" && self.quant_type != "unquantized"
+    }
+
     /// Create unquantized placeholder for SafeTensors conversion
     ///
     /// Creates a minimal ParquetV2Extended schema for a tensor that hasn't been quantized yet.
@@ -183,7 +188,7 @@ impl ParquetV2Extended {
                 self.time_aware_quant = Some(TimeAwareQuantMetadata {
                     enabled: true,
                     num_time_groups: time_group_params.len(),
-                    time_group_params,
+                    time_group_params: time_group_params.to_vec(),
                 });
             }
         }
@@ -240,7 +245,7 @@ impl ParquetV2Extended {
                 self.time_aware_quant = Some(TimeAwareQuantMetadata {
                     enabled: true,
                     num_time_groups: time_group_params.len(),
-                    time_group_params,
+                    time_group_params: time_group_params.to_vec(),
                 });
             }
         }
@@ -521,7 +526,7 @@ impl ParquetV2Extended {
 
         let builder = if use_mmap {
             // Use memory-mapped file for zero-copy reads
-            let file_len = file.metadata()?.len() as usize;
+            let _file_len = file.metadata()?.len() as usize;
             ParquetRecordBatchReaderBuilder::try_new(file)?.with_batch_size(8192)
         // Larger batch size for better performance
         } else {

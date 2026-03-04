@@ -147,6 +147,22 @@ pub struct DiffusionQuantConfig {
     /// Enable Arrow zero-copy time-aware quantization (recommended for memory efficiency)
     #[serde(default)]
     pub use_arrow: bool,
+
+    /// Enable SIMD acceleration for quantization kernels
+    #[serde(default = "default_true")]
+    pub enable_simd: bool,
+
+    /// Threshold for switching from scalar to SIMD (number of elements)
+    #[serde(default = "default_simd_threshold")]
+    pub simd_threshold: usize,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_simd_threshold() -> usize {
+    128
 }
 
 /// Deployment profile presets
@@ -788,6 +804,8 @@ impl DiffusionQuantConfig {
                 max_memory_limit_mb: None,
                 thermodynamic: ThermodynamicConfig::default(),
                 use_arrow: true, // Enable Arrow zero-copy for memory efficiency
+                enable_simd: true,
+                simd_threshold: 128,
             },
             DeploymentProfile::Local => Self {
                 bit_width: 4,
@@ -813,6 +831,8 @@ impl DiffusionQuantConfig {
                 max_memory_limit_mb: None,
                 thermodynamic: ThermodynamicConfig::default(),
                 use_arrow: true, // Enable Arrow zero-copy for memory efficiency
+                enable_simd: true,
+                simd_threshold: 128,
             },
             DeploymentProfile::Cloud => Self {
                 bit_width: 8,
@@ -826,7 +846,7 @@ impl DiffusionQuantConfig {
                 deployment_profile: profile,
                 fail_fast: false,
                 num_threads: 0,          // Auto-detect
-                enable_streaming: false, // Batch mode for better performance
+                enable_streaming: true,  // Dimension A streaming for all profiles
                 skip_sensitive_layers: false,
                 sensitive_layer_names: Vec::new(),
                 sensitive_layer_patterns: Vec::new(),
@@ -838,6 +858,8 @@ impl DiffusionQuantConfig {
                 max_memory_limit_mb: None,
                 thermodynamic: ThermodynamicConfig::default(),
                 use_arrow: true, // Enable Arrow zero-copy for memory efficiency
+                enable_simd: true,
+                simd_threshold: 128,
             },
         }
     }
@@ -892,6 +914,8 @@ impl DiffusionQuantConfig {
             max_memory_limit_mb: None,
             thermodynamic: ThermodynamicConfig::default(),
             use_arrow: false, // Disable Arrow for base mode (legacy compatibility)
+            enable_simd: true,
+            simd_threshold: 128,
         }
     }
 

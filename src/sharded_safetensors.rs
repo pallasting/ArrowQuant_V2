@@ -167,7 +167,7 @@ impl ShardedSafeTensorsAdapter {
 
         for name in self.tensor_names() {
             let array = self.get_tensor_f32(&name)?;
-            let flattened = array.into_raw_vec();
+            let flattened = array.into_raw_vec_and_offset().0;
             tensors.insert(name, flattened);
         }
 
@@ -191,7 +191,7 @@ impl ShardedSafeTensorsAdapter {
                 let first_dim = shape[0];
                 let rest: usize = shape[1..].iter().product();
 
-                let flattened = array.into_raw_vec();
+                let flattened = array.into_raw_vec_and_offset().0;
                 Array2::from_shape_vec((first_dim, rest), flattened)
                     .map_err(|e| QuantError::Internal(format!("Failed to reshape to 2D: {}", e)))?
             };

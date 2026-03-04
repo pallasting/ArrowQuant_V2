@@ -98,9 +98,48 @@ mod arrow_ffi_helpers {
         let schema_ptr = schema_capsule.pointer() as *mut FFI_ArrowSchema;
         let array_ptr = array_capsule.pointer() as *mut FFI_ArrowArray;
 
+        // Mirror structs to access private fields in arrow FFI structures
+        // This is necessary to null out the release pointer after taking ownership
+        // to prevent double free when the Python capsule is dropped.
+        #[repr(C)]
+        struct FFI_ArrowArrayMirror {
+            _length: i64,
+            _null_count: i64,
+            _offset: i64,
+            _n_buffers: i64,
+            _n_children: i64,
+            _buffers: *mut *const std::ffi::c_void,
+            _children: *mut *mut FFI_ArrowArray,
+            _dictionary: *mut FFI_ArrowArray,
+            release: Option<unsafe extern "C" fn(*mut FFI_ArrowArray)>,
+            _private_data: *mut std::ffi::c_void,
+        }
+
+        #[repr(C)]
+        struct FFI_ArrowSchemaMirror {
+            _format: *const std::ffi::c_char,
+            _name: *const std::ffi::c_char,
+            _metadata: *const std::ffi::c_char,
+            _flags: i64,
+            _n_children: i64,
+            _children: *mut *mut FFI_ArrowSchema,
+            _dictionary: *mut FFI_ArrowSchema,
+            release: Option<unsafe extern "C" fn(*mut FFI_ArrowSchema)>,
+            _private_data: *mut std::ffi::c_void,
+        }
+
         // Import using Arrow FFI
         let array_data = unsafe {
-            arrow::ffi::from_ffi(array_ptr.read(), &schema_ptr.read()).map_err(|e| {
+            let array_val = array_ptr.read();
+            let schema_val = schema_ptr.read();
+
+            // Null out original release pointers using mirror structs
+            let mirrored_array = array_ptr as *mut FFI_ArrowArrayMirror;
+            let mirrored_schema = schema_ptr as *mut FFI_ArrowSchemaMirror;
+            (*mirrored_array).release = None;
+            (*mirrored_schema).release = None;
+
+            arrow::ffi::from_ffi(array_val, &schema_val).map_err(|e| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "Failed to import PyArrow RecordBatch via C Data Interface: {}",
                     e
@@ -416,7 +455,9 @@ impl PyDiffusionQuantConfig {
         enable_memory_aware_scheduling=true,
         max_memory_limit_mb=None,
         enable_mixed_precision=false,
-        skip_sensitive_layers=false
+        skip_sensitive_layers=false,
+        enable_simd=true,
+        simd_threshold=128
     ))]
     /// Create a new DiffusionQuantConfig with customizable parameters.
     ///
@@ -449,6 +490,8 @@ impl PyDiffusionQuantConfig {
     ///     max_memory_limit_mb: Maximum memory limit in MB (None for unlimited). Default: None
     ///     enable_mixed_precision: Enable mixed-precision quantization. Default: False
     ///     skip_sensitive_layers: Skip quantization of sensitive layers. Default: False
+    ///     enable_simd: Enable SIMD acceleration for quantization kernels. Default: True
+    ///     simd_threshold: Threshold for switching from scalar to SIMD. Default: 128
     ///
     /// Returns:
     ///     DiffusionQuantConfig: Configuration instance
@@ -505,6 +548,8 @@ impl PyDiffusionQuantConfig {
         max_memory_limit_mb: Option<usize>,
         enable_mixed_precision: bool,
         skip_sensitive_layers: bool,
+        enable_simd: bool,
+        simd_threshold: usize,
     ) -> PyResult<Self> {
         let profile = match deployment_profile {
             "edge" => DeploymentProfile::Edge,
@@ -581,6 +626,8 @@ impl PyDiffusionQuantConfig {
                 max_memory_limit_mb,
                 thermodynamic: thermodynamic_config,
                 use_arrow: true, // Enable Arrow zero-copy by default
+                enable_simd,
+                simd_threshold,
             },
         })
     }
@@ -661,15 +708,21 @@ impl ArrowQuantV2 {
     ///
     /// **Validates: Requirements REQ-2.5.2** - Python API
     fn new(mode: &str) -> PyResult<Self> {
-        if mode != "diffusion" && mode != "base" {
+        let normalized_mode = if mode == "time_aware" {
+            "diffusion"
+        } else {
+            mode
+        };
+
+        if normalized_mode != "diffusion" && normalized_mode != "base" {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Invalid mode. Must be 'diffusion' or 'base'",
+                "Invalid mode. Must be 'diffusion', 'time_aware', or 'base'",
             ));
         }
 
         Ok(Self {
             orchestrator: None,
-            mode: mode.to_string(),
+            mode: normalized_mode.to_string(),
         })
     }
 
@@ -1017,16 +1070,6 @@ impl ArrowQuantV2 {
             }
             Ok(dict)
         })
-    }
-
-    /// Simple test method to debug pymethods export
-    fn simple_test(&self) -> String {
-        "simple_test_works".to_string()
-    }
-
-    /// Test method to verify pymethods block is working
-    fn test_method(&self) -> String {
-        "test".to_string()
     }
 
     /// Get thermodynamic validation metrics from the last quantization.
@@ -3064,6 +3107,81 @@ impl ArrowQuantV2 {
         // Wrap in Python class
         Ok(PyArrowQuantizedLayer { inner: arrow_layer })
     }
+
+    /// Quantize a single layer with automatic SIMD detection (AVX2/AVX-512/NEON).
+    ///
+    /// This method provides the highest performance for single-layer quantization
+    /// by automatically detecting CPU features and using the most efficient
+    /// quantization kernel available. Ideal for interactive exploration.
+    ///
+    /// Args:
+    ///     weights: Flat numpy array of float32 weights
+    ///     params: List of dictionaries containing time group parameters:
+    ///            - scale: float
+    ///            - zero_point: float
+    ///            - group_size: int
+    ///            - time_range: tuple[int, int]
+    ///     enable_simd: Whether to use SIMD acceleration. Default: True
+    ///
+    /// Returns:
+    ///     dict: Quantization results {'quantized_data': bytes, 'scales': list, 'zero_points': list}
+    #[pyo3(signature = (weights, params, enable_simd=true))]
+    fn quantize_layer_auto(
+        &self,
+        weights: &Bound<'_, PyAny>,
+        params: &Bound<'_, pyo3::types::PyList>,
+        enable_simd: bool,
+    ) -> PyResult<PyObject> {
+        let (weights_vec, _shape) = self.extract_numpy_array(weights, "auto_layer")?;
+
+        let mut time_group_params = Vec::with_capacity(params.len());
+        for item in params.iter() {
+            let dict = item.downcast::<pyo3::types::PyDict>().map_err(|_| {
+                pyo3::exceptions::PyTypeError::new_err("Params must be a list of dictionaries")
+            })?;
+            
+            let scale: f32 = dict.get_item("scale")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'scale'"))?.extract()?;
+            let zero_point: f32 = dict.get_item("zero_point")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'zero_point'"))?.extract()?;
+            let group_size: usize = dict.get_item("group_size")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'group_size'"))?.extract()?;
+            let time_range: (usize, usize) = dict.get_item("time_range")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'time_range'"))?.extract()?;
+            
+            time_group_params.push(crate::time_aware::TimeGroupParams {
+                time_range,
+                scale,
+                zero_point,
+                group_size,
+            });
+        }
+
+        // Use orchestrator if available, otherwise create a temporary one for defaults
+        let result = if let Some(ref orchestrator) = self.orchestrator {
+            orchestrator.time_aware_quantizer().quantize_layer_auto(&weights_vec, &time_group_params, enable_simd)
+                .map_err(convert_error)?
+        } else {
+            // Fallback: create default quantizer
+            let quantizer = crate::time_aware::TimeAwareQuantizer::new(time_group_params.len());
+            quantizer.quantize_layer_auto(&weights_vec, &time_group_params, enable_simd)
+                .map_err(convert_error)?
+        };
+
+        Python::with_gil(|py| {
+            let result_dict = pyo3::types::PyDict::new_bound(py);
+            result_dict.set_item(
+                "quantized_data",
+                pyo3::types::PyBytes::new_bound(py, result.quantized_data().values()),
+            )?;
+            let scales: Vec<f32> = result.time_group_params.iter().map(|p| p.scale).collect();
+            let zero_points: Vec<f32> = result
+                .time_group_params
+                .iter()
+                .map(|p| p.zero_point)
+                .collect();
+            result_dict.set_item("scales", scales)?;
+            result_dict.set_item("zero_points", zero_points)?;
+
+            Ok(result_dict.to_object(py))
+        })
+    }
 }
 
 impl ArrowQuantV2 {
@@ -3075,54 +3193,27 @@ impl ArrowQuantV2 {
         config: DiffusionQuantConfig,
         progress_reporter: &ProgressReporter,
     ) -> crate::errors::Result<crate::orchestrator::QuantizationResult> {
-        use crate::safetensors_to_parquet::convert_safetensors_to_parquet;
-        use tempfile::TempDir;
-
-        // Step 1: Convert SafeTensors to Parquet (10% - 40% progress)
-        progress_reporter.report("Converting SafeTensors to Parquet format...", 0.10);
-
-        // Create temporary directory for Parquet files
-        let temp_dir = TempDir::new().map_err(|e| {
-            crate::errors::QuantError::IoError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Failed to create temp directory: {}", e),
-            ))
-        })?;
-        let parquet_path = temp_dir.path().to_path_buf();
-
-        // Convert SafeTensors → Parquet
-        let modality =
-            convert_safetensors_to_parquet(safetensors_path, &parquet_path, config.modality)?;
-
-        progress_reporter.report("SafeTensors conversion complete", 0.40);
-
-        // Step 2: Create orchestrator with detected modality
-        progress_reporter.report("Initializing quantization orchestrator...", 0.45);
-
+        // Dimension A: Direct streaming zero-copy quantization from SafeTensors
+        progress_reporter.report("Dimension A: Direct streaming zero-copy quantization...", 0.10);
         let mut quant_config = config.clone();
-        if quant_config.modality.is_none() {
-            quant_config.modality = Some(modality);
-        }
+
+        // Detect modality from SafeTensors metadata
+        let is_sharded = crate::sharded_safetensors::is_sharded_model(safetensors_path);
+        let modality = if is_sharded {
+            if let Ok(adapter) = crate::sharded_safetensors::ShardedSafeTensorsAdapter::load(&crate::sharded_safetensors::find_index_file(safetensors_path)?) {
+                adapter.detect_modality().map(|m| crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(crate::config::Modality::Text)).unwrap_or(crate::config::Modality::Text)
+            } else { crate::config::Modality::Text }
+        } else {
+            if let Ok(adapter) = crate::safetensors_adapter::SafeTensorsAdapter::load(safetensors_path) {
+                adapter.detect_modality().map(|m| crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(crate::config::Modality::Text)).unwrap_or(crate::config::Modality::Text)
+            } else { crate::config::Modality::Text }
+        };
+        quant_config.modality = Some(modality);
 
         let orchestrator = DiffusionOrchestrator::new(quant_config)?;
-
-        // Store orchestrator for potential future use
         self.orchestrator = Some(orchestrator.clone());
-
-        progress_reporter.report("Orchestrator initialized", 0.50);
-
-        // Step 3: Quantize Parquet model (50% - 95% progress)
-        progress_reporter.report("Quantizing model layers...", 0.55);
-
-        let result = orchestrator.quantize_model(&parquet_path, output_path)?;
-
-        progress_reporter.report("Quantization complete", 0.95);
-
-        // Step 4: Cleanup temp directory (automatic via Drop)
-        drop(temp_dir);
-
-        progress_reporter.report("Cleanup complete", 1.0);
-
+        let result = orchestrator.quantize_model_streaming(safetensors_path, output_path)?;
+        progress_reporter.report("Quantization complete", 1.0);
         Ok(result)
     }
 
@@ -3502,6 +3593,15 @@ pub fn convert_error(err: crate::errors::QuantError) -> PyErr {
             QuantizationError::new_err(format!(
                 "Storage error: {}. \
                 Hint: Check file paths, permissions, and disk space.",
+                msg
+            ))
+        }
+
+        // Out of memory errors
+        QuantError::OutOfMemory(msg) => {
+            QuantizationError::new_err(format!(
+                "Out of memory: {}. \
+                Hint: Try reducing batch size, using smaller models, or increasing available memory.",
                 msg
             ))
         }

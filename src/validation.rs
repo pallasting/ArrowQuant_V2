@@ -22,7 +22,7 @@ pub struct ValidationSystem {
 }
 
 impl ValidationSystem {
-    /// Create new validation system
+    // Create new validation system
     pub fn new(min_accuracy: f32) -> Self {
         Self {
             min_accuracy,
@@ -30,23 +30,23 @@ impl ValidationSystem {
         }
     }
 
-    /// Set bit-width for validation reporting
+    // Set bit-width for validation reporting
     pub fn set_bit_width(&mut self, bit_width: u8) {
         self.bit_width = Some(bit_width);
     }
 
-    /// Create new validation system with bit-width-specific thresholds
-    ///
-    /// Uses standard thresholds based on bit width:
-    /// - INT2: cosine_similarity >= 0.70
-    /// - INT4: cosine_similarity >= 0.90
-    /// - INT8: cosine_similarity >= 0.95
-    ///
-    /// # Arguments
-    /// * `bit_width` - Target bit width (2, 4, or 8)
-    ///
-    /// # Returns
-    /// ValidationSystem with appropriate threshold for the bit width
+    // Create new validation system with bit-width-specific thresholds
+    //
+    // Uses standard thresholds based on bit width:
+    // - INT2: cosine_similarity >= 0.70
+    // - INT4: cosine_similarity >= 0.90
+    // - INT8: cosine_similarity >= 0.95
+    //
+    // # Arguments
+    // * `bit_width` - Target bit width (2, 4, or 8)
+    //
+    // # Returns
+    // ValidationSystem with appropriate threshold for the bit width
     pub fn new_with_bit_width(bit_width: u8) -> Self {
         let min_accuracy = Self::get_threshold_for_bit_width(bit_width);
         Self {
@@ -55,13 +55,13 @@ impl ValidationSystem {
         }
     }
 
-    /// Get standard quality threshold for a given bit width
-    ///
-    /// # Arguments
-    /// * `bit_width` - Target bit width (2, 4, or 8)
-    ///
-    /// # Returns
-    /// Minimum cosine similarity threshold
+    // Get standard quality threshold for a given bit width
+    //
+    // # Arguments
+    // * `bit_width` - Target bit width (2, 4, or 8)
+    //
+    // # Returns
+    // Minimum cosine similarity threshold
     fn get_threshold_for_bit_width(bit_width: u8) -> f32 {
         match bit_width {
             2 => 0.70, // INT2: Lower threshold due to aggressive quantization
@@ -71,17 +71,17 @@ impl ValidationSystem {
         }
     }
 
-    /// Validate quantization quality
-    ///
-    /// Computes per-layer cosine similarity between original and quantized models,
-    /// generates statistics, and produces a validation report.
-    ///
-    /// # Arguments
-    /// * `original_path` - Path to original model directory
-    /// * `quantized_path` - Path to quantized model directory
-    ///
-    /// # Returns
-    /// ValidationReport with cosine similarity, per-layer accuracy, compression ratio, etc.
+    // Validate quantization quality
+    //
+    // Computes per-layer cosine similarity between original and quantized models,
+    // generates statistics, and produces a validation report.
+    //
+    // # Arguments
+    // * `original_path` - Path to original model directory
+    // * `quantized_path` - Path to quantized model directory
+    //
+    // # Returns
+    // ValidationReport with cosine similarity, per-layer accuracy, compression ratio, etc.
     pub fn validate_quality(
         &self,
         original_path: &Path,
@@ -213,40 +213,26 @@ impl ValidationSystem {
         })
     }
 
-    /// Cosine similarity implementation continues below...
-    /// (rest of the methods remain unchanged)
+    // Cosine similarity implementation continues below...
+    // (rest of the methods remain unchanged)
 
-    /// Compute cosine similarity between two vectors using SIMD acceleration
-    ///
-    /// Uses simsimd library for optimal SIMD performance across platforms.
-    /// Falls back to scalar implementation if SIMD is not available.
-    ///
-    /// # Arguments
-    /// * `a` - First vector
-    /// * `b` - Second vector
-    ///
-    /// # Returns
-    /// Cosine similarity in range [0, 1], or 0.0 if vectors are invalid
+    // Compute cosine similarity between two vectors using SIMD acceleration
+    //
+    // Uses simsimd library for optimal SIMD performance across platforms.
+    // Falls back to scalar implementation if SIMD is not available.
+    //
+    // # Arguments
+    // * `a` - First vector
+    // * `b` - Second vector
+    //
+    // # Returns
+    // Cosine similarity in range [0, 1], or 0.0 if vectors are invalid
+    #[inline(always)]
     pub fn cosine_similarity(&self, a: &[f32], b: &[f32]) -> f32 {
-        if a.len() != b.len() || a.is_empty() {
-            return 0.0;
-        }
-
-        // Use simsimd for SIMD-accelerated cosine similarity
-        // simsimd automatically selects the best SIMD instruction set (AVX2, NEON, etc.)
-        if let Some(distance) = simsimd::SpatialSimilarity::cosine(a, b) {
-            // simsimd returns cosine distance (1 - cosine_similarity)
-            // Convert to similarity: similarity = 1 - distance
-            let similarity: f32 = 1.0 - distance as f32;
-            // Clamp to [0, 1] to handle floating point errors
-            similarity.max(0.0).min(1.0)
-        } else {
-            // Fallback to scalar implementation if SIMD fails
-            self.cosine_similarity_scalar(a, b)
-        }
+        crate::simd::cosine_similarity_simd(a, b)
     }
 
-    /// Scalar fallback for cosine similarity computation
+    // Scalar fallback for cosine similarity computation
     fn cosine_similarity_scalar(&self, a: &[f32], b: &[f32]) -> f32 {
         let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
         let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -259,17 +245,17 @@ impl ValidationSystem {
         dot / (norm_a * norm_b)
     }
 
-    /// Compute cosine similarity for batched vectors
-    ///
-    /// Efficiently computes cosine similarity for multiple vector pairs.
-    /// Uses parallel processing with rayon for improved performance.
-    ///
-    /// # Arguments
-    /// * `batch_a` - Slice of first vectors
-    /// * `batch_b` - Slice of second vectors
-    ///
-    /// # Returns
-    /// Vector of cosine similarities, one per pair
+    // Compute cosine similarity for batched vectors
+    //
+    // Efficiently computes cosine similarity for multiple vector pairs.
+    // Uses parallel processing with rayon for improved performance.
+    //
+    // # Arguments
+    // * `batch_a` - Slice of first vectors
+    // * `batch_b` - Slice of second vectors
+    //
+    // # Returns
+    // Vector of cosine similarities, one per pair
     pub fn cosine_similarity_batch(&self, batch_a: &[&[f32]], batch_b: &[&[f32]]) -> Vec<f32> {
         use rayon::prelude::*;
 
@@ -285,7 +271,7 @@ impl ValidationSystem {
             .collect()
     }
 
-    /// Compute directory size
+    // Compute directory size
     fn compute_size(&self, path: &Path) -> Result<u64> {
         if !path.exists() {
             return Ok(0);
@@ -309,10 +295,10 @@ impl ValidationSystem {
         Ok(total_size)
     }
 
-    /// Load model layers from directory
-    ///
-    /// Loads all .parquet files from the model directory and extracts weight tensors.
-    /// Returns a HashMap mapping layer names to flattened weight vectors.
+    // Load model layers from directory
+    //
+    // Loads all .parquet files from the model directory and extracts weight tensors.
+    // Returns a HashMap mapping layer names to flattened weight vectors.
     fn load_model_layers(&self, model_path: &Path) -> Result<HashMap<String, Vec<f32>>> {
         let mut layers = HashMap::new();
 
@@ -363,7 +349,7 @@ impl ValidationSystem {
         Ok(layers)
     }
 
-    /// Extract weights from a Parquet file (with dequantization support)
+    // Extract weights from a Parquet file (with dequantization support)
     fn extract_weights_from_parquet(&self, path: &Path) -> Result<Vec<f32>> {
         use crate::schema::ParquetV2Extended;
 
@@ -439,7 +425,7 @@ impl ValidationSystem {
         Ok(weights)
     }
 
-    /// Compute statistics for a set of similarity values
+    // Compute statistics for a set of similarity values
     fn compute_statistics(&self, values: &[f32]) -> Statistics {
         if values.is_empty() {
             return Statistics {
@@ -1063,8 +1049,8 @@ mod property_tests {
     use super::*;
     use proptest::prelude::*;
 
-    /// **Validates: Requirements 9.1, 9.2**
-    /// Property: Cosine similarity must always be in the range [0, 1]
+    // **Validates: Requirements 9.1, 9.2**
+    // Property: Cosine similarity must always be in the range [0, 1]
     proptest! {
         #[test]
         fn prop_cosine_similarity_bounded(
@@ -1086,8 +1072,8 @@ mod property_tests {
         }
     }
 
-    /// **Validates: Requirements 9.1**
-    /// Property: Identical vectors should have similarity = 1.0
+    // **Validates: Requirements 9.1**
+    // Property: Identical vectors should have similarity = 1.0
     proptest! {
         #[test]
         fn prop_cosine_similarity_identical(
@@ -1109,8 +1095,8 @@ mod property_tests {
         }
     }
 
-    /// **Validates: Requirements 9.1**
-    /// Property: Cosine similarity is symmetric
+    // **Validates: Requirements 9.1**
+    // Property: Cosine similarity is symmetric
     proptest! {
         #[test]
         fn prop_cosine_similarity_symmetric(
@@ -1133,8 +1119,8 @@ mod property_tests {
         }
     }
 
-    /// **Validates: Requirements 9.1**
-    /// Property: Scaling vectors doesn't change similarity
+    // **Validates: Requirements 9.1**
+    // Property: Scaling vectors doesn't change similarity
     proptest! {
         #[test]
         fn prop_cosine_similarity_scale_invariant(
@@ -1170,8 +1156,8 @@ mod property_tests {
         }
     }
 
-    /// **Validates: Requirements 9.2**
-    /// Property: Statistics should be consistent with input values
+    // **Validates: Requirements 9.2**
+    // Property: Statistics should be consistent with input values
     proptest! {
         #[test]
         fn prop_statistics_bounds(
@@ -1198,8 +1184,8 @@ mod property_tests {
         }
     }
 
-    /// **Validates: Requirements 9.3, 9.4**
-    /// Property: Threshold checking should be consistent
+    // **Validates: Requirements 9.3, 9.4**
+    // Property: Threshold checking should be consistent
     proptest! {
         #[test]
         fn prop_threshold_checking_consistent(
@@ -1218,8 +1204,8 @@ mod property_tests {
         }
     }
 
-    /// **Validates: Requirements 9.1**
-    /// Property: Batch cosine similarity should match individual computations
+    // **Validates: Requirements 9.1**
+    // Property: Batch cosine similarity should match individual computations
     proptest! {
         #[test]
         fn prop_batch_similarity_matches_individual(

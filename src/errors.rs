@@ -62,8 +62,18 @@ pub enum QuantError {
     #[error("Storage error: {0}")]
     Storage(String),
 
+    #[error("Out of memory: {0}")]
+    OutOfMemory(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
+}
+
+impl QuantError {
+    /// Check if this error is an out-of-memory error
+    pub fn is_out_of_memory(&self) -> bool {
+        matches!(self, QuantError::OutOfMemory(_))
+    }
 }
 
 #[cfg(feature = "python")]

@@ -120,9 +120,10 @@ impl SpatialQuantizer {
     /// assert_eq!(quantized.group_size, 64);
     /// assert_eq!(quantized.scales.len(), 2); // 128 channels / 64 = 2 groups
     /// ```
+    #[inline(always)]
     pub fn per_group_quantize(&self, weights: &Array2<f32>) -> Result<QuantizedSpatialLayer> {
         let num_channels = weights.shape()[0];
-        let num_groups = (num_channels + self.group_size - 1) / self.group_size;
+        let num_groups = num_channels.div_ceil(self.group_size);
 
         let mut quantized_data = Vec::new();
         let mut scales = Vec::new();
@@ -159,6 +160,7 @@ impl SpatialQuantizer {
     }
 
     /// Quantize a single group
+    #[inline(always)]
     fn quantize_group(&self, group: &ArrayView2<f32>, scale: f32, zero_point: f32) -> Vec<u8> {
         group
             .iter()
