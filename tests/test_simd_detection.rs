@@ -8,12 +8,16 @@ use arrow_quant_v2::simd::{is_simd_available, SimdWidth};
 #[test]
 fn test_simd_detection_returns_valid_width() {
     let simd_width = is_simd_available();
-    
+
     // Verify that we get a valid SIMD width
     assert!(simd_width.width() >= 1);
     assert!(simd_width.width() <= 16);
-    
-    println!("Detected SIMD width: {:?} ({} elements)", simd_width, simd_width.width());
+
+    println!(
+        "Detected SIMD width: {:?} ({} elements)",
+        simd_width,
+        simd_width.width()
+    );
 }
 
 #[test]
@@ -22,7 +26,7 @@ fn test_simd_detection_consistency() {
     let width1 = is_simd_available();
     let width2 = is_simd_available();
     let width3 = is_simd_available();
-    
+
     assert_eq!(width1, width2);
     assert_eq!(width2, width3);
 }
@@ -30,10 +34,13 @@ fn test_simd_detection_consistency() {
 #[test]
 fn test_simd_width_properties() {
     let simd_width = is_simd_available();
-    
+
     // Test that width() and is_available() are consistent
     if simd_width.is_available() {
-        assert!(simd_width.width() > 1, "SIMD width should be > 1 when available");
+        assert!(
+            simd_width.width() > 1,
+            "SIMD width should be > 1 when available"
+        );
     } else {
         assert_eq!(simd_width.width(), 1, "Scalar fallback should have width 1");
         assert_eq!(simd_width, SimdWidth::None);
@@ -44,7 +51,7 @@ fn test_simd_width_properties() {
 #[cfg(target_arch = "x86_64")]
 fn test_x86_64_simd_hierarchy() {
     let simd_width = is_simd_available();
-    
+
     // On x86_64, verify the detection hierarchy
     match simd_width {
         SimdWidth::Avx512 => {
@@ -73,12 +80,12 @@ fn test_x86_64_simd_hierarchy() {
 #[cfg(target_arch = "aarch64")]
 fn test_aarch64_neon_detection() {
     let simd_width = is_simd_available();
-    
+
     // On ARM64, NEON should always be available
     assert_eq!(simd_width, SimdWidth::Neon);
     assert_eq!(simd_width.width(), 4);
     assert!(simd_width.is_available());
-    
+
     println!("✓ NEON detected on ARM64 (4-wide SIMD)");
 }
 
@@ -94,20 +101,20 @@ fn test_simd_width_enum_ordering() {
 fn test_simd_detection_for_quantization() {
     // Simulate how the quantization code would use SIMD detection
     let simd_width = is_simd_available();
-    
+
     let data_size = 1000;
     let chunk_size = simd_width.width();
     let num_chunks = data_size / chunk_size;
     let remainder = data_size % chunk_size;
-    
+
     println!("Data size: {}", data_size);
     println!("SIMD width: {}", chunk_size);
     println!("Number of SIMD chunks: {}", num_chunks);
     println!("Remainder (scalar): {}", remainder);
-    
+
     // Verify calculations
     assert_eq!(num_chunks * chunk_size + remainder, data_size);
-    
+
     if simd_width.is_available() {
         assert!(num_chunks > 0, "Should have at least one SIMD chunk");
     }
@@ -116,7 +123,7 @@ fn test_simd_detection_for_quantization() {
 #[test]
 fn test_simd_fallback_behavior() {
     let simd_width = is_simd_available();
-    
+
     // Test that we can always fall back to scalar processing
     if !simd_width.is_available() {
         assert_eq!(simd_width, SimdWidth::None);

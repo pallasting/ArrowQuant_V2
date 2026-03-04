@@ -1,9 +1,9 @@
 //! Time-aware quantization for diffusion models
 
+use crate::buffer_pool::BufferPool;
 use crate::config::ThermodynamicConfig;
 use crate::errors::{QuantError, Result};
 use crate::thermodynamic::{BoundarySmoother, MarkovValidator, ThermodynamicMetrics};
-use crate::buffer_pool::BufferPool;
 use arrow::datatypes::{DataType, Field, Schema};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
@@ -392,8 +392,6 @@ pub struct TimeAwareQuantizer {
     pub simd_config: SimdQuantConfig,
 }
 
-
-
 impl TimeAwareQuantizer {
     /// Create new time-aware quantizer
     pub fn new(num_time_groups: usize) -> Self {
@@ -499,14 +497,14 @@ impl TimeAwareQuantizer {
     ) -> Result<Vec<ArrowQuantizedLayer>> {
         // Reset stats to measure this batch
         self.reset_buffer_stats();
-        
+
         let mut results = Vec::with_capacity(layers.len());
-        
+
         for (weights, params) in layers {
             let quantized = self.quantize_layer_arrow(weights, params)?;
             results.push(quantized);
         }
-        
+
         Ok(results)
     }
 
@@ -673,7 +671,7 @@ impl TimeAwareQuantizer {
         } else {
             num_groups
         };
-        
+
         let group_size = weights.len().div_ceil(effective_num_groups);
 
         // Optimization (Requirement 1.2): Directly create the Arrow array without intermediate Vec
@@ -943,8 +941,11 @@ impl TimeAwareQuantizer {
         )?;
 
         // Step 2: Quantize each element using its time group's parameters (zero-copy)
-        let quantized_data =
-            self.quantize_with_group_assignments(weights, time_group_ids.values(), time_group_params)?;
+        let quantized_data = self.quantize_with_group_assignments(
+            weights,
+            time_group_ids.values(),
+            time_group_params,
+        )?;
 
         // Step 2.5: Validate quantized results
         self.validate_quantized_results(&quantized_data, weights.len())?;
@@ -973,7 +974,10 @@ impl TimeAwareQuantizer {
                 Arc::new(zero_point_dict),
                 Arc::new(original_index_array),
             ],
-        ).map_err(|e| crate::errors::QuantError::Internal(format!("Failed to create RecordBatch: {}", e)))?;
+        )
+        .map_err(|e| {
+            crate::errors::QuantError::Internal(format!("Failed to create RecordBatch: {}", e))
+        })?;
 
         // Step 6: Create ArrowQuantizedLayer
         let mut layer = ArrowQuantizedLayer::new(batch, time_group_params.to_vec())?;
@@ -1078,7 +1082,8 @@ impl TimeAwareQuantizer {
                     );
 
                     // Assign time groups for this chunk
-                    let chunk_group_ids = self.assign_time_groups(chunk_weights, time_group_params)
+                    let chunk_group_ids = self
+                        .assign_time_groups(chunk_weights, time_group_params)
                         .map_err(|e| {
                             // Clean up on error
                             all_quantized_data.clear();
@@ -1090,19 +1095,21 @@ impl TimeAwareQuantizer {
                         })?;
 
                     // Quantize this chunk
-                    let chunk_quantized = self.quantize_with_group_assignments(
-                        chunk_weights,
-                        chunk_group_ids.values(),
-                        time_group_params,
-                    ).map_err(|e| {
-                        // Clean up on error
-                        all_quantized_data.clear();
-                        all_time_group_ids.clear();
-                        QuantError::QuantizationFailed(format!(
-                            "Failed to quantize chunk {}: {}",
-                            chunk_idx, e
-                        ))
-                    })?;
+                    let chunk_quantized = self
+                        .quantize_with_group_assignments(
+                            chunk_weights,
+                            chunk_group_ids.values(),
+                            time_group_params,
+                        )
+                        .map_err(|e| {
+                            // Clean up on error
+                            all_quantized_data.clear();
+                            all_time_group_ids.clear();
+                            QuantError::QuantizationFailed(format!(
+                                "Failed to quantize chunk {}: {}",
+                                chunk_idx, e
+                            ))
+                        })?;
 
                     // Append to results
                     all_quantized_data.extend_from_slice(&chunk_quantized);
@@ -1216,7 +1223,7 @@ impl TimeAwareQuantizer {
 
         // Use buffer pool for efficient memory reuse
         let mut buffer = self.buffer_pool.acquire(weights.len());
-        
+
         let simd_available = is_simd_available();
         let use_simd = self.simd_config.enabled && simd_available.is_available();
 
@@ -1224,7 +1231,7 @@ impl TimeAwareQuantizer {
             let mut current_idx = 0;
             while current_idx < weights.len() {
                 let first_gid = time_group_ids[current_idx];
-                
+
                 // Validate group_id
                 if (first_gid as usize) >= time_group_params.len() {
                     self.buffer_pool.release(buffer);
@@ -1240,14 +1247,14 @@ impl TimeAwareQuantizer {
                 while end_idx < weights.len() && time_group_ids[end_idx] == first_gid {
                     end_idx += 1;
                 }
-                
+
                 let chunk_weights = &weights[current_idx..end_idx];
                 let params = &time_group_params[first_gid as usize];
-                
+
                 // Apply SIMD to this contiguous chunk
                 let quantized = quantize_simd(chunk_weights, params.scale, params.zero_point);
                 buffer.extend_from_slice(&quantized);
-                
+
                 current_idx = end_idx;
             }
             return Ok(buffer);
@@ -1270,7 +1277,7 @@ impl TimeAwareQuantizer {
                 .clamp(0.0, 255.0);
             buffer.push(quantized as u8);
         }
-        
+
         Ok(buffer)
     }
 
@@ -1354,30 +1361,41 @@ impl TimeAwareQuantizer {
         zero_points: &arrow::array::Float32Array,
         group_ids: &arrow::array::UInt32Array,
     ) -> Result<arrow::array::Float32Array> {
-        use arrow::compute::kernels::arity::binary;
         use arrow::compute::cast;
+        use arrow::compute::kernels::arity::binary;
         use arrow::compute::take;
 
         // 1. Cast quantized data to f32
         let q_f32 = cast(quantized, &arrow::datatypes::DataType::Float32)
             .map_err(|e| QuantError::QuantizationFailed(format!("Cast failed: {}", e)))?;
-        let q_f32 = q_f32.as_any().downcast_ref::<arrow::array::Float32Array>().unwrap();
+        let q_f32 = q_f32
+            .as_any()
+            .downcast_ref::<arrow::array::Float32Array>()
+            .unwrap();
 
         // 2. Map group parameters to element-wise arrays using Arrow's 'take' kernel
         // This is much faster and more memory-friendly than manual looping for large arrays
         let element_scales_dyn = take(scales, group_ids, None)
             .map_err(|e| QuantError::QuantizationFailed(format!("Take scales failed: {}", e)))?;
-        let element_scales = element_scales_dyn.as_any().downcast_ref::<arrow::array::Float32Array>().unwrap();
+        let element_scales = element_scales_dyn
+            .as_any()
+            .downcast_ref::<arrow::array::Float32Array>()
+            .unwrap();
 
-        let element_zps_dyn = take(zero_points, group_ids, None)
-            .map_err(|e| QuantError::QuantizationFailed(format!("Take zero_points failed: {}", e)))?;
-        let element_zps = element_zps_dyn.as_any().downcast_ref::<arrow::array::Float32Array>().unwrap();
+        let element_zps_dyn = take(zero_points, group_ids, None).map_err(|e| {
+            QuantError::QuantizationFailed(format!("Take zero_points failed: {}", e))
+        })?;
+        let element_zps = element_zps_dyn
+            .as_any()
+            .downcast_ref::<arrow::array::Float32Array>()
+            .unwrap();
 
         // 3. Compute: (q - zp) * scale
         let subtracted: arrow::array::Float32Array = binary(q_f32, element_zps, |q, zp| q - zp)
             .map_err(|e| QuantError::QuantizationFailed(format!("Subtract failed: {}", e)))?;
-        let results: arrow::array::Float32Array = binary(&subtracted, element_scales, |s, sc| s * sc)
-            .map_err(|e| QuantError::QuantizationFailed(format!("Multiply failed: {}", e)))?;
+        let results: arrow::array::Float32Array =
+            binary(&subtracted, element_scales, |s, sc| s * sc)
+                .map_err(|e| QuantError::QuantizationFailed(format!("Multiply failed: {}", e)))?;
 
         Ok(results)
     }
@@ -2636,7 +2654,9 @@ impl QuantizedLayer {
     /// Accessor for legacy time_group_params (for testing and backward compatibility)
     pub fn time_group_params(&self) -> &Vec<TimeGroupParams> {
         match self {
-            Self::Legacy { time_group_params, .. } => time_group_params,
+            Self::Legacy {
+                time_group_params, ..
+            } => time_group_params,
             Self::Arrow(arrow_layer) => &arrow_layer.time_group_params,
         }
     }
@@ -2735,11 +2755,18 @@ impl QuantizedLayer {
                 let scale_values = Arc::new(Float32Array::from(final_scales));
                 let zp_values = Arc::new(Float32Array::from(final_zp));
 
-                let scale_dict = DictionaryArray::try_new(keys.clone(), scale_values).map_err(|e| {
-                    QuantError::QuantizationFailed(format!("Failed to create scale dictionary: {}", e))
-                })?;
+                let scale_dict =
+                    DictionaryArray::try_new(keys.clone(), scale_values).map_err(|e| {
+                        QuantError::QuantizationFailed(format!(
+                            "Failed to create scale dictionary: {}",
+                            e
+                        ))
+                    })?;
                 let zp_dict = DictionaryArray::try_new(keys, zp_values).map_err(|e| {
-                    QuantError::QuantizationFailed(format!("Failed to create zero_point dictionary: {}", e))
+                    QuantError::QuantizationFailed(format!(
+                        "Failed to create zero_point dictionary: {}",
+                        e
+                    ))
                 })?;
 
                 let original_index_array = arrow::array::UInt64Array::new_null(num_elements);
@@ -3219,9 +3246,11 @@ mod tests {
             let end = (i + 1) * 10;
             for (j, group_id) in assignments.iter().enumerate().take(end).skip(start) {
                 assert_eq!(
-                    group_id, Some(i as u32),
+                    group_id,
+                    Some(i as u32),
                     "Element {} should be in group {}",
-                    j, i
+                    j,
+                    i
                 );
             }
         }

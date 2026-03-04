@@ -8,7 +8,6 @@
 /// - Arbitrary-length arrays
 ///
 /// **Validates: Requirements 3.1, 3.3, 3.7**
-
 use arrow_quant_v2::time_aware::{ActivationStats, TimeAwareQuantizer, TimeGroupParams};
 
 #[test]
@@ -45,7 +44,12 @@ fn test_simd_workflow_basic() {
     // All values should be in [0, 255] range
     for i in 0..16 {
         let val = data.value(i);
-        assert!(val <= 255, "Quantized value {} at index {} should be <= 255", val, i);
+        assert!(
+            val <= 255,
+            "Quantized value {} at index {} should be <= 255",
+            val,
+            i
+        );
     }
 }
 
@@ -73,13 +77,24 @@ fn test_simd_workflow_arbitrary_length() {
         let result = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
 
         // Verify correct length
-        assert_eq!(result.len(), len, "Result length should match input length for len={}", len);
+        assert_eq!(
+            result.len(),
+            len,
+            "Result length should match input length for len={}",
+            len
+        );
 
         // Verify all values are valid
         let data = result.quantized_data();
         for i in 0..len {
             let val = data.value(i);
-            assert!(val <= 255, "Quantized value {} at index {} should be <= 255 (len={})", val, i, len);
+            assert!(
+                val <= 255,
+                "Quantized value {} at index {} should be <= 255 (len={})",
+                val,
+                i,
+                len
+            );
         }
     }
 }
@@ -154,7 +169,12 @@ fn test_simd_workflow_large_array() {
     // Spot check some values
     for i in (0..10000).step_by(1000) {
         let val = data.value(i);
-        assert!(val <= 255, "Quantized value {} at index {} should be <= 255", val, i);
+        assert!(
+            val <= 255,
+            "Quantized value {} at index {} should be <= 255",
+            val,
+            i
+        );
     }
 }
 
@@ -185,7 +205,12 @@ fn test_simd_workflow_edge_values() {
     let data = result.quantized_data();
     for i in 0..16 {
         let val = data.value(i);
-        assert!(val <= 255, "Quantized value {} at index {} should be <= 255", val, i);
+        assert!(
+            val <= 255,
+            "Quantized value {} at index {} should be <= 255",
+            val,
+            i
+        );
     }
 }
 
@@ -238,7 +263,7 @@ fn test_simd_workflow_mixed_group_blocks() {
 
     // Verify quantized values use correct parameters
     let data = result.quantized_data();
-    
+
     // Group 0 uses scale=0.1
     let q0 = data.value(0);
     let expected0 = ((0.1_f32 / 0.1) + 0.0).round().clamp(0.0, 255.0) as u8;
@@ -287,12 +312,12 @@ fn test_simd_workflow_dequantize_roundtrip() {
 
     // Verify dequantized values are close to original (within quantization error)
     let all_dequantized: Vec<f32> = group_0.into_iter().chain(group_1.into_iter()).collect();
-    
+
     for (i, (&original, &dequantized)) in weights.iter().zip(all_dequantized.iter()).enumerate() {
         let error = (original - dequantized).abs();
         let scale = params[0].scale; // Use first group's scale as reference
         let max_error = scale * 2.0; // Allow 2x scale as max error
-        
+
         assert!(
             error <= max_error,
             "Dequantization error {} at index {} exceeds max error {} (original={}, dequantized={})",

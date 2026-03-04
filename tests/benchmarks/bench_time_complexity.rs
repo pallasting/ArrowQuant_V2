@@ -43,7 +43,7 @@ fn generate_time_group_params(num_groups: usize) -> Vec<TimeGroupParams> {
             let end = ((i + 1) * 100) / num_groups;
             let scale = 0.1 + (i as f32) * 0.05; // Varying scales
             let zero_point = 0.0;
-            
+
             TimeGroupParams {
                 time_range: (start, end),
                 scale,
@@ -69,31 +69,29 @@ fn generate_time_group_params(num_groups: usize) -> Vec<TimeGroupParams> {
 /// - Time(1M) ≈ 1000 × Time(1K)
 fn bench_time_complexity_scaling_n(c: &mut Criterion) {
     let mut group = c.benchmark_group("time_complexity_scaling_n");
-    
+
     let num_groups = 10;
     let params = generate_time_group_params(num_groups);
     let quantizer = TimeAwareQuantizer::new(num_groups);
-    
+
     // Test different array sizes
     for size in [1_000, 10_000, 100_000, 1_000_000].iter() {
         let weights = generate_random_weights(*size, 42);
-        
+
         group.throughput(Throughput::Elements(*size as u64));
-        
+
         group.bench_with_input(
             BenchmarkId::new("uniform_distribution", size),
             size,
             |b, _| {
                 b.iter(|| {
-                    let _ = quantizer.assign_time_groups(
-                        std_black_box(&weights),
-                        std_black_box(&params)
-                    );
+                    let _ = quantizer
+                        .assign_time_groups(std_black_box(&weights), std_black_box(&params));
                 });
-            }
+            },
         );
     }
-    
+
     group.finish();
 }
 
@@ -111,31 +109,29 @@ fn bench_time_complexity_scaling_n(c: &mut Criterion) {
 /// - Uniform distribution doesn't depend on number of groups
 fn bench_time_complexity_scaling_m(c: &mut Criterion) {
     let mut group = c.benchmark_group("time_complexity_scaling_m");
-    
+
     let size = 100_000;
     let weights = generate_random_weights(size, 42);
-    
+
     // Test different numbers of time groups
     for num_groups in [5, 10, 20].iter() {
         let params = generate_time_group_params(*num_groups);
         let quantizer = TimeAwareQuantizer::new(*num_groups);
-        
+
         group.throughput(Throughput::Elements(size as u64));
-        
+
         group.bench_with_input(
             BenchmarkId::new("uniform_distribution", num_groups),
             num_groups,
             |b, _| {
                 b.iter(|| {
-                    let _ = quantizer.assign_time_groups(
-                        std_black_box(&weights),
-                        std_black_box(&params)
-                    );
+                    let _ = quantizer
+                        .assign_time_groups(std_black_box(&weights), std_black_box(&params));
                 });
-            }
+            },
         );
     }
-    
+
     group.finish();
 }
 
@@ -151,31 +147,29 @@ fn bench_time_complexity_scaling_m(c: &mut Criterion) {
 /// Current implementation: O(n) uniform distribution
 fn bench_uniform_distribution(c: &mut Criterion) {
     let mut group = c.benchmark_group("uniform_distribution");
-    
+
     let size = 100_000;
     let weights = generate_random_weights(size, 42);
-    
+
     for num_groups in [5, 10, 20].iter() {
         let params = generate_time_group_params(*num_groups);
         let quantizer = TimeAwareQuantizer::new(*num_groups);
-        
+
         group.throughput(Throughput::Elements(size as u64));
-        
+
         // Current implementation: Uniform distribution O(n)
         group.bench_with_input(
             BenchmarkId::new("uniform_distribution", num_groups),
             num_groups,
             |b, _| {
                 b.iter(|| {
-                    let _ = quantizer.assign_time_groups(
-                        std_black_box(&weights),
-                        std_black_box(&params)
-                    );
+                    let _ = quantizer
+                        .assign_time_groups(std_black_box(&weights), std_black_box(&params));
                 });
-            }
+            },
         );
     }
-    
+
     group.finish();
 }
 
@@ -194,34 +188,32 @@ fn bench_uniform_distribution(c: &mut Criterion) {
 /// - Total: 12 combinations
 fn bench_time_complexity_matrix(c: &mut Criterion) {
     let mut group = c.benchmark_group("time_complexity_matrix");
-    
+
     let sizes = [1_000, 10_000, 100_000, 1_000_000];
     let group_counts = [5, 10, 20];
-    
+
     for &size in &sizes {
         for &num_groups in &group_counts {
             let weights = generate_random_weights(size, 42);
             let params = generate_time_group_params(num_groups);
             let quantizer = TimeAwareQuantizer::new(num_groups);
-            
+
             group.throughput(Throughput::Elements(size as u64));
-            
+
             let bench_name = format!("n={}_m={}", size, num_groups);
             group.bench_with_input(
                 BenchmarkId::new("uniform_distribution", &bench_name),
                 &bench_name,
                 |b, _| {
                     b.iter(|| {
-                        let _ = quantizer.assign_time_groups(
-                            std_black_box(&weights),
-                            std_black_box(&params)
-                        );
+                        let _ = quantizer
+                            .assign_time_groups(std_black_box(&weights), std_black_box(&params));
                     });
-                }
+                },
             );
         }
     }
-    
+
     group.finish();
 }
 
@@ -235,7 +227,7 @@ fn bench_time_complexity_matrix(c: &mut Criterion) {
 /// Note: Binary search boundary pre-computation has not been implemented yet.
 fn bench_parameter_generation(c: &mut Criterion) {
     let mut group = c.benchmark_group("parameter_generation");
-    
+
     for num_groups in [5, 10, 20, 50, 100].iter() {
         group.bench_with_input(
             BenchmarkId::new("generate_params", num_groups),
@@ -244,10 +236,10 @@ fn bench_parameter_generation(c: &mut Criterion) {
                 b.iter(|| {
                     let _ = generate_time_group_params(std_black_box(ng));
                 });
-            }
+            },
         );
     }
-    
+
     group.finish();
 }
 
@@ -266,34 +258,32 @@ fn bench_parameter_generation(c: &mut Criterion) {
 /// - Large model: 12288×3072 weights, 20 time groups
 fn bench_realistic_workload(c: &mut Criterion) {
     let mut group = c.benchmark_group("realistic_workload");
-    
+
     let scenarios = [
         ("small_768x768_m10", 768 * 768, 10),
         ("medium_3072x768_m10", 3072 * 768, 10),
         ("large_12288x3072_m20", 12288 * 3072, 20),
     ];
-    
+
     for (name, size, num_groups) in scenarios.iter() {
         let weights = generate_random_weights(*size, 42);
         let params = generate_time_group_params(*num_groups);
         let quantizer = TimeAwareQuantizer::new(*num_groups);
-        
+
         group.throughput(Throughput::Elements(*size as u64));
-        
+
         group.bench_with_input(
             BenchmarkId::new("uniform_distribution", name),
             name,
             |b, _| {
                 b.iter(|| {
-                    let _ = quantizer.assign_time_groups(
-                        std_black_box(&weights),
-                        std_black_box(&params)
-                    );
+                    let _ = quantizer
+                        .assign_time_groups(std_black_box(&weights), std_black_box(&params));
                 });
-            }
+            },
         );
     }
-    
+
     group.finish();
 }
 

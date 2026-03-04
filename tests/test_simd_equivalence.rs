@@ -37,9 +37,9 @@ fn generate_time_group_params(
 ) -> Vec<TimeGroupParams> {
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
     use rand::Rng;
-    
+
     let group_size = total_size / num_groups;
-    
+
     (0..num_groups)
         .map(|i| {
             let start = i * group_size;
@@ -48,7 +48,7 @@ fn generate_time_group_params(
             } else {
                 (i + 1) * group_size
             };
-            
+
             TimeGroupParams {
                 time_range: (start, end),
                 scale: rng.gen_range(0.001..1.0),
@@ -65,10 +65,8 @@ fn generate_time_group_params(
 fn generate_weights(size: usize, seed: u64) -> Vec<f32> {
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
     use rand::Rng;
-    
-    (0..size)
-        .map(|_| rng.gen_range(-10.0..10.0))
-        .collect()
+
+    (0..size).map(|_| rng.gen_range(-10.0..10.0)).collect()
 }
 
 /// **Validates: Requirement 3.4**
@@ -86,7 +84,7 @@ mod simd_equivalence_properties {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(20))]
-        
+
         #[test]
         /// Test SIMD equivalence for small arrays (1K elements)
         ///
@@ -102,18 +100,18 @@ mod simd_equivalence_properties {
         ) {
             // Generate random weights
             let weights = generate_weights(size, seed);
-            
+
             // Generate random time group parameters
             let params = generate_time_group_params(num_groups, size, seed);
-            
+
             // Create quantizer
             let quantizer = TimeAwareQuantizer::new(num_groups);
-            
+
             // Quantize using standard implementation (uses SIMD if available)
             let result_with_simd = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("SIMD quantization should succeed");
-            
+
             // For scalar comparison, we use the same method since the implementation
             // automatically uses SIMD when available. The key is that the quantization
             // logic should be deterministic regardless of SIMD usage.
@@ -121,17 +119,17 @@ mod simd_equivalence_properties {
             let result_verify = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("Verification quantization should succeed");
-            
+
             // Property 1: Results should be identical (deterministic)
             let quantized_data_1 = result_with_simd.quantized_data();
             let quantized_data_2 = result_verify.quantized_data();
-            
+
             prop_assert_eq!(
                 quantized_data_1.len(),
                 quantized_data_2.len(),
                 "Quantized data lengths should match"
             );
-            
+
             // Verify element-by-element equality
             for i in 0..size {
                 prop_assert_eq!(
@@ -141,11 +139,11 @@ mod simd_equivalence_properties {
                     i
                 );
             }
-            
+
             // Property 2: Time group assignments should be identical
             let group_ids_1 = result_with_simd.time_group_ids();
             let group_ids_2 = result_verify.time_group_ids();
-            
+
             for i in 0..size {
                 prop_assert_eq!(
                     group_ids_1.value(i),
@@ -154,7 +152,7 @@ mod simd_equivalence_properties {
                     i
                 );
             }
-            
+
             // Property 3: All quantized values should be in valid range [0, 255]
             for i in 0..size {
                 let value = quantized_data_1.value(i);
@@ -170,7 +168,7 @@ mod simd_equivalence_properties {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(20))]
-        
+
         #[test]
         /// Test SIMD equivalence for medium arrays (10K elements)
         ///
@@ -186,32 +184,32 @@ mod simd_equivalence_properties {
         ) {
             // Generate random weights
             let weights = generate_weights(size, seed);
-            
+
             // Generate random time group parameters
             let params = generate_time_group_params(num_groups, size, seed);
-            
+
             // Create quantizer
             let quantizer = TimeAwareQuantizer::new(num_groups);
-            
+
             // Quantize twice to verify determinism
             let result_1 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("First quantization should succeed");
-            
+
             let result_2 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("Second quantization should succeed");
-            
+
             // Property: Results should be identical
             let quantized_data_1 = result_1.quantized_data();
             let quantized_data_2 = result_2.quantized_data();
-            
+
             prop_assert_eq!(
                 quantized_data_1.len(),
                 quantized_data_2.len(),
                 "Quantized data lengths should match"
             );
-            
+
             // Verify element-by-element equality
             for i in 0..size {
                 prop_assert_eq!(
@@ -221,11 +219,11 @@ mod simd_equivalence_properties {
                     i
                 );
             }
-            
+
             // Verify time group assignments are identical
             let group_ids_1 = result_1.time_group_ids();
             let group_ids_2 = result_2.time_group_ids();
-            
+
             for i in 0..size {
                 prop_assert_eq!(
                     group_ids_1.value(i),
@@ -239,7 +237,7 @@ mod simd_equivalence_properties {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(20))]
-        
+
         #[test]
         /// Test SIMD equivalence for large arrays (100K elements)
         ///
@@ -255,39 +253,39 @@ mod simd_equivalence_properties {
         ) {
             // Generate random weights
             let weights = generate_weights(size, seed);
-            
+
             // Generate random time group parameters
             let params = generate_time_group_params(num_groups, size, seed);
-            
+
             // Create quantizer
             let quantizer = TimeAwareQuantizer::new(num_groups);
-            
+
             // Quantize twice to verify determinism
             let result_1 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("First quantization should succeed");
-            
+
             let result_2 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("Second quantization should succeed");
-            
+
             // Property: Results should be identical
             let quantized_data_1 = result_1.quantized_data();
             let quantized_data_2 = result_2.quantized_data();
-            
+
             prop_assert_eq!(
                 quantized_data_1.len(),
                 quantized_data_2.len(),
                 "Quantized data lengths should match"
             );
-            
+
             // For large arrays, we sample to reduce test time while maintaining coverage
             // Sample every 100th element plus first/last elements
             let sample_indices: Vec<usize> = (0..size)
                 .step_by(100)
                 .chain(std::iter::once(size - 1))
                 .collect();
-            
+
             for &i in &sample_indices {
                 prop_assert_eq!(
                     quantized_data_1.value(i),
@@ -296,11 +294,11 @@ mod simd_equivalence_properties {
                     i
                 );
             }
-            
+
             // Verify time group assignments for sampled indices
             let group_ids_1 = result_1.time_group_ids();
             let group_ids_2 = result_2.time_group_ids();
-            
+
             for &i in &sample_indices {
                 prop_assert_eq!(
                     group_ids_1.value(i),
@@ -314,7 +312,7 @@ mod simd_equivalence_properties {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(20))]
-        
+
         #[test]
         /// Test SIMD equivalence with various time group counts
         ///
@@ -330,26 +328,26 @@ mod simd_equivalence_properties {
         ) {
             // Generate random weights
             let weights = generate_weights(size, seed);
-            
+
             // Generate random time group parameters
             let params = generate_time_group_params(num_groups, size, seed);
-            
+
             // Create quantizer
             let quantizer = TimeAwareQuantizer::new(num_groups);
-            
+
             // Quantize twice to verify determinism
             let result_1 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("First quantization should succeed");
-            
+
             let result_2 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("Second quantization should succeed");
-            
+
             // Property: Results should be identical regardless of group count
             let quantized_data_1 = result_1.quantized_data();
             let quantized_data_2 = result_2.quantized_data();
-            
+
             // Verify all elements are identical
             for i in 0..size {
                 prop_assert_eq!(
@@ -365,7 +363,7 @@ mod simd_equivalence_properties {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(20))]
-        
+
         #[test]
         /// Test SIMD equivalence with edge case array sizes
         ///
@@ -385,35 +383,35 @@ mod simd_equivalence_properties {
         ) {
             // Create unaligned size
             let size = (base_size / 8) * 8 + remainder;
-            
+
             // Generate random weights
             let weights = generate_weights(size, seed);
-            
+
             // Generate random time group parameters
             let params = generate_time_group_params(num_groups, size, seed);
-            
+
             // Create quantizer
             let quantizer = TimeAwareQuantizer::new(num_groups);
-            
+
             // Quantize twice to verify determinism
             let result_1 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("First quantization should succeed");
-            
+
             let result_2 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("Second quantization should succeed");
-            
+
             // Property: Results should be identical even for unaligned sizes
             let quantized_data_1 = result_1.quantized_data();
             let quantized_data_2 = result_2.quantized_data();
-            
+
             prop_assert_eq!(
                 quantized_data_1.len(),
                 size,
                 "Quantized data length should match input size"
             );
-            
+
             // Verify all elements are identical, especially the remainder elements
             for i in 0..size {
                 prop_assert_eq!(
@@ -425,7 +423,7 @@ mod simd_equivalence_properties {
                     remainder
                 );
             }
-            
+
             // Specifically verify the last few elements (remainder path)
             let remainder_start = (size / 8) * 8;
             for i in remainder_start..size {
@@ -441,7 +439,7 @@ mod simd_equivalence_properties {
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(20))]
-        
+
         #[test]
         /// Test SIMD equivalence with extreme parameter values
         ///
@@ -461,11 +459,11 @@ mod simd_equivalence_properties {
         ) {
             // Generate random weights
             let weights = generate_weights(size, seed);
-            
+
             // Generate time group parameters with extreme values
             let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
             use rand::Rng;
-            
+
             let group_size = size / num_groups;
             let params: Vec<TimeGroupParams> = (0..num_groups)
                 .map(|i| {
@@ -475,7 +473,7 @@ mod simd_equivalence_properties {
                     } else {
                         (i + 1) * group_size
                     };
-                    
+
                     TimeGroupParams {
                         time_range: (start, end),
                         // Use extreme scale values
@@ -486,23 +484,23 @@ mod simd_equivalence_properties {
                     }
                 })
                 .collect();
-            
+
             // Create quantizer
             let quantizer = TimeAwareQuantizer::new(num_groups);
-            
+
             // Quantize twice to verify determinism with extreme parameters
             let result_1 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("First quantization should succeed");
-            
+
             let result_2 = quantizer
                 .quantize_layer_arrow(&weights, &params)
                 .expect("Second quantization should succeed");
-            
+
             // Property: Results should be identical even with extreme parameters
             let quantized_data_1 = result_1.quantized_data();
             let quantized_data_2 = result_2.quantized_data();
-            
+
             // Verify all elements are identical
             for i in 0..size {
                 prop_assert_eq!(
@@ -512,7 +510,7 @@ mod simd_equivalence_properties {
                     i
                 );
             }
-            
+
             // Verify all values are in valid range despite extreme parameters
             for i in 0..size {
                 let value = quantized_data_1.value(i);
@@ -538,18 +536,18 @@ mod simd_equivalence_unit_tests {
         let size = 8;
         let num_groups = 2;
         let seed = 42;
-        
+
         let weights = generate_weights(size, seed);
         let params = generate_time_group_params(num_groups, size, seed);
-        
+
         let quantizer = TimeAwareQuantizer::new(num_groups);
-        
+
         let result_1 = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
         let result_2 = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
-        
+
         let quantized_data_1 = result_1.quantized_data();
         let quantized_data_2 = result_2.quantized_data();
-        
+
         for i in 0..size {
             assert_eq!(
                 quantized_data_1.value(i),
@@ -566,18 +564,18 @@ mod simd_equivalence_unit_tests {
         let size = 24;
         let num_groups = 3;
         let seed = 123;
-        
+
         let weights = generate_weights(size, seed);
         let params = generate_time_group_params(num_groups, size, seed);
-        
+
         let quantizer = TimeAwareQuantizer::new(num_groups);
-        
+
         let result_1 = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
         let result_2 = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
-        
+
         let quantized_data_1 = result_1.quantized_data();
         let quantized_data_2 = result_2.quantized_data();
-        
+
         for i in 0..size {
             assert_eq!(
                 quantized_data_1.value(i),
@@ -594,18 +592,18 @@ mod simd_equivalence_unit_tests {
         let size = 1;
         let num_groups = 1;
         let seed = 456;
-        
+
         let weights = generate_weights(size, seed);
         let params = generate_time_group_params(num_groups, size, seed);
-        
+
         let quantizer = TimeAwareQuantizer::new(num_groups);
-        
+
         let result_1 = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
         let result_2 = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
-        
+
         let quantized_data_1 = result_1.quantized_data();
         let quantized_data_2 = result_2.quantized_data();
-        
+
         assert_eq!(
             quantized_data_1.value(0),
             quantized_data_2.value(0),
@@ -618,7 +616,7 @@ mod simd_equivalence_unit_tests {
         // Test with boundary values (0.0, very small, very large)
         let weights = vec![0.0, 0.001, -0.001, 10.0, -10.0, 5.0, -5.0, 2.5];
         let num_groups = 2;
-        
+
         let params = vec![
             TimeGroupParams {
                 time_range: (0, 4),
@@ -633,15 +631,15 @@ mod simd_equivalence_unit_tests {
                 group_size: 64,
             },
         ];
-        
+
         let quantizer = TimeAwareQuantizer::new(num_groups);
-        
+
         let result_1 = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
         let result_2 = quantizer.quantize_layer_arrow(&weights, &params).unwrap();
-        
+
         let quantized_data_1 = result_1.quantized_data();
         let quantized_data_2 = result_2.quantized_data();
-        
+
         for i in 0..weights.len() {
             assert_eq!(
                 quantized_data_1.value(i),

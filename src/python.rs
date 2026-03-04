@@ -3139,12 +3139,24 @@ impl ArrowQuantV2 {
             let dict = item.downcast::<pyo3::types::PyDict>().map_err(|_| {
                 pyo3::exceptions::PyTypeError::new_err("Params must be a list of dictionaries")
             })?;
-            
-            let scale: f32 = dict.get_item("scale")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'scale'"))?.extract()?;
-            let zero_point: f32 = dict.get_item("zero_point")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'zero_point'"))?.extract()?;
-            let group_size: usize = dict.get_item("group_size")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'group_size'"))?.extract()?;
-            let time_range: (usize, usize) = dict.get_item("time_range")?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'time_range'"))?.extract()?;
-            
+
+            let scale: f32 = dict
+                .get_item("scale")?
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'scale'"))?
+                .extract()?;
+            let zero_point: f32 = dict
+                .get_item("zero_point")?
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'zero_point'"))?
+                .extract()?;
+            let group_size: usize = dict
+                .get_item("group_size")?
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'group_size'"))?
+                .extract()?;
+            let time_range: (usize, usize) = dict
+                .get_item("time_range")?
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("Missing 'time_range'"))?
+                .extract()?;
+
             time_group_params.push(crate::time_aware::TimeGroupParams {
                 time_range,
                 scale,
@@ -3155,12 +3167,15 @@ impl ArrowQuantV2 {
 
         // Use orchestrator if available, otherwise create a temporary one for defaults
         let result = if let Some(ref orchestrator) = self.orchestrator {
-            orchestrator.time_aware_quantizer().quantize_layer_auto(&weights_vec, &time_group_params, enable_simd)
+            orchestrator
+                .time_aware_quantizer()
+                .quantize_layer_auto(&weights_vec, &time_group_params, enable_simd)
                 .map_err(convert_error)?
         } else {
             // Fallback: create default quantizer
             let quantizer = crate::time_aware::TimeAwareQuantizer::new(time_group_params.len());
-            quantizer.quantize_layer_auto(&weights_vec, &time_group_params, enable_simd)
+            quantizer
+                .quantize_layer_auto(&weights_vec, &time_group_params, enable_simd)
                 .map_err(convert_error)?
         };
 
@@ -3194,19 +3209,42 @@ impl ArrowQuantV2 {
         progress_reporter: &ProgressReporter,
     ) -> crate::errors::Result<crate::orchestrator::QuantizationResult> {
         // Dimension A: Direct streaming zero-copy quantization from SafeTensors
-        progress_reporter.report("Dimension A: Direct streaming zero-copy quantization...", 0.10);
+        progress_reporter.report(
+            "Dimension A: Direct streaming zero-copy quantization...",
+            0.10,
+        );
         let mut quant_config = config.clone();
 
         // Detect modality from SafeTensors metadata
         let is_sharded = crate::sharded_safetensors::is_sharded_model(safetensors_path);
         let modality = if is_sharded {
-            if let Ok(adapter) = crate::sharded_safetensors::ShardedSafeTensorsAdapter::load(&crate::sharded_safetensors::find_index_file(safetensors_path)?) {
-                adapter.detect_modality().map(|m| crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(crate::config::Modality::Text)).unwrap_or(crate::config::Modality::Text)
-            } else { crate::config::Modality::Text }
+            if let Ok(adapter) = crate::sharded_safetensors::ShardedSafeTensorsAdapter::load(
+                &crate::sharded_safetensors::find_index_file(safetensors_path)?,
+            ) {
+                adapter
+                    .detect_modality()
+                    .map(|m| {
+                        crate::safetensors_to_parquet::parse_modality(&m)
+                            .unwrap_or(crate::config::Modality::Text)
+                    })
+                    .unwrap_or(crate::config::Modality::Text)
+            } else {
+                crate::config::Modality::Text
+            }
         } else {
-            if let Ok(adapter) = crate::safetensors_adapter::SafeTensorsAdapter::load(safetensors_path) {
-                adapter.detect_modality().map(|m| crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(crate::config::Modality::Text)).unwrap_or(crate::config::Modality::Text)
-            } else { crate::config::Modality::Text }
+            if let Ok(adapter) =
+                crate::safetensors_adapter::SafeTensorsAdapter::load(safetensors_path)
+            {
+                adapter
+                    .detect_modality()
+                    .map(|m| {
+                        crate::safetensors_to_parquet::parse_modality(&m)
+                            .unwrap_or(crate::config::Modality::Text)
+                    })
+                    .unwrap_or(crate::config::Modality::Text)
+            } else {
+                crate::config::Modality::Text
+            }
         };
         quant_config.modality = Some(modality);
 

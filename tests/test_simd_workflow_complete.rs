@@ -7,8 +7,7 @@
 ///
 /// This test file has been updated to test the integrated SIMD workflow through
 /// the public API methods.
-
-use arrow_quant_v2::time_aware::{TimeAwareQuantizer, TimeGroupParams, SimdQuantConfig};
+use arrow_quant_v2::time_aware::{SimdQuantConfig, TimeAwareQuantizer, TimeGroupParams};
 
 #[test]
 fn test_simd_workflow_basic() {
@@ -18,7 +17,7 @@ fn test_simd_workflow_basic() {
         enabled: true,
         scalar_threshold: 0, // Always use SIMD
     };
-    
+
     let weights = vec![0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5];
     let params = vec![
         TimeGroupParams {
@@ -32,9 +31,9 @@ fn test_simd_workflow_basic() {
             bit_width: 8,
         },
     ];
-    
+
     let result = quantizer.quantize_layer_auto(&weights, &params).unwrap();
-    
+
     // Verify result length matches input
     assert_eq!(result.len(), weights.len());
 }
@@ -47,7 +46,7 @@ fn test_simd_workflow_arbitrary_length() {
         enabled: true,
         scalar_threshold: 0,
     };
-    
+
     let weights = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]; // 11 elements
     let params = vec![
         TimeGroupParams {
@@ -61,9 +60,9 @@ fn test_simd_workflow_arbitrary_length() {
             bit_width: 8,
         },
     ];
-    
+
     let result = quantizer.quantize_layer_auto(&weights, &params).unwrap();
-    
+
     // Verify result length matches input
     assert_eq!(result.len(), weights.len());
 }
@@ -76,7 +75,7 @@ fn test_simd_workflow_large_array() {
         enabled: true,
         scalar_threshold: 64,
     };
-    
+
     let weights: Vec<f32> = (0..10000).map(|i| i as f32 * 0.001).collect();
     let params: Vec<TimeGroupParams> = (0..10)
         .map(|i| TimeGroupParams {
@@ -85,9 +84,9 @@ fn test_simd_workflow_large_array() {
             bit_width: 8,
         })
         .collect();
-    
+
     let result = quantizer.quantize_layer_auto(&weights, &params).unwrap();
-    
+
     // Verify result length
     assert_eq!(result.len(), weights.len());
 }
@@ -113,23 +112,27 @@ fn test_simd_vs_scalar_equivalence() {
             bit_width: 8,
         },
     ];
-    
+
     // SIMD enabled
     let mut quantizer_simd = TimeAwareQuantizer::new(3);
     quantizer_simd.simd_config = SimdQuantConfig {
         enabled: true,
         scalar_threshold: 0,
     };
-    let result_simd = quantizer_simd.quantize_layer_auto(&weights, &params).unwrap();
-    
+    let result_simd = quantizer_simd
+        .quantize_layer_auto(&weights, &params)
+        .unwrap();
+
     // SIMD disabled (scalar)
     let mut quantizer_scalar = TimeAwareQuantizer::new(3);
     quantizer_scalar.simd_config = SimdQuantConfig {
         enabled: false,
         scalar_threshold: usize::MAX,
     };
-    let result_scalar = quantizer_scalar.quantize_layer_auto(&weights, &params).unwrap();
-    
+    let result_scalar = quantizer_scalar
+        .quantize_layer_auto(&weights, &params)
+        .unwrap();
+
     // Both should have the same length
     assert_eq!(result_simd.len(), result_scalar.len());
 }
@@ -142,14 +145,14 @@ fn test_simd_workflow_empty_input() {
         enabled: true,
         scalar_threshold: 0,
     };
-    
+
     let weights: Vec<f32> = vec![];
     let params = vec![TimeGroupParams {
         scale: 0.01,
         zero_point: 0,
         bit_width: 8,
     }];
-    
+
     let result = quantizer.quantize_layer_auto(&weights, &params).unwrap();
     assert_eq!(result.len(), 0);
 }
@@ -162,14 +165,14 @@ fn test_simd_workflow_single_element() {
         enabled: true,
         scalar_threshold: 0,
     };
-    
+
     let weights = vec![1.5];
     let params = vec![TimeGroupParams {
         scale: 0.01,
         zero_point: 0,
         bit_width: 8,
     }];
-    
+
     let result = quantizer.quantize_layer_auto(&weights, &params).unwrap();
     assert_eq!(result.len(), 1);
 }
@@ -182,14 +185,14 @@ fn test_simd_workflow_boundary_values() {
         enabled: true,
         scalar_threshold: 0,
     };
-    
+
     let weights = vec![0.0, 0.0001, 2.55, 10.0];
     let params = vec![TimeGroupParams {
         scale: 0.01,
         zero_point: 0,
         bit_width: 8,
     }];
-    
+
     let result = quantizer.quantize_layer_auto(&weights, &params).unwrap();
     assert_eq!(result.len(), 4);
 }
@@ -202,13 +205,13 @@ fn test_simd_workflow_memory_alignment() {
         enabled: true,
         scalar_threshold: 0,
     };
-    
+
     let params = vec![TimeGroupParams {
         scale: 0.01,
         zero_point: 0,
         bit_width: 8,
     }];
-    
+
     // Test various sizes including SIMD-aligned and non-aligned
     for size in [7, 8, 9, 15, 16, 17, 31, 32, 33] {
         let weights: Vec<f32> = (0..size).map(|i| i as f32 * 0.1).collect();
@@ -225,7 +228,7 @@ fn test_simd_workflow_performance_characteristics() {
         enabled: true,
         scalar_threshold: 64,
     };
-    
+
     let params: Vec<TimeGroupParams> = (0..10)
         .map(|i| TimeGroupParams {
             scale: 0.01 + (i as f32 * 0.001),
@@ -233,7 +236,7 @@ fn test_simd_workflow_performance_characteristics() {
             bit_width: 8,
         })
         .collect();
-    
+
     // Test with increasing sizes
     for size in [100, 1000, 10000] {
         let weights: Vec<f32> = (0..size).map(|i| i as f32 * 0.001).collect();

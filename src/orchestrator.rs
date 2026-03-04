@@ -121,6 +121,38 @@ impl DiffusionOrchestrator {
         &self.time_aware
     }
 
+    /// Check if a tensor is fully quantized (all required files exist and are valid)
+    fn is_tensor_fully_quantized(output_path: &Path, name: &str) -> bool {
+        let sanitized = crate::safetensors_to_parquet::sanitize_filename(name);
+        
+        // Check main file
+        let main_file = output_path.join(format!("{}.parquet", sanitized));
+        if !main_file.exists() {
+            return false;
+        }
+        if let Ok(metadata) = main_file.metadata() {
+            if metadata.len() == 0 {
+                return false;
+            }
+        } else {
+            return false;
+        }
+        
+        // Check scale_inv file (if it exists, it must be valid)
+        let scale_file = output_path.join(format!("{}_scale_inv.parquet", sanitized));
+        if scale_file.exists() {
+            if let Ok(metadata) = scale_file.metadata() {
+                if metadata.len() == 0 {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        
+        true
+    }
+
     /// STREAMING DIMENSION A: Direct zero-copy from safetensors to quantized parquet
     pub fn quantize_model_streaming(
         &self,
@@ -133,12 +165,22 @@ impl DiffusionOrchestrator {
         let is_sharded = crate::sharded_safetensors::is_sharded_model(safetensors_path);
         let modality = if is_sharded {
             let adapter = crate::sharded_safetensors::ShardedSafeTensorsAdapter::load(
-                &crate::sharded_safetensors::find_index_file(safetensors_path)?
+                &crate::sharded_safetensors::find_index_file(safetensors_path)?,
             )?;
-            adapter.detect_modality().map(|m| crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(Modality::Text)).unwrap_or(Modality::Text)
+            adapter
+                .detect_modality()
+                .map(|m| {
+                    crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(Modality::Text)
+                })
+                .unwrap_or(Modality::Text)
         } else {
             let adapter = crate::safetensors_adapter::SafeTensorsAdapter::load(safetensors_path)?;
-            adapter.detect_modality().map(|m| crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(Modality::Text)).unwrap_or(Modality::Text)
+            adapter
+                .detect_modality()
+                .map(|m| {
+                    crate::safetensors_to_parquet::parse_modality(&m).unwrap_or(Modality::Text)
+                })
+                .unwrap_or(Modality::Text)
         };
 
         let strategy = self.select_strategy(modality);
@@ -160,31 +202,95 @@ impl DiffusionOrchestrator {
             let mut shard_to_tensors = std::collections::HashMap::new();
             for name in adapter.tensor_names() {
                 if let Some(shard) = adapter.get_shard_for_tensor(&name) {
-                    shard_to_tensors.entry(shard.to_string()).or_insert_with(Vec::new).push(name);
+                    shard_to_tensors
+                        .entry(shard.to_string())
+                        .or_insert_with(Vec::new)
+                        .push(name);
+                }
+            }
+
+            let mut completed = 0;
+            let mut skipped = 0;
+            let total = adapter.tensor_names().len();
+
+            for (shard, tensors) in shard_to_tensors {
+                let shard_adapter =
+                    crate::safetensors_adapter::SafeTensorsAdapter::load(&base_dir.join(shard))?;
+                for name in tensors {
+                    // Improved checkpoint recovery: check all required files
+                    if Self::is_tensor_fully_quantized(output_path, &name) {
+                        skipped += 1;
+                        if skipped % 100 == 0 {
+                            eprintln!("⏭️  Skipped {} already quantized tensors", skipped);
+                        }
+                        continue;
+                    }
+                    let tensor_data = shard_adapter.get_tensor_f32(&name)?;
+                    self.quantize_and_write_streaming(
+                        &name,
+                        tensor_data,
+                        modality,
+                        &strategy,
+                        activation_stats.as_deref(),
+                        output_path,
+                    )?;
+                    completed += 1;
+                    if completed % 100 == 0 {
+                        let progress = (completed + skipped) as f32 / total as f32 * 100.0;
+                        eprintln!(
+                            "📊 Progress: {}/{} ({:.2}%) | New: {} | Skipped: {}",
+                            completed + skipped, total, progress, completed, skipped
+                        );
+                    }
                 }
             }
             
-            for (shard, tensors) in shard_to_tensors {
-                let shard_adapter = crate::safetensors_adapter::SafeTensorsAdapter::load(&base_dir.join(shard))?;
-                for name in tensors {
-                    // Check if file already exists for resumption
-                    let out_file = output_path.join(format!("{}.parquet", crate::safetensors_to_parquet::sanitize_filename(&name)));
-                    if out_file.exists() && out_file.metadata().map_or(false, |m| m.len() > 0) {
-                        continue; // Skip already quantized files
-                    }
-                    let tensor_data = shard_adapter.get_tensor_f32(&name)?;
-                    self.quantize_and_write_streaming(&name, tensor_data, modality, &strategy, activation_stats.as_deref(), output_path)?;
-                }
+            if skipped > 0 || completed > 0 {
+                eprintln!(
+                    "✅ Quantization complete: {} new, {} skipped, {} total",
+                    completed, skipped, total
+                );
             }
         } else {
             let adapter = crate::safetensors_adapter::SafeTensorsAdapter::load(safetensors_path)?;
-            for name in adapter.tensor_names() {
-                let out_file = output_path.join(format!("{}.parquet", crate::safetensors_to_parquet::sanitize_filename(&name)));
-                if out_file.exists() && out_file.metadata().map_or(false, |m| m.len() > 0) {
-                    continue; // Skip already quantized files
+            let tensor_names = adapter.tensor_names();
+            let total = tensor_names.len();
+            let mut completed = 0;
+            let mut skipped = 0;
+            
+            for name in tensor_names {
+                // Improved checkpoint recovery: check all required files
+                if Self::is_tensor_fully_quantized(output_path, &name) {
+                    skipped += 1;
+                    if skipped % 100 == 0 {
+                        eprintln!("⏭️  Skipped {} already quantized tensors", skipped);
+                    }
+                    continue;
                 }
                 let tensor_data = adapter.get_tensor_f32(&name)?;
-                self.quantize_and_write_streaming(&name, tensor_data, modality, &strategy, activation_stats.as_deref(), output_path)?;
+                self.quantize_and_write_streaming(
+                    &name,
+                    tensor_data,
+                    modality,
+                    &strategy,
+                    activation_stats.as_deref(),
+                    output_path,
+                )?;
+                completed += 1;
+                if completed % 100 == 0 {
+                    let progress = (completed + skipped) as f32 / total as f32 * 100.0;
+                    eprintln!(
+                        "📊 Progress: {}/{} ({:.2}%) | New: {} | Skipped: {}",
+                        completed + skipped, total, progress, completed, skipped
+                    );
+                }
+            }
+            
+            if skipped > 0 || completed > 0 {
+                eprintln!(
+                    "✅ Quantization complete: {} new, {} skipped, {} total",
+                    completed, skipped, total
+                );
             }
         }
 
@@ -210,50 +316,67 @@ impl DiffusionOrchestrator {
     ) -> Result<()> {
         let shape = tensor_data.shape().to_vec();
         let flat_data_vec = tensor_data.into_raw_vec_and_offset().0;
-        
-        let schema = crate::schema::ParquetV2Extended::new_unquantized(name.to_string(), shape.clone(), modality, Vec::new());
+
+        let schema = crate::schema::ParquetV2Extended::new_unquantized(
+            name.to_string(),
+            shape.clone(),
+            modality,
+            Vec::new(),
+        );
         let bit_w = self.config.bit_width;
-        
+
         // Skip purely 16-bit layers in mixed precision configs (optional validation)
         // Ensure weights are large enough for time-aware grouping to avoid empty group errors (need at least 1 element per group)
-        let quantized_schema = if strategy.time_aware && flat_data_vec.len() >= self.config.num_time_groups {
-            let mut quantizer = crate::time_aware::TimeAwareQuantizer::new(self.config.num_time_groups);
-            if let Some(stats) = activation_stats {    
-                quantizer.group_timesteps(stats.mean.len());
-                let params = quantizer.compute_params_per_group(stats);
-                let q_layer = if self.config.use_arrow {
-                    crate::time_aware::QuantizedLayer::Arrow(quantizer.quantize_layer_arrow(&flat_data_vec, &params)?)
+        let quantized_schema =
+            if strategy.time_aware && flat_data_vec.len() >= self.config.num_time_groups {
+                let mut quantizer =
+                    crate::time_aware::TimeAwareQuantizer::new(self.config.num_time_groups);
+                if let Some(stats) = activation_stats {
+                    quantizer.group_timesteps(stats.mean.len());
+                    let params = quantizer.compute_params_per_group(stats);
+                    let q_layer = if self.config.use_arrow {
+                        crate::time_aware::QuantizedLayer::Arrow(
+                            quantizer.quantize_layer_arrow(&flat_data_vec, &params)?,
+                        )
+                    } else {
+                        quantizer.quantize_layer(&flat_data_vec, &params)?
+                    };
+                    schema.with_time_aware_and_bit_width(modality, q_layer, bit_w)
                 } else {
-                    quantizer.quantize_layer(&flat_data_vec, &params)?
+                    schema.with_bit_width(bit_w) // Fallback
+                }
+            } else if strategy.spatial {
+                // ... apply spatial using flat_data_vec ...
+                let mut quantizer = crate::spatial::SpatialQuantizer::new(self.config.group_size);
+                let weights = if shape.len() == 2 {
+                    ndarray::Array2::from_shape_vec((shape[0], shape[1]), flat_data_vec)
+                        .unwrap_or_else(|_| ndarray::Array2::zeros((1, 1)))
+                } else if shape.len() > 0 {
+                    let first = shape[0];
+                    let rest: usize = shape[1..].iter().product();
+                    ndarray::Array2::from_shape_vec((first, rest), flat_data_vec)
+                        .unwrap_or_else(|_| ndarray::Array2::zeros((1, 1)))
+                } else {
+                    ndarray::Array2::zeros((1, 1))
                 };
-                schema.with_time_aware_and_bit_width(modality, q_layer, bit_w)
+                let q_layer = quantizer.per_group_quantize(&weights)?;
+                schema.with_spatial_and_bit_width(modality, q_layer, vec![], bit_w)
             } else {
-                 schema.with_bit_width(bit_w) // Fallback
-            }
-        } else if strategy.spatial {
-            // ... apply spatial using flat_data_vec ...
-            let mut quantizer = crate::spatial::SpatialQuantizer::new(self.config.group_size);
-            let weights = if shape.len() == 2 {
-                ndarray::Array2::from_shape_vec((shape[0], shape[1]), flat_data_vec).unwrap_or_else(|_| ndarray::Array2::zeros((1, 1)))
-            } else if shape.len() > 0 {
-                let first = shape[0];
-                let rest: usize = shape[1..].iter().product();
-                ndarray::Array2::from_shape_vec((first, rest), flat_data_vec).unwrap_or_else(|_| ndarray::Array2::zeros((1, 1)))
-            } else {
-                ndarray::Array2::zeros((1, 1))
+                schema.with_bit_width(bit_w)
             };
-            let q_layer = quantizer.per_group_quantize(&weights)?;
-            schema.with_spatial_and_bit_width(modality, q_layer, vec![], bit_w)
-        } else {
-            schema.with_bit_width(bit_w)
-        };
 
-        let out_file = output_path.join(format!("{}.parquet", crate::safetensors_to_parquet::sanitize_filename(name)));
+        let out_file = output_path.join(format!(
+            "{}.parquet",
+            crate::safetensors_to_parquet::sanitize_filename(name)
+        ));
         quantized_schema.write_to_parquet(&out_file)?;
         Ok(())
     }
 
-    #[deprecated(since = "0.2.0", note = "Use quantize_model_streaming (Dimension A) instead")]
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use quantize_model_streaming (Dimension A) instead"
+    )]
     pub fn quantize_model(
         &self,
         model_path: &Path,
@@ -830,7 +953,7 @@ impl DiffusionOrchestrator {
         // We return an error to trigger proper fallback in the orchestrator
         // This causes it to use weight-based min/max for each layer (Base Quantization path in V2)
         Err(crate::errors::QuantError::Internal(
-            "Calibration data missing. Defaulting to Self-Calibration.".to_string()
+            "Calibration data missing. Defaulting to Self-Calibration.".to_string(),
         ))
     }
 
@@ -995,7 +1118,8 @@ impl DiffusionOrchestrator {
         // Step 4: Apply quantization strategy with layer-specific bit-width
         // Ensure weights are large enough for time-aware grouping to avoid empty group errors
         let weights_len: usize = layer_data.shape.iter().product();
-        let quantized_schema = if strategy.time_aware && weights_len >= self.config.num_time_groups {
+        let quantized_schema = if strategy.time_aware && weights_len >= self.config.num_time_groups
+        {
             // Time-aware quantization (for text/code)
             if let Some(stats) = activation_stats {
                 self.apply_time_aware_quantization(
@@ -1083,7 +1207,7 @@ impl DiffusionOrchestrator {
             ];
             weights.push(f32::from_le_bytes(b));
         }
-        
+
         // Use Arrow zero-copy if enabled
         let quantized_layer = if self.config.use_arrow {
             // Arrow zero-copy quantization

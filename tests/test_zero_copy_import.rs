@@ -39,7 +39,7 @@ mod tests {
 
         // Create test data
         let layer_names = StringArray::from(vec!["layer.0"]);
-        
+
         let weights_values = Float32Array::from(vec![1.0f32, 2.0, 3.0, 4.0, 5.0]);
         let weights_offsets = arrow::buffer::OffsetBuffer::new(vec![0, 5].into());
         let weights_list = ListArray::new(
@@ -49,18 +49,13 @@ mod tests {
             None,
         );
 
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![Arc::new(layer_names), Arc::new(weights_list)],
-        )
-        .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(layer_names), Arc::new(weights_list)])
+                .unwrap();
 
         // Extract weights column
         let weights_column = batch.column_by_name("weights").unwrap();
-        let weights_list = weights_column
-            .as_any()
-            .downcast_ref::<ListArray>()
-            .unwrap();
+        let weights_list = weights_column.as_any().downcast_ref::<ListArray>().unwrap();
 
         // Extract first layer's weights
         let first_layer = weights_list.value(0);
@@ -106,10 +101,7 @@ mod tests {
 
         // Access the same data multiple times
         let weights_column = batch.column_by_name("weights").unwrap();
-        let weights_list = weights_column
-            .as_any()
-            .downcast_ref::<ListArray>()
-            .unwrap();
+        let weights_list = weights_column.as_any().downcast_ref::<ListArray>().unwrap();
 
         let first_layer = weights_list.value(0);
         let weights_f32 = first_layer.as_any().downcast_ref::<Float32Array>().unwrap();
@@ -257,10 +249,7 @@ mod tests {
 
         // Get pointer to original data
         let weights_column = batch.column_by_name("weights").unwrap();
-        let weights_list = weights_column
-            .as_any()
-            .downcast_ref::<ListArray>()
-            .unwrap();
+        let weights_list = weights_column.as_any().downcast_ref::<ListArray>().unwrap();
         let first_layer = weights_list.value(0);
         let weights_f32 = first_layer.as_any().downcast_ref::<Float32Array>().unwrap();
         let original_ptr = weights_f32.values().as_ptr();
@@ -276,7 +265,10 @@ mod tests {
             .downcast_ref::<ListArray>()
             .unwrap();
         let first_layer2 = weights_list2.value(0);
-        let weights_f32_2 = first_layer2.as_any().downcast_ref::<Float32Array>().unwrap();
+        let weights_f32_2 = first_layer2
+            .as_any()
+            .downcast_ref::<Float32Array>()
+            .unwrap();
         let after_validation_ptr = weights_f32_2.values().as_ptr();
 
         assert_eq!(

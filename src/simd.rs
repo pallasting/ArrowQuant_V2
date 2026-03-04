@@ -66,12 +66,12 @@ pub fn is_simd_available() -> SimdWidth {
         if is_x86_feature_detected!("avx512f") {
             return SimdWidth::Avx512;
         }
-        
+
         // Check for AVX2
         if is_x86_feature_detected!("avx2") {
             return SimdWidth::Avx2;
         }
-        
+
         // No SIMD support on x86_64
         SimdWidth::None
     }
@@ -84,7 +84,7 @@ pub fn is_simd_available() -> SimdWidth {
         {
             return SimdWidth::Neon;
         }
-        
+
         // On most ARM64 systems, NEON is available even without compile-time feature
         // We assume NEON is available on ARM64
         SimdWidth::Neon
@@ -820,7 +820,7 @@ mod tests {
     #[test]
     fn test_is_simd_available() {
         let simd_width = is_simd_available();
-        
+
         // Verify that we get a valid SIMD width
         match simd_width {
             SimdWidth::None => {
@@ -883,7 +883,7 @@ mod tests {
     #[cfg(target_arch = "x86_64")]
     fn test_x86_64_simd_detection() {
         let simd_width = is_simd_available();
-        
+
         // On x86_64, we should get either AVX-512, AVX2, or None
         match simd_width {
             SimdWidth::Avx512 => {
@@ -907,7 +907,7 @@ mod tests {
     #[cfg(target_arch = "aarch64")]
     fn test_aarch64_simd_detection() {
         let simd_width = is_simd_available();
-        
+
         // On ARM64, we should always get NEON
         assert_eq!(simd_width, SimdWidth::Neon);
         assert_eq!(simd_width.width(), 4);

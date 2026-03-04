@@ -69,7 +69,10 @@ fn test_validation_does_not_modify_quantization() {
         result_with_validation.data().len()
     );
     assert_eq!(result_no_validation.data(), result_with_validation.data());
-    assert_eq!(result_no_validation.scales(), result_with_validation.scales());
+    assert_eq!(
+        result_no_validation.scales(),
+        result_with_validation.scales()
+    );
     assert_eq!(
         result_no_validation.zero_points(),
         result_with_validation.zero_points()

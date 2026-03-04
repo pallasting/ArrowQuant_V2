@@ -49,7 +49,7 @@ fn test_memory_allocation_small() {
     let weights = generate_weights(10_000);
     let params = generate_params(10);
     let quantizer = TimeAwareQuantizer::new(10);
-    
+
     // Perform quantization
     let result = quantizer.quantize_layer_arrow(&weights, &params);
     assert!(result.is_ok());
@@ -61,7 +61,7 @@ fn test_memory_allocation_medium() {
     let weights = generate_weights(100_000);
     let params = generate_params(10);
     let quantizer = TimeAwareQuantizer::new(10);
-    
+
     // Perform quantization
     let result = quantizer.quantize_layer_arrow(&weights, &params);
     assert!(result.is_ok());
@@ -73,7 +73,7 @@ fn test_memory_allocation_large() {
     let weights = generate_weights(1_000_000);
     let params = generate_params(10);
     let quantizer = TimeAwareQuantizer::new(10);
-    
+
     // Perform quantization
     let result = quantizer.quantize_layer_arrow(&weights, &params);
     assert!(result.is_ok());
@@ -85,10 +85,10 @@ fn test_memory_allocation_batch() {
     let num_layers = 10;
     let layer_size = 100_000;
     let num_groups = 10;
-    
+
     let quantizer = TimeAwareQuantizer::new(num_groups);
     let params = generate_params(num_groups);
-    
+
     for _ in 0..num_layers {
         let weights = generate_weights(layer_size);
         let result = quantizer.quantize_layer_arrow(&weights, &params);
@@ -103,7 +103,7 @@ fn test_memory_allocation_many_groups() {
     let num_groups = 50;
     let params = generate_params(num_groups);
     let quantizer = TimeAwareQuantizer::new(num_groups);
-    
+
     // Perform quantization
     let result = quantizer.quantize_layer_arrow(&weights, &params);
     assert!(result.is_ok());

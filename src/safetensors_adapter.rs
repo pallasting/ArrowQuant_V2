@@ -491,56 +491,72 @@ impl SafeTensorsAdapter {
     }
 
     fn read_f8_e4m3_to_f32(&self, data: &[u8]) -> Vec<f32> {
-        data.iter().map(|&x| {
-            if x == 0x7f || x == 0xff {
-                return f32::NAN;
-            }
-            if (x & 0x7f) == 0 {
-                return if (x & 0x80) != 0 { -0.0 } else { 0.0 };
-            }
-            let sign = ((x as u32) & 0x80) << 24;
-            let exp = ((x as u32) & 0x78) >> 3;
-            let mantissa = (x as u32) & 0x07;
+        data.iter()
+            .map(|&x| {
+                if x == 0x7f || x == 0xff {
+                    return f32::NAN;
+                }
+                if (x & 0x7f) == 0 {
+                    return if (x & 0x80) != 0 { -0.0 } else { 0.0 };
+                }
+                let sign = ((x as u32) & 0x80) << 24;
+                let exp = ((x as u32) & 0x78) >> 3;
+                let mantissa = (x as u32) & 0x07;
 
-            if exp == 0 {
-                // Subnormal
-                let val = (mantissa as f32) * 0.001953125f32; // 2^(-7-2) = 2^-9
-                if (x & 0x80) != 0 { -val } else { val }
-            } else {
-                // Normal
-                let f32_exp = (exp as i32 - 7 + 127) as u32;
-                let f32_mantissa = mantissa << 20;
-                f32::from_bits(sign | (f32_exp << 23) | f32_mantissa)
-            }
-        }).collect()
+                if exp == 0 {
+                    // Subnormal
+                    let val = (mantissa as f32) * 0.001953125f32; // 2^(-7-2) = 2^-9
+                    if (x & 0x80) != 0 {
+                        -val
+                    } else {
+                        val
+                    }
+                } else {
+                    // Normal
+                    let f32_exp = (exp as i32 - 7 + 127) as u32;
+                    let f32_mantissa = mantissa << 20;
+                    f32::from_bits(sign | (f32_exp << 23) | f32_mantissa)
+                }
+            })
+            .collect()
     }
 
     fn read_f8_e5m2_to_f32(&self, data: &[u8]) -> Vec<f32> {
-        data.iter().map(|&x| {
-            if (x & 0x7f) == 0x7f {
-                return if (x & 0x80) != 0 { f32::NEG_INFINITY } else { f32::INFINITY };
-            }
-            if (x & 0x7f) == 0x7e {
-                return f32::NAN;
-            }
-            if (x & 0x7f) == 0 {
-                return if (x & 0x80) != 0 { -0.0 } else { 0.0 };
-            }
-            let sign = ((x as u32) & 0x80) << 24;
-            let exp = ((x as u32) & 0x7c) >> 2;
-            let mantissa = (x as u32) & 0x03;
+        data.iter()
+            .map(|&x| {
+                if (x & 0x7f) == 0x7f {
+                    return if (x & 0x80) != 0 {
+                        f32::NEG_INFINITY
+                    } else {
+                        f32::INFINITY
+                    };
+                }
+                if (x & 0x7f) == 0x7e {
+                    return f32::NAN;
+                }
+                if (x & 0x7f) == 0 {
+                    return if (x & 0x80) != 0 { -0.0 } else { 0.0 };
+                }
+                let sign = ((x as u32) & 0x80) << 24;
+                let exp = ((x as u32) & 0x7c) >> 2;
+                let mantissa = (x as u32) & 0x03;
 
-            if exp == 0 {
-                // Subnormal
-                let val = (mantissa as f32) * 0.000015258789f32; // 2^(-14-2) = 2^-16
-                if (x & 0x80) != 0 { -val } else { val }
-            } else {
-                // Normal
-                let f32_exp = (exp as i32 - 15 + 127) as u32;
-                let f32_mantissa = mantissa << 21;
-                f32::from_bits(sign | (f32_exp << 23) | f32_mantissa)
-            }
-        }).collect()
+                if exp == 0 {
+                    // Subnormal
+                    let val = (mantissa as f32) * 0.000015258789f32; // 2^(-14-2) = 2^-16
+                    if (x & 0x80) != 0 {
+                        -val
+                    } else {
+                        val
+                    }
+                } else {
+                    // Normal
+                    let f32_exp = (exp as i32 - 15 + 127) as u32;
+                    let f32_mantissa = mantissa << 21;
+                    f32::from_bits(sign | (f32_exp << 23) | f32_mantissa)
+                }
+            })
+            .collect()
     }
 }
 

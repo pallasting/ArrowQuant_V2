@@ -10,16 +10,16 @@ use pyo3::types::PyDict;
 use std::time::Duration;
 
 /// Test that async bridge can handle successful futures
-/// 
+///
 /// **Validates: Requirements 9.2 - Success scenario**
 #[test]
 fn test_async_bridge_success() {
     pyo3::prepare_freethreaded_python();
-    
+
     Python::with_gil(|py| {
         // Import asyncio
         let asyncio = py.import_bound("asyncio").unwrap();
-        
+
         // Create a simple async function that returns a value
         let code = r#"
 import asyncio
@@ -32,24 +32,29 @@ async def test_async():
 
 result = asyncio.run(test_async())
 "#;
-        
+
         // Execute the code
         let locals = PyDict::new_bound(py);
         py.run_bound(code, None, Some(&locals)).unwrap();
-        
+
         // Check result
-        let result: String = locals.get_item("result").unwrap().unwrap().extract().unwrap();
+        let result: String = locals
+            .get_item("result")
+            .unwrap()
+            .unwrap()
+            .extract()
+            .unwrap();
         assert_eq!(result, "success");
     });
 }
 
 /// Test that async bridge properly handles GIL management
-/// 
+///
 /// **Validates: Requirements 9.2 - GIL management correctness**
 #[test]
 fn test_async_bridge_gil_management() {
     pyo3::prepare_freethreaded_python();
-    
+
     Python::with_gil(|py| {
         // Test that we can create multiple async quantizers without deadlock
         let code = r#"
@@ -62,22 +67,27 @@ async def test_multiple():
 
 result = asyncio.run(test_multiple())
 "#;
-        
+
         let locals = PyDict::new_bound(py);
         py.run_bound(code, None, Some(&locals)).unwrap();
-        
-        let result: usize = locals.get_item("result").unwrap().unwrap().extract().unwrap();
+
+        let result: usize = locals
+            .get_item("result")
+            .unwrap()
+            .unwrap()
+            .extract()
+            .unwrap();
         assert_eq!(result, 5);
     });
 }
 
 /// Test that async bridge can handle errors correctly
-/// 
+///
 /// **Validates: Requirements 9.2 - Failure scenario and error propagation**
 #[test]
 fn test_async_bridge_error_handling() {
     pyo3::prepare_freethreaded_python();
-    
+
     Python::with_gil(|py| {
         // Test that errors are properly propagated
         let code = r#"
@@ -98,22 +108,27 @@ async def test_error():
 
 result = asyncio.run(test_error())
 "#;
-        
+
         let locals = PyDict::new_bound(py);
         py.run_bound(code, None, Some(&locals)).unwrap();
-        
-        let result: String = locals.get_item("result").unwrap().unwrap().extract().unwrap();
+
+        let result: String = locals
+            .get_item("result")
+            .unwrap()
+            .unwrap()
+            .extract()
+            .unwrap();
         assert_eq!(result, "error_caught");
     });
 }
 
 /// Test concurrent async operations (10+ tasks)
-/// 
+///
 /// **Validates: Requirements 9.2 - Concurrent execution with 10+ tasks**
 #[test]
 fn test_async_bridge_concurrent_10plus() {
     pyo3::prepare_freethreaded_python();
-    
+
     Python::with_gil(|py| {
         // Test 12 concurrent async operations
         let code = r#"
@@ -146,22 +161,30 @@ async def test_concurrent():
 
 result = asyncio.run(test_concurrent())
 "#;
-        
+
         let locals = PyDict::new_bound(py);
         py.run_bound(code, None, Some(&locals)).unwrap();
-        
-        let result: usize = locals.get_item("result").unwrap().unwrap().extract().unwrap();
-        assert_eq!(result, 12, "Should complete 12 concurrent tasks without deadlock");
+
+        let result: usize = locals
+            .get_item("result")
+            .unwrap()
+            .unwrap()
+            .extract()
+            .unwrap();
+        assert_eq!(
+            result, 12,
+            "Should complete 12 concurrent tasks without deadlock"
+        );
     });
 }
 
 /// Test progress callback functionality
-/// 
+///
 /// **Validates: Requirements 9.2 - Progress callbacks work correctly**
 #[test]
 fn test_async_bridge_progress_callback() {
     pyo3::prepare_freethreaded_python();
-    
+
     Python::with_gil(|py| {
         let code = r#"
 import asyncio
@@ -196,22 +219,30 @@ async def test_progress():
 
 result = asyncio.run(test_progress())
 "#;
-        
+
         let locals = PyDict::new_bound(py);
         py.run_bound(code, None, Some(&locals)).unwrap();
-        
-        let result: usize = locals.get_item("result").unwrap().unwrap().extract().unwrap();
-        assert!(result > 0, "Progress callback should be called at least once");
+
+        let result: usize = locals
+            .get_item("result")
+            .unwrap()
+            .unwrap()
+            .extract()
+            .unwrap();
+        assert!(
+            result > 0,
+            "Progress callback should be called at least once"
+        );
     });
 }
 
 /// Test multiple models async method
-/// 
+///
 /// **Validates: Requirements 9.2 - Multiple concurrent model quantization**
 #[test]
 fn test_async_bridge_multiple_models() {
     pyo3::prepare_freethreaded_python();
-    
+
     Python::with_gil(|py| {
         let code = r#"
 import asyncio
@@ -241,22 +272,30 @@ async def test_multiple():
 
 result = asyncio.run(test_multiple())
 "#;
-        
+
         let locals = PyDict::new_bound(py);
         py.run_bound(code, None, Some(&locals)).unwrap();
-        
-        let result: String = locals.get_item("result").unwrap().unwrap().extract().unwrap();
-        assert_eq!(result, "error_caught", "Should handle multiple models method");
+
+        let result: String = locals
+            .get_item("result")
+            .unwrap()
+            .unwrap()
+            .extract()
+            .unwrap();
+        assert_eq!(
+            result, "error_caught",
+            "Should handle multiple models method"
+        );
     });
 }
 
 /// Test error propagation from Rust to Python
-/// 
+///
 /// **Validates: Requirements 9.2 - Error propagation from Rust to Python**
 #[test]
 fn test_async_bridge_error_propagation() {
     pyo3::prepare_freethreaded_python();
-    
+
     Python::with_gil(|py| {
         let code = r#"
 import asyncio
@@ -286,11 +325,19 @@ async def test_errors():
 
 result = asyncio.run(test_errors())
 "#;
-        
+
         let locals = PyDict::new_bound(py);
         py.run_bound(code, None, Some(&locals)).unwrap();
-        
-        let result: usize = locals.get_item("result").unwrap().unwrap().extract().unwrap();
-        assert_eq!(result, 3, "All error cases should be properly propagated to Python");
+
+        let result: usize = locals
+            .get_item("result")
+            .unwrap()
+            .unwrap()
+            .extract()
+            .unwrap();
+        assert_eq!(
+            result, 3,
+            "All error cases should be properly propagated to Python"
+        );
     });
 }

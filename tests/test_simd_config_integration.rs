@@ -9,17 +9,20 @@ use arrow_quant_v2::time_aware::{SimdQuantConfig, TimeAwareQuantizer};
 fn test_config_usage_in_quantizer() {
     // Test that config can be created and used
     let config = SimdQuantConfig::default();
-    
+
     // Verify config is sensible
     assert!(config.scalar_threshold > 0);
-    
+
     // Test with quantizer
     let mut quantizer = TimeAwareQuantizer::new(10);
     quantizer.simd_config = config;
-    
+
     // Verify config is applied
     assert_eq!(quantizer.simd_config.enabled, config.enabled);
-    assert_eq!(quantizer.simd_config.scalar_threshold, config.scalar_threshold);
+    assert_eq!(
+        quantizer.simd_config.scalar_threshold,
+        config.scalar_threshold
+    );
 }
 
 #[test]
@@ -28,7 +31,7 @@ fn test_config_enabled() {
         enabled: true,
         scalar_threshold: 64,
     };
-    
+
     assert!(config.enabled);
     assert_eq!(config.scalar_threshold, 64);
 }
@@ -39,7 +42,7 @@ fn test_config_disabled() {
         enabled: false,
         scalar_threshold: usize::MAX,
     };
-    
+
     assert!(!config.enabled);
 }
 
@@ -49,7 +52,7 @@ fn test_config_custom_threshold() {
         enabled: true,
         scalar_threshold: 256,
     };
-    
+
     assert!(config.enabled);
     assert_eq!(config.scalar_threshold, 256);
 }
@@ -58,21 +61,21 @@ fn test_config_custom_threshold() {
 fn test_config_with_quantizer() {
     // Test that config works with actual quantization
     let mut quantizer = TimeAwareQuantizer::new(5);
-    
+
     // Enable SIMD with low threshold
     quantizer.simd_config = SimdQuantConfig {
         enabled: true,
         scalar_threshold: 0,
     };
-    
+
     assert!(quantizer.simd_config.enabled);
-    
+
     // Disable SIMD
     quantizer.simd_config = SimdQuantConfig {
         enabled: false,
         scalar_threshold: usize::MAX,
     };
-    
+
     assert!(!quantizer.simd_config.enabled);
 }
 
@@ -84,7 +87,7 @@ fn test_config_various_thresholds() {
             enabled: true,
             scalar_threshold: threshold,
         };
-        
+
         assert!(config.enabled);
         assert_eq!(config.scalar_threshold, threshold);
     }
@@ -96,9 +99,9 @@ fn test_config_clone() {
         enabled: true,
         scalar_threshold: 64,
     };
-    
+
     let config2 = config1.clone();
-    
+
     assert_eq!(config1.enabled, config2.enabled);
     assert_eq!(config1.scalar_threshold, config2.scalar_threshold);
 }

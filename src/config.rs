@@ -845,8 +845,8 @@ impl DiffusionQuantConfig {
                 calibration_samples: 512,
                 deployment_profile: profile,
                 fail_fast: false,
-                num_threads: 0,          // Auto-detect
-                enable_streaming: true,  // Dimension A streaming for all profiles
+                num_threads: 0,         // Auto-detect
+                enable_streaming: true, // Dimension A streaming for all profiles
                 skip_sensitive_layers: false,
                 sensitive_layer_names: Vec::new(),
                 sensitive_layer_patterns: Vec::new(),

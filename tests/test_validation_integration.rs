@@ -283,15 +283,18 @@ fn test_validation_output_identical_to_baseline() {
         "Data length should be identical"
     );
     assert_eq!(
-        result_baseline.data(), result_with_validation.data(),
+        result_baseline.data(),
+        result_with_validation.data(),
         "Quantized data should be identical"
     );
     assert_eq!(
-        result_baseline.scales(), result_with_validation.scales(),
+        result_baseline.scales(),
+        result_with_validation.scales(),
         "Scales should be identical"
     );
     assert_eq!(
-        result_baseline.zero_points(), result_with_validation.zero_points(),
+        result_baseline.zero_points(),
+        result_with_validation.zero_points(),
         "Zero points should be identical"
     );
 }

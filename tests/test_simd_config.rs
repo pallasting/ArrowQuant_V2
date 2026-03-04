@@ -8,16 +8,15 @@
 ///! - scalar_threshold: usize (minimum array size for SIMD)
 ///!
 ///! SIMD width detection is now handled automatically at runtime.
-
 use arrow_quant_v2::time_aware::SimdQuantConfig;
 
 #[test]
 fn test_default_config() {
     let config = SimdQuantConfig::default();
-    
+
     // Verify that default config is created
     assert!(config.scalar_threshold > 0);
-    
+
     // On platforms with SIMD support, it should be enabled by default
     #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     {
@@ -32,7 +31,7 @@ fn test_simd_enabled() {
         enabled: true,
         scalar_threshold: 64,
     };
-    
+
     assert!(config.enabled);
     assert_eq!(config.scalar_threshold, 64);
 }
@@ -43,7 +42,7 @@ fn test_simd_disabled() {
         enabled: false,
         scalar_threshold: 64,
     };
-    
+
     assert!(!config.enabled);
 }
 
@@ -53,7 +52,7 @@ fn test_custom_threshold() {
         enabled: true,
         scalar_threshold: 128,
     };
-    
+
     assert!(config.enabled);
     assert_eq!(config.scalar_threshold, 128);
 }
@@ -64,7 +63,7 @@ fn test_config_clone() {
         enabled: true,
         scalar_threshold: 64,
     };
-    
+
     let config2 = config1.clone();
     assert_eq!(config1.enabled, config2.enabled);
     assert_eq!(config1.scalar_threshold, config2.scalar_threshold);
@@ -76,7 +75,7 @@ fn test_config_copy() {
         enabled: true,
         scalar_threshold: 64,
     };
-    
+
     let config2 = config1; // Copy
     assert_eq!(config1.enabled, config2.enabled);
     assert_eq!(config1.scalar_threshold, config2.scalar_threshold);
@@ -86,13 +85,13 @@ fn test_config_copy() {
 fn test_various_thresholds() {
     // Test with different threshold values
     let thresholds = vec![32, 64, 128, 256, 512, 1024];
-    
+
     for threshold in thresholds {
         let config = SimdQuantConfig {
             enabled: true,
             scalar_threshold: threshold,
         };
-        
+
         assert!(config.enabled);
         assert_eq!(config.scalar_threshold, threshold);
     }
@@ -105,7 +104,7 @@ fn test_zero_threshold() {
         enabled: true,
         scalar_threshold: 0,
     };
-    
+
     assert!(config.enabled);
     assert_eq!(config.scalar_threshold, 0);
 }
@@ -117,7 +116,7 @@ fn test_max_threshold() {
         enabled: true,
         scalar_threshold: usize::MAX,
     };
-    
+
     assert!(config.enabled);
     assert_eq!(config.scalar_threshold, usize::MAX);
 }

@@ -40,10 +40,7 @@ mod tests {
         // Validate scale > 0.0 and finite (if provided)
         if let Some(s) = scale {
             if s <= 0.0 {
-                return Err(format!(
-                    "Invalid scale: {}. Must be greater than 0.0",
-                    s
-                ));
+                return Err(format!("Invalid scale: {}. Must be greater than 0.0", s));
             }
             if !s.is_finite() {
                 return Err(format!(

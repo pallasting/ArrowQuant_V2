@@ -43,11 +43,7 @@ mod tests {
             None,
         );
 
-        RecordBatch::try_new(
-            schema,
-            vec![Arc::new(layer_names), Arc::new(weights_list)],
-        )
-        .unwrap()
+        RecordBatch::try_new(schema, vec![Arc::new(layer_names), Arc::new(weights_list)]).unwrap()
     }
 
     #[test]

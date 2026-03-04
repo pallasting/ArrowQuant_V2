@@ -177,11 +177,12 @@ impl ParquetV2Extended {
                 // Extract data from Arrow variant
                 let quantized_data_array = arrow_layer.quantized_data();
                 let data: Vec<u8> = quantized_data_array.values().to_vec();
-                
+
                 let time_group_params = arrow_layer.time_group_params.clone();
                 let scales: Vec<f32> = time_group_params.iter().map(|p| p.scale).collect();
-                let zero_points: Vec<f32> = time_group_params.iter().map(|p| p.zero_point).collect();
-                
+                let zero_points: Vec<f32> =
+                    time_group_params.iter().map(|p| p.zero_point).collect();
+
                 self.data = data;
                 self.scales = scales;
                 self.zero_points = zero_points;
@@ -226,19 +227,20 @@ impl ParquetV2Extended {
             QuantizedLayer::Arrow(arrow_layer) => {
                 // Extract data from Arrow variant
                 // The Arrow format stores data only once with time_group_ids mapping to parameters
-                
+
                 // Extract quantized data from Arrow RecordBatch
                 let quantized_data_array = arrow_layer.quantized_data();
                 let data: Vec<u8> = quantized_data_array.values().to_vec();
-                
+
                 // Extract time group parameters
                 let time_group_params = arrow_layer.time_group_params.clone();
-                
+
                 // For Parquet V2 Extended schema, we need to provide scales and zero_points
                 // as flat vectors. We'll extract them from time_group_params.
                 let scales: Vec<f32> = time_group_params.iter().map(|p| p.scale).collect();
-                let zero_points: Vec<f32> = time_group_params.iter().map(|p| p.zero_point).collect();
-                
+                let zero_points: Vec<f32> =
+                    time_group_params.iter().map(|p| p.zero_point).collect();
+
                 self.data = data;
                 self.scales = scales;
                 self.zero_points = zero_points;

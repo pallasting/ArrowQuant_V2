@@ -1,12 +1,11 @@
+use arrow::array::{UInt32Array, UInt8Array};
 /// Test for QuantizedLayerArrowOptimized structure
 ///
 /// This test verifies that the optimized structure with Arc-based shared ownership
 /// works correctly and provides the expected memory efficiency benefits.
-
 use arrow_quant_v2::time_aware::{
     QuantizationMetadata, QuantizedLayerArrowOptimized, TimeGroupParams,
 };
-use arrow::array::{UInt32Array, UInt8Array};
 use std::sync::Arc;
 
 #[test]
@@ -259,7 +258,7 @@ fn test_quantized_layer_arrow_optimized_memory_layout() {
 
     // The structure should have a predictable size
     let size = mem::size_of::<QuantizedLayerArrowOptimized>();
-    
+
     // Size should be reasonable (not bloated)
     // UInt8Array + UInt32Array + 2 Arc pointers
     // This is a sanity check, not an exact size requirement

@@ -1,3 +1,4 @@
+use arrow_quant_v2::simd::{is_simd_available, SimdWidth};
 /// Unit tests for quantize_layer_auto() automatic SIMD/scalar selection
 ///
 /// This test suite verifies that the quantize_layer_auto() function correctly:
@@ -7,9 +8,7 @@
 /// 4. Produces correct quantization results regardless of path taken
 ///
 /// **Validates Requirements 3.2, 6.1, 12.3**
-
 use arrow_quant_v2::time_aware::{TimeAwareQuantizer, TimeGroupParams};
-use arrow_quant_v2::simd::{is_simd_available, SimdWidth};
 
 #[test]
 fn test_quantize_layer_auto_basic() {
@@ -48,14 +47,18 @@ fn test_quantize_layer_auto_basic() {
     assert!(result.is_ok(), "quantize_layer_auto should succeed");
 
     let layer = result.unwrap();
-    assert_eq!(layer.len(), weights.len(), "Output length should match input");
+    assert_eq!(
+        layer.len(),
+        weights.len(),
+        "Output length should match input"
+    );
 }
 
 #[test]
 fn test_quantize_layer_auto_simd_detection() {
     // Check SIMD availability
     let simd_width = is_simd_available();
-    
+
     println!("SIMD detection results:");
     println!("  Available: {}", simd_width.is_available());
     println!("  Width: {}", simd_width.width());
@@ -94,13 +97,13 @@ fn test_quantize_layer_auto_simd_detection() {
 fn test_quantize_layer_auto_consistency() {
     // Verify that quantize_layer_auto produces consistent results
     // regardless of which path (SIMD or scalar) is taken
-    
+
     let mut quantizer = TimeAwareQuantizer::new(3);
     quantizer.group_timesteps(20); // Match the number of weights
 
     let weights = vec![
-        0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
-        1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0,
+        0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8,
+        1.9, 2.0,
     ];
     let params = vec![
         TimeGroupParams {
@@ -197,10 +200,17 @@ fn test_quantize_layer_auto_large_array() {
 
     // Test quantize_layer_auto with large array
     let result = quantizer.quantize_layer_auto(&weights, &params);
-    assert!(result.is_ok(), "quantize_layer_auto should succeed with large array");
+    assert!(
+        result.is_ok(),
+        "quantize_layer_auto should succeed with large array"
+    );
 
     let layer = result.unwrap();
-    assert_eq!(layer.len(), weights.len(), "Output length should match input");
+    assert_eq!(
+        layer.len(),
+        weights.len(),
+        "Output length should match input"
+    );
 }
 
 #[test]
@@ -218,7 +228,10 @@ fn test_quantize_layer_auto_empty_input() {
 
     // Should fail with empty input
     let result = quantizer.quantize_layer_auto(&weights, &params);
-    assert!(result.is_err(), "quantize_layer_auto should fail with empty input");
+    assert!(
+        result.is_err(),
+        "quantize_layer_auto should fail with empty input"
+    );
 }
 
 #[test]
@@ -243,7 +256,10 @@ fn test_quantize_layer_auto_invalid_params() {
     if let Err(ref e) = result {
         eprintln!("Expected error: {:?}", e);
     }
-    assert!(result.is_err(), "quantize_layer_auto should fail with invalid params");
+    assert!(
+        result.is_err(),
+        "quantize_layer_auto should fail with invalid params"
+    );
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -251,13 +267,13 @@ fn test_quantize_layer_auto_invalid_params() {
 fn test_quantize_layer_auto_x86_64() {
     // Platform-specific test for x86_64
     println!("Testing on x86_64 platform");
-    
+
     let simd_width = is_simd_available();
     println!("SIMD support: {:?}", simd_width);
-    
+
     // On x86_64, we should have at least AVX2 on modern CPUs
     // But we don't require it - just test that auto selection works
-    
+
     let mut quantizer = TimeAwareQuantizer::new(2);
     quantizer.group_timesteps(100);
 
@@ -286,13 +302,16 @@ fn test_quantize_layer_auto_x86_64() {
 fn test_quantize_layer_auto_aarch64() {
     // Platform-specific test for ARM64
     println!("Testing on ARM64 platform");
-    
+
     let simd_width = is_simd_available();
     println!("SIMD support: {:?}", simd_width);
-    
+
     // On ARM64, NEON should be available
-    assert!(simd_width.is_available(), "NEON should be available on ARM64");
-    
+    assert!(
+        simd_width.is_available(),
+        "NEON should be available on ARM64"
+    );
+
     let mut quantizer = TimeAwareQuantizer::new(2);
     quantizer.group_timesteps(100);
 
