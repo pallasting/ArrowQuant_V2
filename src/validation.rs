@@ -1066,8 +1066,8 @@ mod property_tests {
 
             let similarity = validator.cosine_similarity(a_slice, b_slice);
 
-            // Property: similarity must be in [0, 1]
-            prop_assert!(similarity >= 0.0, "Similarity {} should be >= 0.0", similarity);
+            // Property: similarity must be in [-1, 1]
+            prop_assert!(similarity >= -1.0, "Similarity {} should be >= -1.0", similarity);
             prop_assert!(similarity <= 1.0, "Similarity {} should be <= 1.0", similarity);
         }
     }

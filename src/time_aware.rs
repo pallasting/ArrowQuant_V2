@@ -1221,6 +1221,15 @@ impl TimeAwareQuantizer {
     ) -> Result<Vec<u8>> {
         use crate::simd::{is_simd_available, quantize_simd};
 
+        // Validate lengths match
+        if weights.len() != time_group_ids.len() {
+            return Err(QuantError::QuantizationFailed(format!(
+                "Length mismatch: weights.len()={}, time_group_ids.len()={}",
+                weights.len(),
+                time_group_ids.len()
+            )));
+        }
+
         // Use buffer pool for efficient memory reuse
         let mut buffer = self.buffer_pool.acquire(weights.len());
 
